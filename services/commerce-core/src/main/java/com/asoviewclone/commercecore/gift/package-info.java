@@ -1,4 +1,2 @@
-/**
- * gift domain module.
- */
+/** gift domain module. */
 package com.asoviewclone.commercecore.gift;

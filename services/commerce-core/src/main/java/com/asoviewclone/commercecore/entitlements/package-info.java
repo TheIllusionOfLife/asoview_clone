@@ -1,4 +1,2 @@
-/**
- * entitlements domain module.
- */
+/** entitlements domain module. */
 package com.asoviewclone.commercecore.entitlements;

@@ -1,4 +1,2 @@
-/**
- * catalog domain module.
- */
+/** catalog domain module. */
 package com.asoviewclone.commercecore.catalog;

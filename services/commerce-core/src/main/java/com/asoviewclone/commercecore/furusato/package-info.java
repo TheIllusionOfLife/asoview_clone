@@ -1,4 +1,2 @@
-/**
- * furusato domain module.
- */
+/** furusato domain module. */
 package com.asoviewclone.commercecore.furusato;

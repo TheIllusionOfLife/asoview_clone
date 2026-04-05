@@ -1,4 +1,2 @@
-/**
- * payments domain module.
- */
+/** payments domain module. */
 package com.asoviewclone.commercecore.payments;
