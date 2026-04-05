@@ -1,0 +1,721 @@
+アソビュー完全再現
+Google Cloud 実装仕様レポート v1.0
+Coding Agent 渡し用 — 完全再現仕様書
+
+
+0. エグゼクティブサマリー
+本レポートは、アソビュー株式会社の主要サービスをGoogle Cloud Platform (GCP) 上で完全に再現するための実装仕様書です。Claude CodeやCodexなどのCoding Agentに渡すことを前提に、画面仕様・API・データモデル・インフラ構成を齟齬なく記述しています。
+
+対象サービス（優先度順）
+
+
+確定済み技術スタック（調査結果）
+
+
+1. システム全体アーキテクチャ（GCP版）
+
+1.1 GCPプロジェクト構成
+GCPのリソース階層をアソビューのBigQuery設計（lake/mart分離）に準拠して設計する。
+
+
+organization: asoview-clone
+├── project: asoview-prod          # 本番アプリ全般
+│     GKE, Cloud Spanner, Cloud SQL, Memorystore
+│     Cloud Storage, Pub/Sub, Vertex AI Predictions
+│     Cloud Armor, Cloud CDN, Cloud DNS
+│
+├── project: asoview-data-lake     # 生データ集積
+│     BigQuery dataset: raw_bookings / raw_users / raw_pageviews
+│     BigQuery dataset: raw_ga4_events / raw_braze_events
+│     TROCCOのService Accountはここのみ書き込み可
+│
+├── project: asoview-data-mart     # 分析用マート
+│     BigQuery dataset: mart_daily_gmv
+│     BigQuery dataset: mart_user_segments (RFM)
+│     BigQuery dataset: mart_facility_ranking
+│     BigQuery dataset: mart_repeat_rate
+│     Tableauはここを参照
+│
+├── project: asoview-ml            # ML基盤
+│     Vertex AI Workbench / Pipelines / Predictions
+│     BigQuery ML モデル
+│
+└── project: asoview-devops        # CI/CD基盤
+      Artifact Registry, Cloud Build, Cloud Deploy
+      Secret Manager, Cloud Monitoring
+
+1.2 GKEクラスター構成（Namespace設計）
+
+
+1.3 ネットワーク・エッジ層
+
+
+1.4 イベント・メッセージング（Pub/Sub トピック一覧）
+
+
+2. アソビュー！ — 詳細仕様
+会員数1,800万人、掲載施設10,000件超、600ジャンル以上を擁する日本最大級の遊び予約マーケットプレイス。
+
+2.1 画面構成（ルーティング）
+
+
+2.2 デザイントークン（CSS変数）
+
+/* tokens.css — asoview! Design Tokens */
+:root {
+  /* Brand Colors */
+  --color-primary:        #FF6B35;  /* メインオレンジ */
+  --color-primary-dark:   #E55A20;
+  --color-primary-light:  #FF8C5A;
+  --color-secondary:      #2B5FA5;  /* アクセントブルー */
+  --color-accent-green:   #34A853;  /* 在庫あり / 割引 */
+  --color-accent-red:     #EA4335;  /* 売り切れ / エラー */
+  --color-accent-yellow:  #FBBC04;  /* ★評価 */
+
+  /* Text */
+  --color-text-primary:   #1A1A1A;
+  --color-text-secondary: #555555;
+  --color-text-hint:      #999999;
+  --color-text-disabled:  #BBBBBB;
+  --color-text-inverse:   #FFFFFF;
+
+  /* Backgrounds */
+  --color-bg-base:        #F5F5F5;
+  --color-surface:        #FFFFFF;
+  --color-surface-hover:  #FFF8F5;
+  --color-border:         #E0E0E0;
+  --color-border-focus:   #FF6B35;
+
+  /* Spacing (8px grid) */
+  --space-1: 4px;   --space-2: 8px;   --space-3: 12px;
+  --space-4: 16px;  --space-5: 20px;  --space-6: 24px;
+  --space-8: 32px;  --space-10: 40px; --space-12: 48px;
+  --space-16: 64px;
+
+  /* Typography */
+  --font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+  --text-xs: 11px;  --text-sm: 13px;  --text-base: 14px;
+  --text-md: 16px;  --text-lg: 18px;  --text-xl: 20px;
+  --text-2xl: 24px; --text-3xl: 28px; --text-4xl: 32px;
+  --line-height: 1.6;  --line-height-tight: 1.3;
+
+  /* Border */
+  --radius-sm: 4px;  --radius-md: 8px;  --radius-lg: 12px;
+  --radius-xl: 16px; --radius-pill: 9999px;
+
+  /* Shadow */
+  --shadow-sm:   0 1px 3px rgba(0,0,0,0.08);
+  --shadow-card: 0 2px 8px rgba(0,0,0,0.08);
+  --shadow-hover: 0 4px 16px rgba(0,0,0,0.14);
+  --shadow-modal: 0 8px 32px rgba(0,0,0,0.20);
+
+  /* Breakpoints */
+  --bp-sm: 375px;  --bp-md: 768px;  --bp-lg: 1024px;  --bp-xl: 1280px;
+}
+
+2.3 主要コンポーネント仕様
+FacilityCard（施設カード — 全ページ共通）
+
+
+SearchBar（検索フォーム — トップ＆検索結果ページ）
+アソビュー！の最重要コンポーネント。CVRへの直接寄与が最大。
+
+
+2.4 カテゴリー・タグ一覧（マスタデータ）
+大カテゴリー（genre）
+
+
+検索タグ（filter_tag）
+
+
+2.5 予約フロー（詳細ステップ）
+
+
+※ 在庫仮押さえ（Step2）はMemorystore(Redis)でTTL=15分のキーとして管理。期限切れ時に在庫を自動返却。
+※ 決済は非同期（Stripe webhookで確定）のため、booking.statusはpending→confirmedの2フェーズ設計。
+
+2.6 ポイント・会員制度
+
+
+2.7 APIエンドポイント一覧（アソビュー！）
+
+
+3. データモデル（Cloud Spanner DDL）
+Cloud Spannerは強整合性グローバルトランザクションを提供し、同時予約の競合制御に最適。アソビューも実際に移行を開始している。
+
+3.1 施設・プラン系テーブル
+
+-- 施設テーブル
+CREATE TABLE facilities (
+  facility_id    STRING(36) NOT NULL,  -- UUID
+  name           STRING(200) NOT NULL,
+  name_kana      STRING(200),
+  description    STRING(MAX),
+  prefecture_code STRING(2) NOT NULL,  -- JIS都道府県コード
+  city           STRING(100),
+  address        STRING(300),
+  lat            FLOAT64,
+  lng            FLOAT64,
+  phone          STRING(20),
+  website_url    STRING(500),
+  main_image_url STRING(500),
+  status         STRING(20) NOT NULL,  -- active/inactive/suspended
+  partner_id     STRING(36) NOT NULL,  -- 施設パートナーID
+  commission_rate FLOAT64 NOT NULL DEFAULT (0.15),
+  created_at     TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
+  updated_at     TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
+) PRIMARY KEY (facility_id);
+
+-- プランテーブル（施設の「商品」単位）
+CREATE TABLE plans (
+  plan_id        STRING(36) NOT NULL,
+  facility_id    STRING(36) NOT NULL,
+  name           STRING(200) NOT NULL,
+  description    STRING(MAX),
+  price          INT64 NOT NULL,  -- 円（最低料金）
+  price_unit     STRING(20) NOT NULL DEFAULT ("人"),
+  duration_minutes INT64,
+  min_people     INT64 NOT NULL DEFAULT (1),
+  max_people     INT64,
+  requires_datetime BOOL NOT NULL DEFAULT (true),
+  cancellation_hours INT64 NOT NULL DEFAULT (24),  -- キャンセル可能時間前
+  age_min        INT64,
+  age_max        INT64,
+  includes       STRING(MAX),  -- 料金に含まれるもの
+  excludes       STRING(MAX),  -- 料金に含まれないもの
+  status         STRING(20) NOT NULL,
+  sort_order     INT64 NOT NULL DEFAULT (0),
+  created_at     TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
+  updated_at     TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
+) PRIMARY KEY (facility_id, plan_id),
+INTERLEAVE IN PARENT facilities ON DELETE CASCADE;
+
+-- スロット（日時枠）テーブル — 在庫管理の核心
+CREATE TABLE plan_slots (
+  slot_id        STRING(36) NOT NULL,
+  plan_id        STRING(36) NOT NULL,
+  facility_id    STRING(36) NOT NULL,
+  slot_datetime  TIMESTAMP NOT NULL,
+  capacity       INT64 NOT NULL,
+  reserved       INT64 NOT NULL DEFAULT (0),
+  held           INT64 NOT NULL DEFAULT (0),  -- 仮押さえ中
+  status         STRING(20) NOT NULL DEFAULT ("open"),
+  created_at     TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
+  updated_at     TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
+) PRIMARY KEY (facility_id, plan_id, slot_id),
+INTERLEAVE IN PARENT plans ON DELETE CASCADE;
+
+CREATE INDEX idx_plan_slots_datetime ON plan_slots (facility_id, plan_id, slot_datetime);
+
+3.2 ユーザー・予約系テーブル
+
+-- ユーザーテーブル
+CREATE TABLE users (
+  user_id        STRING(36) NOT NULL,
+  email          STRING(254) NOT NULL,
+  email_verified BOOL NOT NULL DEFAULT (false),
+  name           STRING(100),
+  name_kana      STRING(100),
+  phone          STRING(20),
+  birth_date     DATE,
+  gender         STRING(10),  -- male/female/other/unspecified
+  prefecture_code STRING(2),
+  family_type    STRING(20),  -- solo/couple/family/group
+  membership_rank STRING(20) NOT NULL DEFAULT ("standard"),
+  point_balance  INT64 NOT NULL DEFAULT (0),
+  braze_user_id  STRING(100),  -- Braze連携ID
+  authlete_sub   STRING(200),  -- Authlete Subject
+  status         STRING(20) NOT NULL DEFAULT ("active"),
+  created_at     TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
+  updated_at     TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
+) PRIMARY KEY (user_id);
+
+CREATE UNIQUE INDEX idx_users_email ON users (email);
+
+-- 予約テーブル
+CREATE TABLE bookings (
+  booking_id     STRING(36) NOT NULL,
+  user_id        STRING(36) NOT NULL,
+  plan_id        STRING(36) NOT NULL,
+  facility_id    STRING(36) NOT NULL,
+  slot_id        STRING(36),  -- 日時指定の場合
+  slot_datetime  TIMESTAMP,
+  num_people     INT64 NOT NULL DEFAULT (1),
+  unit_price     INT64 NOT NULL,
+  subtotal       INT64 NOT NULL,
+  discount_amount INT64 NOT NULL DEFAULT (0),
+  point_used     INT64 NOT NULL DEFAULT (0),
+  coupon_code    STRING(50),
+  total_price    INT64 NOT NULL,
+  status         STRING(20) NOT NULL DEFAULT ("pending"),
+  -- pending / confirmed / cancelled / used / expired
+  payment_method STRING(30),  -- credit_card/paypay/convenience
+  payment_id     STRING(100),  -- Stripe PaymentIntent ID
+  cancelled_at   TIMESTAMP,
+  cancel_reason  STRING(200),
+  booked_at      TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
+  updated_at     TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
+) PRIMARY KEY (booking_id);
+
+CREATE INDEX idx_bookings_user ON bookings (user_id, booked_at DESC);
+CREATE INDEX idx_bookings_facility ON bookings (facility_id, booked_at DESC);
+
+-- 電子チケットテーブル
+CREATE TABLE tickets (
+  ticket_id      STRING(36) NOT NULL,
+  booking_id     STRING(36) NOT NULL,
+  user_id        STRING(36) NOT NULL,
+  qr_token       STRING(64) NOT NULL,  -- HMAC-SHA256署名済みトークン
+  status         STRING(20) NOT NULL DEFAULT ("valid"),
+  -- valid / used / expired / cancelled
+  used_at        TIMESTAMP,
+  scanned_by     STRING(100),  -- スキャンしたスタッフID
+  issued_at      TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
+  expires_at     TIMESTAMP NOT NULL,
+) PRIMARY KEY (ticket_id);
+
+CREATE UNIQUE INDEX idx_tickets_qr_token ON tickets (qr_token);
+CREATE INDEX idx_tickets_booking ON tickets (booking_id);
+
+3.3 その他マスタ・補助テーブル
+
+-- カテゴリーマスタ
+CREATE TABLE categories (
+  category_id    STRING(50) NOT NULL,
+  parent_id      STRING(50),
+  name           STRING(100) NOT NULL,
+  name_en        STRING(100),
+  icon_url       STRING(500),
+  sort_order     INT64 NOT NULL DEFAULT (0),
+) PRIMARY KEY (category_id);
+
+-- 施設×カテゴリー中間テーブル
+CREATE TABLE facility_categories (
+  facility_id    STRING(36) NOT NULL,
+  category_id    STRING(50) NOT NULL,
+  is_primary     BOOL NOT NULL DEFAULT (false),
+) PRIMARY KEY (facility_id, category_id);
+
+-- 施設画像
+CREATE TABLE facility_images (
+  image_id       STRING(36) NOT NULL,
+  facility_id    STRING(36) NOT NULL,
+  url            STRING(500) NOT NULL,
+  alt            STRING(200),
+  sort_order     INT64 NOT NULL DEFAULT (0),
+  is_main        BOOL NOT NULL DEFAULT (false),
+) PRIMARY KEY (facility_id, image_id),
+INTERLEAVE IN PARENT facilities ON DELETE CASCADE;
+
+-- 口コミテーブル
+CREATE TABLE reviews (
+  review_id      STRING(36) NOT NULL,
+  facility_id    STRING(36) NOT NULL,
+  user_id        STRING(36) NOT NULL,
+  booking_id     STRING(36) NOT NULL,
+  rating         INT64 NOT NULL,  -- 1-5
+  title          STRING(100),
+  body           STRING(MAX),
+  family_type    STRING(20),
+  visited_date   DATE,
+  is_published   BOOL NOT NULL DEFAULT (false),
+  helpful_count  INT64 NOT NULL DEFAULT (0),
+  created_at     TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
+) PRIMARY KEY (review_id);
+
+CREATE INDEX idx_reviews_facility ON reviews (facility_id, created_at DESC);
+
+-- お気に入りテーブル
+CREATE TABLE favorites (
+  user_id        STRING(36) NOT NULL,
+  facility_id    STRING(36) NOT NULL,
+  created_at     TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
+) PRIMARY KEY (user_id, facility_id);
+
+-- ポイント履歴
+CREATE TABLE point_transactions (
+  tx_id          STRING(36) NOT NULL,
+  user_id        STRING(36) NOT NULL,
+  amount         INT64 NOT NULL,  -- 正=獲得, 負=使用
+  tx_type        STRING(30) NOT NULL,  -- earn/use/expire/adjust
+  booking_id     STRING(36),
+  description    STRING(200),
+  expires_at     TIMESTAMP,
+  created_at     TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
+) PRIMARY KEY (user_id, tx_id),
+INTERLEAVE IN PARENT users ON DELETE CASCADE;
+
+
+4. ウラカタチケット — 詳細仕様
+レジャー・観光・文化施設向け電子チケットDXソリューション。2024年6月時点で30都府県87施設以上に導入。新宿御苑、上野動物園、平等院、海遊館、森美術館等の大型公共施設が導入。
+
+4.1 サービス構成（3つのUI）
+
+
+4.2 施設管理画面（Admin）画面構成
+
+
+4.3 生活者向け購入フロー（6ステップ）
+
+
+4.4 QRスキャナーアプリ仕様（現場スタッフ用）
+
+
+4.5 ウラカタチケット APIエンドポイント
+
+
+4.6 ウラカタチケット データモデル（追加テーブル）
+
+-- チケット種別（ウラカタチケット専用）
+CREATE TABLE urakata_ticket_types (
+  ticket_type_id STRING(36) NOT NULL,
+  facility_id    STRING(36) NOT NULL,
+  name           STRING(100) NOT NULL,
+  name_en        STRING(100),
+  name_zh_tw     STRING(100),
+  name_zh_cn     STRING(100),
+  name_ko        STRING(100),
+  price          INT64 NOT NULL,
+  target         STRING(30),  -- adult/child/senior/student/other
+  age_min        INT64,
+  age_max        INT64,
+  daily_capacity INT64,  -- 1日の最大販売数
+  sale_start     TIMESTAMP,
+  sale_end       TIMESTAMP,
+  valid_days     INT64 NOT NULL DEFAULT (1),  -- 有効日数
+  allow_reentry  BOOL NOT NULL DEFAULT (false),
+  status         STRING(20) NOT NULL DEFAULT ("active"),
+  sort_order     INT64 NOT NULL DEFAULT (0),
+  created_at     TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
+) PRIMARY KEY (facility_id, ticket_type_id);
+
+-- ウラカタ注文（直販チケット購入）
+CREATE TABLE urakata_orders (
+  order_id       STRING(36) NOT NULL,
+  facility_id    STRING(36) NOT NULL,
+  buyer_name     STRING(100) NOT NULL,
+  buyer_email    STRING(254) NOT NULL,
+  visit_date     DATE,
+  total_price    INT64 NOT NULL,
+  status         STRING(20) NOT NULL DEFAULT ("pending"),
+  payment_id     STRING(100),
+  language       STRING(5) NOT NULL DEFAULT ("ja"),
+  order_token    STRING(64) NOT NULL,  -- 購入者認証用トークン
+  created_at     TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
+) PRIMARY KEY (order_id);
+
+CREATE UNIQUE INDEX idx_urakata_orders_token ON urakata_orders (order_token);
+
+-- ウラカタ注文明細
+CREATE TABLE urakata_order_items (
+  item_id        STRING(36) NOT NULL,
+  order_id       STRING(36) NOT NULL,
+  ticket_type_id STRING(36) NOT NULL,
+  quantity       INT64 NOT NULL,
+  unit_price     INT64 NOT NULL,
+) PRIMARY KEY (order_id, item_id),
+INTERLEAVE IN PARENT urakata_orders ON DELETE CASCADE;
+
+-- 着券ログ
+CREATE TABLE scan_logs (
+  scan_id        STRING(36) NOT NULL,
+  ticket_id      STRING(36) NOT NULL,
+  facility_id    STRING(36) NOT NULL,
+  staff_id       STRING(36),
+  scan_result    STRING(20) NOT NULL,  -- success/already_used/invalid/expired
+  device_info    STRING(200),
+  scanned_at     TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
+) PRIMARY KEY (scan_id);
+
+CREATE INDEX idx_scan_logs_facility_date ON scan_logs (facility_id, scanned_at);
+
+-- 施設スタッフ
+CREATE TABLE facility_staff (
+  staff_id       STRING(36) NOT NULL,
+  facility_id    STRING(36) NOT NULL,
+  email          STRING(254) NOT NULL,
+  name           STRING(100),
+  role           STRING(20) NOT NULL,  -- admin/staff/scanner
+  status         STRING(20) NOT NULL DEFAULT ("active"),
+  invited_at     TIMESTAMP,
+  joined_at      TIMESTAMP,
+) PRIMARY KEY (facility_id, staff_id);
+
+
+5. サブサービス仕様
+
+5.1 アソビュー！ギフト (store.asoview-clone.com)
+「大切な人に思い出の体験をプレゼント」。アソビュー！掲載体験を厳選したカタログギフト・ギフトカードのEC。
+
+
+
+5.2 アソビュー！ふるさと納税 (furusato.asoview-clone.com)
+体験型返礼品に特化したふるさと納税サイト。自治体が返礼品として体験を設定し、寄付者が体験を受け取る。
+
+
+5.3 ウラカタ予約 (biz.asoview-clone.com/urakata-yoyaku)
+アクティビティ・体験教室向けの予約管理SaaS。電話予約を減らし、Web予約に集約するツール。
+
+
+6. 共通基盤仕様
+
+6.1 認証・認可（Authlete / OAuth 2.0 / OIDC）
+アソビューはAuthleteをOAuth 2.0/OIDCのAuthorizationServerとして使用。アプリケーション間のAPIアクセス制御を一元管理。
+
+
+# 環境変数（.env.example）
+AUTHLETE_API_KEY=your_authlete_api_key
+AUTHLETE_API_SECRET=your_authlete_api_secret
+AUTHLETE_SERVICE_ENDPOINT=https://api.authlete.com
+
+# JWT検証（全バックエンドサービス共通）
+JWT_ISSUER=https://auth.asoview-clone.com
+JWT_AUDIENCE=https://api.asoview-clone.com
+
+# ソーシャルログイン
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+APPLE_CLIENT_ID=...
+LINE_CHANNEL_ID=...
+LINE_CHANNEL_SECRET=...
+
+6.2 決済（Stripe API連携仕様）
+
+
+# Stripe環境変数
+STRIPE_PUBLISHABLE_KEY=pk_live_...
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# Stripe Connect（ウラカタチケット施設への送金）
+STRIPE_CONNECT_CLIENT_ID=ca_...
+
+# PayPay
+PAYPAY_API_KEY=...
+PAYPAY_API_SECRET=...
+PAYPAY_MERCHANT_ID=...
+
+6.3 検索基盤（Vertex AI Search / OpenSearch）
+アソビュー！の検索CVRはサービス全体の中でも最も高く、事業に直接寄与する最重要機能（AWS公式インタビュー記事より）。
+
+
+// OpenSearch インデックス設定（facilities_v1）
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "ja_analyzer": {
+          "type": "custom",
+          "tokenizer": "kuromoji_tokenizer",
+          "filter": ["kuromoji_baseform", "lowercase"]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "name":         { "type": "text", "analyzer": "ja_analyzer" },
+      "description":  { "type": "text", "analyzer": "ja_analyzer" },
+      "prefecture":   { "type": "keyword" },
+      "city":         { "type": "keyword" },
+      "categories":   { "type": "keyword" },
+      "tags":         { "type": "keyword" },
+      "price_from":   { "type": "integer" },
+      "rating":       { "type": "float" },
+      "review_count": { "type": "integer" },
+      "status":       { "type": "keyword" },
+      "location":     { "type": "geo_point" }
+    }
+  }
+}
+
+6.4 通知基盤（Braze連携）
+Brazeは全施策の起点。BigQueryのRFMセグメントをBrazeにエクスポートしてターゲティング。
+
+
+# Braze環境変数
+BRAZE_API_KEY=...
+BRAZE_APP_ID=...
+BRAZE_REST_ENDPOINT=https://rest.iad-01.braze.com
+
+# Brazeカスタムイベント名（一覧）
+BRAZE_EVENT_PLAN_VIEWED=plan_viewed
+BRAZE_EVENT_BOOKING_STARTED=booking_started
+BRAZE_EVENT_BOOKING_ABANDONED=booking_abandoned
+BRAZE_EVENT_BOOKING_COMPLETED=booking_completed
+BRAZE_EVENT_TICKET_SCANNED=ticket_scanned
+BRAZE_EVENT_REVIEW_SUBMITTED=review_submitted
+
+6.5 データ基盤（BigQuery / TROCCO）
+アソビューのBigQuery設計: lake/mart 2層構成。TROCCOのService Accountの書き込み先をlake_projectのみに制限してデータ整合性を担保。
+
+# BigQuery データセット構成
+
+## project: asoview-data-lake
+raw_spanner_bookings     # Spannerからのレプリケーション（Datastream使用）
+raw_spanner_users        # 同上
+raw_spanner_facilities   # 同上
+raw_ga4_events           # GA4 BigQuery Export（自動）
+raw_braze_events         # Braze Currents → GCS → BigQuery
+raw_weather_logs         # 天気API取得データ
+raw_search_logs          # OpenSearch クエリログ
+
+## project: asoview-data-mart
+mart_daily_gmv           # 日次GMV（流通総額）
+mart_hourly_visitors     # 時間帯別来場者数（ウラカタ）
+mart_user_rfm            # RFMスコア（レコメンド/Braze用）
+mart_facility_ranking    # 施設人気ランキング（検索スコアに使用）
+mart_repeat_rate         # リピート率（KPI）
+mart_conversion_funnel   # 検索→詳細→予約CVRファネル
+mart_braze_segments      # Brazeセグメント用（週次更新）
+
+6.6 ML・レコメンド（Vertex AI）
+
+
+6.7 多言語対応（WOVN.io連携）
+アソビューは実際にWOVN.ioを使用して施設の公式サイト（ウラカタチケット購入フロー）を多言語化。
+
+
+7. Seed Data 仕様
+
+7.1 施設データ（最低20件、6カテゴリーをカバー）
+
+
+7.2 Seed Data 生成スクリプト構成
+
+# scripts/seed/
+├── 01_categories.ts     # カテゴリーマスタ（600ジャンル→主要20件）
+├── 02_areas.ts          # エリアマスタ（47都道府県 + 主要市区町村）
+├── 03_facilities.ts     # 施設データ20件
+├── 04_plans.ts          # 施設ごとに2-3プラン（計50件）
+├── 05_slots.ts          # 向こう30日分のスロット生成（売り切れ含む）
+├── 06_users.ts          # テストユーザー10件（属性多様性を確保）
+├── 07_bookings.ts       # 予約データ30件（各status含む）
+├── 08_reviews.ts        # 口コミデータ50件（評価1-5を網羅）
+├── 09_points.ts         # ポイント履歴20件
+└── 10_urakata.ts        # ウラカタチケット専用データ（5施設分）
+
+# 実行方法
+npx ts-node scripts/seed/run_all.ts --env=development
+
+7.3 テストユーザー一覧（意図的に多様な属性）
+
+
+8. GCPインフラ設計・環境変数一覧
+
+8.1 Terraform構成
+
+# terraform/modules/
+├── gke/           # GKEクラスター設定（ノードプール / Autopilot）
+├── spanner/       # Cloud Spannerインスタンス・DBスキーマ
+├── redis/         # Memorystore for Redis
+├── storage/       # Cloud Storage バケット定義
+├── pubsub/        # Pub/Sub トピック・サブスクリプション
+├── bigquery/      # BigQuery データセット・テーブル
+├── vertex/        # Vertex AI エンドポイント
+├── cdn/           # Cloud CDN + Load Balancer
+├── armor/         # Cloud Armor セキュリティポリシー
+├── dns/           # Cloud DNS ゾーン
+├── secrets/       # Secret Manager シークレット定義
+├── monitoring/    # Cloud Monitoring アラートポリシー
+├── build/         # Cloud Build トリガー定義
+└── deploy/        # Cloud Deploy パイプライン定義
+
+8.2 環境変数 完全一覧（.env.example）
+
+# ========== GCP ==========
+GCP_PROJECT_ID=asoview-prod
+GCP_REGION=asia-northeast1
+GCP_ZONE=asia-northeast1-a
+
+# ========== データベース ==========
+SPANNER_INSTANCE_ID=asoview-instance
+SPANNER_DATABASE_ID=asoview-db
+REDIS_HOST=10.0.0.10
+REDIS_PORT=6379
+
+# ========== 認証（Authlete） ==========
+AUTHLETE_API_KEY=
+AUTHLETE_API_SECRET=
+AUTHLETE_SERVICE_ENDPOINT=https://api.authlete.com
+JWT_ISSUER=https://auth.asoview-clone.com
+JWT_AUDIENCE=https://api.asoview-clone.com
+
+# ========== ソーシャルログイン ==========
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+APPLE_CLIENT_ID=
+APPLE_TEAM_ID=
+LINE_CHANNEL_ID=
+LINE_CHANNEL_SECRET=
+
+# ========== 決済（Stripe） ==========
+STRIPE_PUBLISHABLE_KEY=pk_test_...
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_CONNECT_CLIENT_ID=
+
+# ========== 決済（PayPay） ==========
+PAYPAY_API_KEY=
+PAYPAY_API_SECRET=
+PAYPAY_MERCHANT_ID=
+PAYPAY_ENVIRONMENT=SANDBOX
+
+# ========== 検索（OpenSearch） ==========
+OPENSEARCH_ENDPOINT=https://...
+OPENSEARCH_USERNAME=
+OPENSEARCH_PASSWORD=
+
+# ========== CRM（Braze） ==========
+BRAZE_API_KEY=
+BRAZE_APP_ID=
+BRAZE_REST_ENDPOINT=https://rest.iad-01.braze.com
+
+# ========== 地図 ==========
+GOOGLE_MAPS_API_KEY=
+
+# ========== 天気 ==========
+OPENWEATHER_API_KEY=
+
+# ========== ストレージ ==========
+GCS_BUCKET_ASSETS=asoview-assets-prod
+GCS_BUCKET_TICKETS=asoview-tickets-prod
+
+# ========== データ基盤 ==========
+BQ_PROJECT_LAKE=asoview-data-lake
+BQ_PROJECT_MART=asoview-data-mart
+TROCCO_API_KEY=
+
+# ========== ML ==========
+VERTEX_AI_ENDPOINT_RECOMMEND=projects/.../endpoints/...
+VERTEX_AI_ENDPOINT_RANKING=projects/.../endpoints/...
+
+# ========== 多言語（WOVN） ==========
+WOVN_API_KEY=
+
+# ========== モバイル（Firebase） ==========
+FIREBASE_PROJECT_ID=
+FIREBASE_SERVER_KEY=
+
+# ========== Feature Flags ==========
+ENABLE_RECOMMENDATION=false
+ENABLE_WEATHER_TRIGGER=false
+ENABLE_PAYPAY=false
+ENABLE_MULTILINGUAL=false
+
+
+8.3 Cloud StorageバケットとCloud CDN構成
+
+
+9. 実装ロードマップ（2週間スプリント）
+
+
+
+10. コスト見積もり（¥45,000 GCPクレジット内）
+
+
+※ Vertex AIのレコメンドモデル学習コストが最大の変動要因。学習を週1回に抑えることでコントロール可能。
+※ GKEはAutopilotモード推奨。使用分のみ課金でコスト予測が立てやすい。
+
+実装開始時の優先チェックリスト（Coding Agent向け）
+
