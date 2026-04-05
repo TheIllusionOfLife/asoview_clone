@@ -47,6 +47,7 @@ public class Product {
   private ProductStatus status = ProductStatus.DRAFT;
 
   @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+  @org.hibernate.annotations.BatchSize(size = 20)
   private List<ProductVariant> variants = new ArrayList<>();
 
   @Embedded private AuditFields audit = new AuditFields();

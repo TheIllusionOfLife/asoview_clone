@@ -1,6 +1,7 @@
 package com.asoviewclone.commercecore.catalog.controller;
 
 import com.asoviewclone.commercecore.catalog.controller.dto.ProductResponse;
+import com.asoviewclone.commercecore.catalog.model.Product;
 import com.asoviewclone.commercecore.catalog.model.ProductStatus;
 import com.asoviewclone.commercecore.catalog.service.CatalogService;
 import java.util.UUID;
@@ -37,6 +38,10 @@ public class ProductController {
 
   @GetMapping("/{productId}")
   public ProductResponse getProduct(@PathVariable UUID productId) {
-    return ProductResponse.from(catalogService.getProduct(productId));
+    Product product = catalogService.getProduct(productId);
+    if (product.getStatus() != ProductStatus.ACTIVE) {
+      throw new com.asoviewclone.common.error.NotFoundException("Product", productId.toString());
+    }
+    return ProductResponse.from(product);
   }
 }

@@ -25,7 +25,7 @@ public class SpannerConfig {
   @Value("${spring.cloud.gcp.spanner.emulator-host:}")
   private String emulatorHostProperty;
 
-  @Bean
+  @Bean(destroyMethod = "close")
   @ConditionalOnMissingBean
   public Spanner spanner() {
     SpannerOptions.Builder builder = SpannerOptions.newBuilder().setProjectId(projectId);

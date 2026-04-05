@@ -13,6 +13,7 @@ import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 @Component
 public class FirebaseReactiveTokenFilter implements WebFilter {
@@ -34,6 +35,7 @@ public class FirebaseReactiveTokenFilter implements WebFilter {
 
     String token = authHeader.substring(7);
     return Mono.fromCallable(() -> firebaseAuth.verifyIdToken(token))
+        .subscribeOn(Schedulers.boundedElastic())
         .flatMap(
             decodedToken -> {
               UsernamePasswordAuthenticationToken auth = createAuthentication(decodedToken);
