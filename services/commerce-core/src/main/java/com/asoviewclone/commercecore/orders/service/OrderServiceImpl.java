@@ -1,16 +1,20 @@
 package com.asoviewclone.commercecore.orders.service;
 
+import com.asoviewclone.commercecore.catalog.model.ProductVariant;
+import com.asoviewclone.commercecore.catalog.repository.ProductVariantRepository;
 import com.asoviewclone.commercecore.inventory.model.InventoryHold;
 import com.asoviewclone.commercecore.inventory.service.InventoryService;
 import com.asoviewclone.commercecore.orders.model.Order;
 import com.asoviewclone.commercecore.orders.model.OrderItem;
 import com.asoviewclone.commercecore.orders.model.OrderStatus;
 import com.asoviewclone.commercecore.orders.repository.OrderRepository;
+import com.asoviewclone.common.error.NotFoundException;
 import com.asoviewclone.common.error.ValidationException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -18,10 +22,15 @@ public class OrderServiceImpl implements OrderService {
 
   private final OrderRepository orderRepository;
   private final InventoryService inventoryService;
+  private final ProductVariantRepository productVariantRepository;
 
-  public OrderServiceImpl(OrderRepository orderRepository, InventoryService inventoryService) {
+  public OrderServiceImpl(
+      OrderRepository orderRepository,
+      InventoryService inventoryService,
+      ProductVariantRepository productVariantRepository) {
     this.orderRepository = orderRepository;
     this.inventoryService = inventoryService;
+    this.productVariantRepository = productVariantRepository;
   }
 
   @Override
@@ -56,13 +65,22 @@ public class OrderServiceImpl implements OrderService {
       throw e;
     }
 
-    // Calculate total
+    // Look up variant prices from catalog and calculate total
     BigDecimal total = BigDecimal.ZERO;
     List<OrderItem> orderItems = new ArrayList<>();
-    for (CreateOrderItemRequest item : items) {
-      BigDecimal itemTotal =
-          new BigDecimal(item.unitPrice()).multiply(BigDecimal.valueOf(item.quantity()));
+    for (int i = 0; i < items.size(); i++) {
+      CreateOrderItemRequest item = items.get(i);
+      InventoryHold hold = holds.get(i);
+
+      ProductVariant variant =
+          productVariantRepository
+              .findById(UUID.fromString(item.productVariantId()))
+              .orElseThrow(() -> new NotFoundException("ProductVariant", item.productVariantId()));
+
+      String unitPrice = variant.getPriceAmount().toPlainString();
+      BigDecimal itemTotal = variant.getPriceAmount().multiply(BigDecimal.valueOf(item.quantity()));
       total = total.add(itemTotal);
+
       orderItems.add(
           new OrderItem(
               null,
@@ -70,7 +88,8 @@ public class OrderServiceImpl implements OrderService {
               item.productVariantId(),
               item.slotId(),
               item.quantity(),
-              item.unitPrice(),
+              unitPrice,
+              hold.holdId(),
               null));
     }
 
@@ -96,8 +115,13 @@ public class OrderServiceImpl implements OrderService {
 
     // Release inventory holds for each item
     for (OrderItem item : order.items()) {
-      // In a real implementation, we'd look up the hold by slot+user
-      // For now, holds expire via TTL
+      if (item.holdId() != null) {
+        try {
+          inventoryService.releaseHold(item.holdId());
+        } catch (Exception ignored) {
+          // Best effort: hold may have already expired
+        }
+      }
     }
 
     orderRepository.updateStatus(orderId, OrderStatus.CANCELLED);

@@ -54,11 +54,13 @@ public class SpannerDdlBootstrap implements CommandLineRunner {
 
     for (Resource resource : resources) {
       String sql = resource.getContentAsString(StandardCharsets.UTF_8);
+      // Strip comment lines before splitting into statements
+      String stripped =
+          Arrays.stream(sql.split("\n"))
+              .filter(line -> !line.trim().startsWith("--"))
+              .collect(java.util.stream.Collectors.joining("\n"));
       List<String> statements =
-          Arrays.stream(sql.split(";"))
-              .map(String::trim)
-              .filter(s -> !s.isEmpty() && !s.startsWith("--"))
-              .toList();
+          Arrays.stream(stripped.split(";")).map(String::trim).filter(s -> !s.isEmpty()).toList();
 
       if (statements.isEmpty()) {
         continue;

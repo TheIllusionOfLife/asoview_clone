@@ -28,8 +28,10 @@ public class ProductController {
       @RequestParam(required = false) ProductStatus status,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "20") int size) {
+    // Default to ACTIVE to prevent exposing DRAFT/ARCHIVED products publicly
+    ProductStatus effectiveStatus = (status != null) ? status : ProductStatus.ACTIVE;
     return catalogService
-        .listProducts(categoryId, status, PageRequest.of(page, size))
+        .listProducts(categoryId, effectiveStatus, PageRequest.of(page, size))
         .map(ProductResponse::from);
   }
 

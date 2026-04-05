@@ -9,4 +9,5 @@ public record OrderItem(
     String slotId,
     long quantity,
     String unitPrice,
+    String holdId,
     Instant createdAt) {}

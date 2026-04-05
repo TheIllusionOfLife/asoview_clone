@@ -32,10 +32,7 @@ public class OrderController {
       @AuthenticationPrincipal AuthenticatedUser user, @RequestBody CreateOrderRequest request) {
     List<CreateOrderItemRequest> items =
         request.items().stream()
-            .map(
-                i ->
-                    new CreateOrderItemRequest(
-                        i.productVariantId(), i.slotId(), i.quantity(), i.unitPrice()))
+            .map(i -> new CreateOrderItemRequest(i.productVariantId(), i.slotId(), i.quantity()))
             .toList();
     Order order =
         orderService.createOrder(user.userId().toString(), request.idempotencyKey(), items);

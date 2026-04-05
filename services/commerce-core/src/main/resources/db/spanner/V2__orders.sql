@@ -19,5 +19,6 @@ CREATE TABLE order_items (
     slot_id STRING(36) NOT NULL,
     quantity INT64 NOT NULL,
     unit_price STRING(20) NOT NULL,
+    hold_id STRING(36),
     created_at TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true)
 ) PRIMARY KEY (order_item_id)

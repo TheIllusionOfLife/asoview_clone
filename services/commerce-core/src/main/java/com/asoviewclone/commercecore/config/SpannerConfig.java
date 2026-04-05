@@ -22,6 +22,9 @@ public class SpannerConfig {
   @Value("${spring.cloud.gcp.spanner.database}")
   private String databaseName;
 
+  @Value("${spring.cloud.gcp.spanner.emulator-host:}")
+  private String emulatorHostProperty;
+
   @Bean
   @ConditionalOnMissingBean
   public Spanner spanner() {
@@ -29,6 +32,8 @@ public class SpannerConfig {
     String emulatorHost = System.getenv("SPANNER_EMULATOR_HOST");
     if (emulatorHost != null) {
       builder.setEmulatorHost(emulatorHost);
+    } else if (emulatorHostProperty != null && !emulatorHostProperty.isEmpty()) {
+      builder.setEmulatorHost(emulatorHostProperty);
     }
     return builder.build().getService();
   }

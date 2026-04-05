@@ -9,6 +9,6 @@ public record AuthenticatedUser(
 
   public boolean hasTenantRole(UUID tenantId, TenantRole requiredRole) {
     TenantRole role = tenantRoles.get(tenantId);
-    return role != null && role.ordinal() <= requiredRole.ordinal();
+    return role != null && role.getPrivilegeLevel() <= requiredRole.getPrivilegeLevel();
   }
 }

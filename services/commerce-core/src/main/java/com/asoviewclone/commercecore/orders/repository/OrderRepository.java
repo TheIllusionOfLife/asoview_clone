@@ -91,7 +91,7 @@ public class OrderRepository {
     List<OrderItem> savedItems = new ArrayList<>();
     for (OrderItem item : items) {
       String itemId = UUID.randomUUID().toString();
-      mutations.add(
+      Mutation.WriteBuilder itemBuilder =
           Mutation.newInsertBuilder("order_items")
               .set("order_item_id")
               .to(itemId)
@@ -106,8 +106,11 @@ public class OrderRepository {
               .set("unit_price")
               .to(item.unitPrice())
               .set("created_at")
-              .to(ts)
-              .build());
+              .to(ts);
+      if (item.holdId() != null) {
+        itemBuilder.set("hold_id").to(item.holdId());
+      }
+      mutations.add(itemBuilder.build());
       savedItems.add(
           new OrderItem(
               itemId,
@@ -116,6 +119,7 @@ public class OrderRepository {
               item.slotId(),
               item.quantity(),
               item.unitPrice(),
+              item.holdId(),
               now));
     }
 
@@ -172,7 +176,19 @@ public class OrderRepository {
     List<Order> orders = new ArrayList<>();
     try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
       while (rs.next()) {
-        orders.add(mapOrder(rs));
+        Order order = mapOrder(rs);
+        List<OrderItem> items = findItemsByOrderId(order.orderId());
+        orders.add(
+            new Order(
+                order.orderId(),
+                order.userId(),
+                order.status(),
+                order.totalAmount(),
+                order.currency(),
+                order.idempotencyKey(),
+                items,
+                order.createdAt(),
+                order.updatedAt()));
       }
     }
     return orders;
@@ -196,7 +212,7 @@ public class OrderRepository {
     Statement stmt =
         Statement.newBuilder(
                 "SELECT order_item_id, order_id, product_variant_id, slot_id,"
-                    + " quantity, unit_price, created_at"
+                    + " quantity, unit_price, hold_id, created_at"
                     + " FROM order_items WHERE order_id = @oid")
             .bind("oid")
             .to(orderId)
@@ -231,6 +247,7 @@ public class OrderRepository {
         rs.getString("slot_id"),
         rs.getLong("quantity"),
         rs.getString("unit_price"),
+        rs.isNull("hold_id") ? null : rs.getString("hold_id"),
         rs.getTimestamp("created_at").toDate().toInstant());
   }
 }

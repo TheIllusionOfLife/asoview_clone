@@ -39,7 +39,7 @@ class ProductControllerTest {
     UUID tenantId = UUID.randomUUID();
     Product product =
         new Product(tenantId, null, null, "Rafting Tour", "Fun!", null, ProductStatus.ACTIVE);
-    when(catalogService.listProducts(eq(null), eq(null), any()))
+    when(catalogService.listProducts(eq(null), eq(ProductStatus.ACTIVE), any()))
         .thenReturn(new PageImpl<>(List.of(product), PageRequest.of(0, 20), 1));
 
     mockMvc

@@ -128,11 +128,10 @@ class BrowseAndOrderFlowTest {
     String idempotencyKey = UUID.randomUUID().toString();
     Order order =
         orderService.createOrder(
-            userId,
-            idempotencyKey,
-            List.of(new CreateOrderItemRequest(variantId, slotId, 2, "5000")));
+            userId, idempotencyKey, List.of(new CreateOrderItemRequest(variantId, slotId, 2)));
     assertThat(order.status()).isEqualTo(OrderStatus.PENDING);
-    assertThat(order.totalAmount()).isEqualTo("10000");
+    assertThat(new java.math.BigDecimal(order.totalAmount()))
+        .isEqualByComparingTo(new java.math.BigDecimal("10000"));
     assertThat(order.items()).hasSize(1);
 
     // 4. Create payment
@@ -156,9 +155,7 @@ class BrowseAndOrderFlowTest {
     // 8. Idempotency: same order returns existing
     Order duplicate =
         orderService.createOrder(
-            userId,
-            idempotencyKey,
-            List.of(new CreateOrderItemRequest(variantId, slotId, 2, "5000")));
+            userId, idempotencyKey, List.of(new CreateOrderItemRequest(variantId, slotId, 2)));
     assertThat(duplicate.orderId()).isEqualTo(order.orderId());
   }
 }

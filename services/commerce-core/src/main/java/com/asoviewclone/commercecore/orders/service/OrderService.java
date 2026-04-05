@@ -13,6 +13,5 @@ public interface OrderService {
 
   void cancelOrder(String orderId);
 
-  record CreateOrderItemRequest(
-      String productVariantId, String slotId, int quantity, String unitPrice) {}
+  record CreateOrderItemRequest(String productVariantId, String slotId, int quantity) {}
 }

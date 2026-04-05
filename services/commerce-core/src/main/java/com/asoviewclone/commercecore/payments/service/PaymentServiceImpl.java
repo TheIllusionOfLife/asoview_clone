@@ -52,6 +52,12 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     Order order = orderRepository.findById(orderId);
+
+    // Verify order ownership
+    if (!order.userId().equals(userId)) {
+      throw new ValidationException("Order does not belong to the authenticated user");
+    }
+
     if (!order.status().canTransitionTo(OrderStatus.PAYMENT_PENDING)) {
       throw new ValidationException("Cannot create payment for order in status " + order.status());
     }
@@ -62,13 +68,22 @@ public class PaymentServiceImpl implements PaymentService {
 
     PaymentGateway.PaymentResult result =
         paymentGateway.createIntent(orderId, payment.getAmount(), payment.getCurrency());
+
+    if (!result.success()) {
+      throw new ConflictException("Payment gateway rejected the request");
+    }
+
     payment.setProvider("STUB");
     payment.setProviderPaymentId(result.providerPaymentId());
     payment.setStatus(PaymentStatus.PROCESSING);
 
+    // Save payment to JPA (Cloud SQL) first
+    Payment saved = paymentRepository.save(payment);
+
+    // Then update order status in Spanner
     orderRepository.updateStatus(orderId, OrderStatus.PAYMENT_PENDING);
 
-    return paymentRepository.save(payment);
+    return saved;
   }
 
   @Override
@@ -91,14 +106,23 @@ public class PaymentServiceImpl implements PaymentService {
     payment.setStatus(PaymentStatus.SUCCEEDED);
     paymentRepository.save(payment);
 
-    // Update order status
+    // Update order status in Spanner
     orderRepository.updateStatus(payment.getOrderId(), OrderStatus.PAID);
 
     // Confirm inventory holds
     Order order = orderRepository.findById(payment.getOrderId());
     for (OrderItem item : order.items()) {
-      // In production, we'd track hold IDs. For Phase 1, holds are confirmed
-      // via the slot's reserved_count being incremented.
+      if (item.holdId() != null) {
+        try {
+          inventoryService.confirmHold(item.holdId());
+        } catch (Exception e) {
+          log.error(
+              "Failed to confirm hold {} for order {}: {}",
+              item.holdId(),
+              order.orderId(),
+              e.getMessage());
+        }
+      }
     }
 
     // Trigger entitlement creation
