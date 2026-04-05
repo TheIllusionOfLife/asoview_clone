@@ -11,6 +11,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 // Spanner beans are wired manually in SpannerEmulatorConfig (test) and will be
 // provided via a production SpannerConfig when deploying against real Spanner.
 @SpringBootApplication(
+    scanBasePackages = {"com.asoviewclone.commercecore", "com.asoviewclone.common"},
     exclude = {
       GcpSpannerAutoConfiguration.class,
       SpannerRepositoriesAutoConfiguration.class,
