@@ -1,0 +1,2 @@
+-- Phase 1 initial schema placeholder.
+-- Identity tables will be added in V2__identity_tables.sql

@@ -1,6 +1,4 @@
 spring:
-  application:
-    name: commerce-core
   datasource:
     url: jdbc:postgresql://localhost:5432/asoview
     username: asoview
@@ -8,9 +6,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    open-in-view: false
-  flyway:
-    locations: classpath:db/migration
+    show-sql: true
   data:
     redis:
       host: localhost
@@ -21,6 +17,5 @@ spring:
         project-id: asoview-clone
         instance-id: asoview-clone
         database: asoview
-
-server:
-  port: 8081
+        emulator:
+          enabled: true
