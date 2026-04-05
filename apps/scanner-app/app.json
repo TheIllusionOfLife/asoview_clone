@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "Asoview Scanner",
+    "slug": "asoview-scanner",
+    "version": "0.0.1",
+    "scheme": "asoview-scanner",
+    "platforms": ["ios", "android"],
+    "ios": {
+      "bundleIdentifier": "com.asoviewclone.scanner"
+    },
+    "android": {
+      "package": "com.asoviewclone.scanner"
+    }
+  }
+}
