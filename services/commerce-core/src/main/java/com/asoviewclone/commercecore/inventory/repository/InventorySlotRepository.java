@@ -104,6 +104,11 @@ public class InventorySlotRepository {
             tx -> {
               InventoryHold hold = readHoldInTransaction(tx, holdId);
 
+              // Reject if hold has expired
+              if (hold.isExpired(clockProvider.now())) {
+                throw new ConflictException("Hold " + holdId + " has expired");
+              }
+
               // Increment reserved count
               InventorySlot slot = readSlotInTransaction(tx, hold.slotId());
               tx.buffer(

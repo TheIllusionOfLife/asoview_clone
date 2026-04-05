@@ -2,12 +2,17 @@ package com.asoviewclone.commercecore.catalog.repository;
 
 import com.asoviewclone.commercecore.catalog.model.Product;
 import com.asoviewclone.commercecore.catalog.model.ProductStatus;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 public interface ProductRepository extends JpaRepository<Product, UUID> {
+
+  @Query("SELECT p FROM Product p LEFT JOIN FETCH p.variants WHERE p.id = :id")
+  Optional<Product> findByIdWithVariants(UUID id);
 
   Page<Product> findByCategoryIdAndStatus(UUID categoryId, ProductStatus status, Pageable pageable);
 

@@ -34,7 +34,7 @@ public class CatalogServiceImpl implements CatalogService {
   @Override
   public Product getProduct(UUID productId) {
     return productRepository
-        .findById(productId)
+        .findByIdWithVariants(productId)
         .orElseThrow(() -> new NotFoundException("Product", productId.toString()));
   }
 

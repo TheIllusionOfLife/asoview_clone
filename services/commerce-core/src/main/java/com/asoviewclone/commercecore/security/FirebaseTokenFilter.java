@@ -79,6 +79,10 @@ public class FirebaseTokenFilter extends OncePerRequestFilter {
       SecurityContextHolder.getContext().setAuthentication(authentication);
     } catch (Exception e) {
       log.warn("Firebase token verification failed: {}", e.getMessage());
+      response.setStatus(401);
+      response.getWriter().write("{\"error\":\"UNAUTHORIZED\",\"message\":\"Invalid token\"}");
+      response.setContentType("application/json");
+      return;
     }
 
     filterChain.doFilter(request, response);
