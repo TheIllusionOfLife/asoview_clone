@@ -4,7 +4,7 @@ spring-cloud = "2024.0.1"
 spring-dependency-management = "1.1.7"
 grpc = "1.80.0"
 protobuf = "4.34.1"
-spotless = "7.0.3"
+spotless = "8.4.0"
 checkstyle = "10.23.1"
 
 [libraries]
