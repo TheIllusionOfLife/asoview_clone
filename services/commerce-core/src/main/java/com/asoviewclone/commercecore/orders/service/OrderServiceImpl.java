@@ -46,13 +46,57 @@ public class OrderServiceImpl implements OrderService {
       return existing.get();
     }
 
-    // Hold inventory for each item
+    // Hold inventory, look up prices, and save order.
+    // If anything fails after holds are created, release them all.
     List<InventoryHold> holds = new ArrayList<>();
     try {
+      // Hold inventory for each item
       for (CreateOrderItemRequest item : items) {
         InventoryHold hold = inventoryService.holdInventory(item.slotId(), userId, item.quantity());
         holds.add(hold);
       }
+
+      // Look up variant prices from catalog and calculate total
+      BigDecimal total = BigDecimal.ZERO;
+      String currency = null;
+      List<OrderItem> orderItems = new ArrayList<>();
+      for (int i = 0; i < items.size(); i++) {
+        CreateOrderItemRequest item = items.get(i);
+        InventoryHold hold = holds.get(i);
+
+        ProductVariant variant =
+            productVariantRepository
+                .findById(UUID.fromString(item.productVariantId()))
+                .orElseThrow(
+                    () -> new NotFoundException("ProductVariant", item.productVariantId()));
+
+        // Derive and validate currency from variant
+        if (currency == null) {
+          currency = variant.getPriceCurrency();
+        } else if (!currency.equals(variant.getPriceCurrency())) {
+          throw new ValidationException(
+              "Mixed currencies in order: " + currency + " and " + variant.getPriceCurrency());
+        }
+
+        String unitPrice = variant.getPriceAmount().toPlainString();
+        BigDecimal itemTotal =
+            variant.getPriceAmount().multiply(BigDecimal.valueOf(item.quantity()));
+        total = total.add(itemTotal);
+
+        orderItems.add(
+            new OrderItem(
+                null,
+                null,
+                item.productVariantId(),
+                item.slotId(),
+                item.quantity(),
+                unitPrice,
+                hold.holdId(),
+                null));
+      }
+
+      return orderRepository.save(
+          userId, total.toPlainString(), currency, idempotencyKey, orderItems);
     } catch (Exception e) {
       // Release any holds that were created
       for (InventoryHold hold : holds) {
@@ -64,36 +108,6 @@ public class OrderServiceImpl implements OrderService {
       }
       throw e;
     }
-
-    // Look up variant prices from catalog and calculate total
-    BigDecimal total = BigDecimal.ZERO;
-    List<OrderItem> orderItems = new ArrayList<>();
-    for (int i = 0; i < items.size(); i++) {
-      CreateOrderItemRequest item = items.get(i);
-      InventoryHold hold = holds.get(i);
-
-      ProductVariant variant =
-          productVariantRepository
-              .findById(UUID.fromString(item.productVariantId()))
-              .orElseThrow(() -> new NotFoundException("ProductVariant", item.productVariantId()));
-
-      String unitPrice = variant.getPriceAmount().toPlainString();
-      BigDecimal itemTotal = variant.getPriceAmount().multiply(BigDecimal.valueOf(item.quantity()));
-      total = total.add(itemTotal);
-
-      orderItems.add(
-          new OrderItem(
-              null,
-              null,
-              item.productVariantId(),
-              item.slotId(),
-              item.quantity(),
-              unitPrice,
-              hold.holdId(),
-              null));
-    }
-
-    return orderRepository.save(userId, total.toPlainString(), "JPY", idempotencyKey, orderItems);
   }
 
   @Override

@@ -12,9 +12,12 @@ import com.google.cloud.spanner.ResultSet;
 import com.google.cloud.spanner.Statement;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -173,23 +176,34 @@ public class OrderRepository {
             .bind("uid")
             .to(userId)
             .build();
-    List<Order> orders = new ArrayList<>();
+    List<Order> shellOrders = new ArrayList<>();
     try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
       while (rs.next()) {
-        Order order = mapOrder(rs);
-        List<OrderItem> items = findItemsByOrderId(order.orderId());
-        orders.add(
-            new Order(
-                order.orderId(),
-                order.userId(),
-                order.status(),
-                order.totalAmount(),
-                order.currency(),
-                order.idempotencyKey(),
-                items,
-                order.createdAt(),
-                order.updatedAt()));
+        shellOrders.add(mapOrder(rs));
       }
+    }
+
+    if (shellOrders.isEmpty()) {
+      return List.of();
+    }
+
+    // Batch-fetch items for all orders to avoid N+1 queries
+    List<String> orderIds = shellOrders.stream().map(Order::orderId).collect(Collectors.toList());
+    Map<String, List<OrderItem>> itemsByOrderId = findItemsByOrderIds(orderIds);
+
+    List<Order> orders = new ArrayList<>();
+    for (Order o : shellOrders) {
+      orders.add(
+          new Order(
+              o.orderId(),
+              o.userId(),
+              o.status(),
+              o.totalAmount(),
+              o.currency(),
+              o.idempotencyKey(),
+              itemsByOrderId.getOrDefault(o.orderId(), List.of()),
+              o.createdAt(),
+              o.updatedAt()));
     }
     return orders;
   }
@@ -206,6 +220,25 @@ public class OrderRepository {
                 .set("updated_at")
                 .to(Timestamp.ofTimeSecondsAndNanos(now.getEpochSecond(), 0))
                 .build()));
+  }
+
+  private Map<String, List<OrderItem>> findItemsByOrderIds(List<String> orderIds) {
+    Statement stmt =
+        Statement.newBuilder(
+                "SELECT order_item_id, order_id, product_variant_id, slot_id,"
+                    + " quantity, unit_price, hold_id, created_at"
+                    + " FROM order_items WHERE order_id IN UNNEST(@oids)")
+            .bind("oids")
+            .toStringArray(orderIds)
+            .build();
+    Map<String, List<OrderItem>> result = new HashMap<>();
+    try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
+      while (rs.next()) {
+        OrderItem item = mapItem(rs);
+        result.computeIfAbsent(item.orderId(), k -> new ArrayList<>()).add(item);
+      }
+    }
+    return result;
   }
 
   private List<OrderItem> findItemsByOrderId(String orderId) {

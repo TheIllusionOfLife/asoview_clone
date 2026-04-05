@@ -77,10 +77,12 @@ public class PaymentServiceImpl implements PaymentService {
     payment.setProviderPaymentId(result.providerPaymentId());
     payment.setStatus(PaymentStatus.PROCESSING);
 
-    // Save payment to JPA (Cloud SQL) first
+    // Save payment to JPA (Cloud SQL) first, then update order in Spanner.
+    // Cross-store tradeoff: if Spanner update fails after JPA commit, order stays
+    // PENDING (recoverable via retry). The reverse (Spanner first) would leave
+    // order in PAYMENT_PENDING with no Payment record, which is worse.
+    // Phase 2 should introduce @TransactionalEventListener or outbox pattern.
     Payment saved = paymentRepository.save(payment);
-
-    // Then update order status in Spanner
     orderRepository.updateStatus(orderId, OrderStatus.PAYMENT_PENDING);
 
     return saved;
@@ -103,34 +105,23 @@ public class PaymentServiceImpl implements PaymentService {
       throw new ConflictException("Cannot confirm payment in status " + payment.getStatus());
     }
 
-    payment.setStatus(PaymentStatus.SUCCEEDED);
-    paymentRepository.save(payment);
-
-    // Update order status in Spanner
-    orderRepository.updateStatus(payment.getOrderId(), OrderStatus.PAID);
-
-    // Confirm inventory holds
+    // Confirm inventory holds first. If this fails, payment stays PROCESSING
+    // and can be retried by the caller.
     Order order = orderRepository.findById(payment.getOrderId());
     for (OrderItem item : order.items()) {
       if (item.holdId() != null) {
-        try {
-          inventoryService.confirmHold(item.holdId());
-        } catch (Exception e) {
-          log.error(
-              "Failed to confirm hold {} for order {}: {}",
-              item.holdId(),
-              order.orderId(),
-              e.getMessage());
-        }
+        inventoryService.confirmHold(item.holdId());
       }
     }
 
-    // Trigger entitlement creation
-    try {
-      entitlementCreator.createEntitlementsForOrder(order);
-    } catch (Exception e) {
-      log.error("Failed to create entitlements for order {}: {}", order.orderId(), e.getMessage());
-    }
+    // Create entitlements. If this fails, holds are confirmed but entitlements
+    // are missing. The caller can retry (entitlement creation is idempotent).
+    entitlementCreator.createEntitlementsForOrder(order);
+
+    // Only mark SUCCEEDED after all downstream effects complete.
+    payment.setStatus(PaymentStatus.SUCCEEDED);
+    paymentRepository.save(payment);
+    orderRepository.updateStatus(payment.getOrderId(), OrderStatus.PAID);
 
     return payment;
   }
