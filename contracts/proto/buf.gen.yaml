@@ -1,6 +1,8 @@
 version: v2
-plugins:
-  - remote: buf.build/protocolbuffers/java
-    out: ../../services/commerce-core/src/main/java
-  - remote: buf.build/grpc/java
-    out: ../../services/commerce-core/src/main/java
+# Java/gRPC codegen is handled by the protobuf-gradle-plugin in libraries/proto-contracts.
+# This file is kept for future TypeScript codegen.
+# plugins:
+#   - remote: buf.build/protocolbuffers/java
+#     out: ../../services/commerce-core/src/main/java
+#   - remote: buf.build/grpc/java
+#     out: ../../services/commerce-core/src/main/java

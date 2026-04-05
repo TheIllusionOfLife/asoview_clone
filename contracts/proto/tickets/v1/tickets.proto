@@ -2,10 +2,58 @@ syntax = "proto3";
 
 package tickets.v1;
 
+import "google/protobuf/timestamp.proto";
+
 option java_multiple_files = true;
 option java_package = "com.asoviewclone.proto.tickets.v1";
 
-// Placeholder message for tickets domain contract.
-message TicketsPing {
-  string message = 1;
+message TicketPass {
+  string ticket_pass_id = 1;
+  string entitlement_id = 2;
+  string qr_code_payload = 3;
+  TicketPassStatus status = 4;
+  google.protobuf.Timestamp used_at = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+enum TicketPassStatus {
+  TICKET_PASS_STATUS_UNSPECIFIED = 0;
+  TICKET_PASS_STATUS_VALID = 1;
+  TICKET_PASS_STATUS_USED = 2;
+  TICKET_PASS_STATUS_EXPIRED = 3;
+}
+
+message CreateTicketPassRequest {
+  string entitlement_id = 1;
+}
+
+message CreateTicketPassResponse {
+  TicketPass ticket_pass = 1;
+}
+
+message ValidateTicketPassRequest {
+  string qr_code_payload = 1;
+}
+
+message ValidateTicketPassResponse {
+  TicketPass ticket_pass = 1;
+  bool valid = 2;
+  string message = 3;
+}
+
+message ListUserTicketPassesRequest {
+  string user_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListUserTicketPassesResponse {
+  repeated TicketPass ticket_passes = 1;
+  string next_page_token = 2;
+}
+
+service TicketService {
+  rpc CreateTicketPass(CreateTicketPassRequest) returns (CreateTicketPassResponse);
+  rpc ValidateTicketPass(ValidateTicketPassRequest) returns (ValidateTicketPassResponse);
+  rpc ListUserTicketPasses(ListUserTicketPassesRequest) returns (ListUserTicketPassesResponse);
 }

@@ -2,10 +2,51 @@ syntax = "proto3";
 
 package payments.v1;
 
+import "google/protobuf/timestamp.proto";
+
 option java_multiple_files = true;
 option java_package = "com.asoviewclone.proto.payments.v1";
 
-// Placeholder message for payments domain contract.
-message PaymentsPing {
-  string message = 1;
+message Payment {
+  string payment_id = 1;
+  string order_id = 2;
+  string user_id = 3;
+  string amount = 4;
+  string currency = 5;
+  PaymentStatus status = 6;
+  string provider = 7;
+  string provider_payment_id = 8;
+  string idempotency_key = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+enum PaymentStatus {
+  PAYMENT_STATUS_UNSPECIFIED = 0;
+  PAYMENT_STATUS_CREATED = 1;
+  PAYMENT_STATUS_PROCESSING = 2;
+  PAYMENT_STATUS_SUCCEEDED = 3;
+  PAYMENT_STATUS_FAILED = 4;
+}
+
+message CreatePaymentIntentRequest {
+  string order_id = 1;
+  string idempotency_key = 2;
+}
+
+message CreatePaymentIntentResponse {
+  Payment payment = 1;
+}
+
+message ConfirmPaymentRequest {
+  string payment_id = 1;
+}
+
+message ConfirmPaymentResponse {
+  Payment payment = 1;
+}
+
+service PaymentService {
+  rpc CreatePaymentIntent(CreatePaymentIntentRequest) returns (CreatePaymentIntentResponse);
+  rpc ConfirmPayment(ConfirmPaymentRequest) returns (ConfirmPaymentResponse);
 }

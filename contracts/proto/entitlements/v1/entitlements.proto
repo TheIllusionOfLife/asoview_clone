@@ -2,10 +2,59 @@ syntax = "proto3";
 
 package entitlements.v1;
 
+import "google/protobuf/timestamp.proto";
+
 option java_multiple_files = true;
 option java_package = "com.asoviewclone.proto.entitlements.v1";
 
-// Placeholder message for entitlements domain contract.
-message EntitlementsPing {
-  string message = 1;
+message Entitlement {
+  string entitlement_id = 1;
+  string order_id = 2;
+  string order_item_id = 3;
+  string user_id = 4;
+  string product_variant_id = 5;
+  EntitlementType type = 6;
+  EntitlementStatus status = 7;
+  google.protobuf.Timestamp valid_from = 8;
+  google.protobuf.Timestamp valid_until = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+enum EntitlementType {
+  ENTITLEMENT_TYPE_UNSPECIFIED = 0;
+  ENTITLEMENT_TYPE_TICKET = 1;
+  ENTITLEMENT_TYPE_VOUCHER = 2;
+  ENTITLEMENT_TYPE_GIFT = 3;
+}
+
+enum EntitlementStatus {
+  ENTITLEMENT_STATUS_UNSPECIFIED = 0;
+  ENTITLEMENT_STATUS_ACTIVE = 1;
+  ENTITLEMENT_STATUS_USED = 2;
+  ENTITLEMENT_STATUS_EXPIRED = 3;
+  ENTITLEMENT_STATUS_REVOKED = 4;
+}
+
+message CreateEntitlementsRequest {
+  string order_id = 1;
+}
+
+message CreateEntitlementsResponse {
+  repeated Entitlement entitlements = 1;
+}
+
+message ListUserEntitlementsRequest {
+  string user_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListUserEntitlementsResponse {
+  repeated Entitlement entitlements = 1;
+  string next_page_token = 2;
+}
+
+service EntitlementService {
+  rpc CreateEntitlements(CreateEntitlementsRequest) returns (CreateEntitlementsResponse);
+  rpc ListUserEntitlements(ListUserEntitlementsRequest) returns (ListUserEntitlementsResponse);
 }
