@@ -1,0 +1,51 @@
+package com.asoviewclone.commercecore.orders.controller;
+
+import com.asoviewclone.commercecore.orders.controller.dto.CreateOrderRequest;
+import com.asoviewclone.commercecore.orders.controller.dto.OrderResponse;
+import com.asoviewclone.commercecore.orders.model.Order;
+import com.asoviewclone.commercecore.orders.service.OrderService;
+import com.asoviewclone.commercecore.orders.service.OrderService.CreateOrderItemRequest;
+import com.asoviewclone.commercecore.security.AuthenticatedUser;
+import java.util.List;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/v1")
+public class OrderController {
+
+  private final OrderService orderService;
+
+  public OrderController(OrderService orderService) {
+    this.orderService = orderService;
+  }
+
+  @PostMapping("/orders")
+  @ResponseStatus(HttpStatus.CREATED)
+  public OrderResponse createOrder(
+      @AuthenticationPrincipal AuthenticatedUser user, @RequestBody CreateOrderRequest request) {
+    List<CreateOrderItemRequest> items =
+        request.items().stream()
+            .map(
+                i ->
+                    new CreateOrderItemRequest(
+                        i.productVariantId(), i.slotId(), i.quantity(), i.unitPrice()))
+            .toList();
+    Order order =
+        orderService.createOrder(user.userId().toString(), request.idempotencyKey(), items);
+    return OrderResponse.from(order);
+  }
+
+  @GetMapping("/me/orders")
+  public List<OrderResponse> listMyOrders(@AuthenticationPrincipal AuthenticatedUser user) {
+    return orderService.listUserOrders(user.userId().toString()).stream()
+        .map(OrderResponse::from)
+        .toList();
+  }
+}
