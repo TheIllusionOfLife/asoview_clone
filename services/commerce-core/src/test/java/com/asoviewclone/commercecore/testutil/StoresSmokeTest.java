@@ -46,10 +46,9 @@ class StoresSmokeTest {
 
   @Test
   void spannerEmulatorIsReachable() {
-    // Write and read via raw Spanner client
     spannerClient.write(
         List.of(
-            Mutation.newInsertBuilder("smoke_test")
+            Mutation.newInsertOrUpdateBuilder("smoke_test")
                 .set("id")
                 .to("1")
                 .set("value")

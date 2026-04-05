@@ -1,6 +1,7 @@
 package com.asoviewclone.commercecore.config;
 
 import com.google.cloud.spanner.DatabaseAdminClient;
+import com.google.cloud.spanner.SpannerException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -68,14 +69,24 @@ public class SpannerDdlBootstrap implements CommandLineRunner {
       try {
         adminClient.updateDatabaseDdl(instanceId, databaseName, statements, null).get();
       } catch (ExecutionException e) {
-        if (e.getCause() != null
-            && e.getCause().getMessage() != null
-            && e.getCause().getMessage().contains("Duplicate")) {
+        if (isAlreadyExists(e)) {
           log.info("DDL already applied: {}", resource.getFilename());
         } else {
           throw e;
         }
       }
     }
+  }
+
+  private boolean isAlreadyExists(ExecutionException e) {
+    Throwable cause = e.getCause();
+    if (cause instanceof SpannerException spannerEx) {
+      return spannerEx.getErrorCode() == com.google.cloud.spanner.ErrorCode.FAILED_PRECONDITION;
+    }
+    if (cause != null && cause.getMessage() != null) {
+      String msg = cause.getMessage();
+      return msg.contains("Duplicate") || msg.contains("already exists");
+    }
+    return false;
   }
 }

@@ -6,6 +6,10 @@ import com.google.cloud.spring.autoconfigure.spanner.SpannerTransactionManagerAu
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+// Exclude Spanner auto-config due to Spring Cloud GCP 5.10.0 / Spring Boot 3.4.4
+// compatibility issues with TransactionManagerCustomizers and Supplier<DatabaseClient>.
+// Spanner beans are wired manually in SpannerEmulatorConfig (test) and will be
+// provided via a production SpannerConfig when deploying against real Spanner.
 @SpringBootApplication(
     exclude = {
       GcpSpannerAutoConfiguration.class,

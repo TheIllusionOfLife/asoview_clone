@@ -4,8 +4,6 @@ spring:
     username: asoview
     password: asoview
   jpa:
-    hibernate:
-      ddl-auto: validate
     show-sql: true
   data:
     redis:
@@ -19,3 +17,4 @@ spring:
         database: asoview
         emulator:
           enabled: true
+        emulator-host: localhost:9010
