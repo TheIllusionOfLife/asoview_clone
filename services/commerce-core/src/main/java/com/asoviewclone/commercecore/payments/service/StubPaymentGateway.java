@@ -2,11 +2,11 @@ package com.asoviewclone.commercecore.payments.service;
 
 import java.math.BigDecimal;
 import java.util.UUID;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
+// Fallback gateway that always succeeds. Will be replaced by a real
+// implementation (e.g., Stripe via @Primary) in Phase 2.
 @Component
-@Profile({"local", "test"})
 public class StubPaymentGateway implements PaymentGateway {
 
   @Override
