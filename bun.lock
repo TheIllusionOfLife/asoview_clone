@@ -1,0 +1,29 @@
+{
+  "lockfileVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "asoview-clone",
+    },
+    "libraries/design-tokens": {
+      "name": "@asoview/design-tokens",
+      "version": "0.0.0",
+      "devDependencies": {
+        "typescript": "^5.7.0",
+      },
+    },
+    "libraries/frontend-shared": {
+      "name": "@asoview/frontend-shared",
+      "version": "0.0.0",
+      "devDependencies": {
+        "typescript": "^5.7.0",
+      },
+    },
+  },
+  "packages": {
+    "@asoview/design-tokens": ["@asoview/design-tokens@workspace:libraries/design-tokens"],
+
+    "@asoview/frontend-shared": ["@asoview/frontend-shared@workspace:libraries/frontend-shared"],
+
+    "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+  }
+}
