@@ -30,13 +30,13 @@ class SecurityConfigTest {
 
   @Test
   void getCategoriesIsPublic() throws Exception {
-    // Returns 404 since no controller exists yet, but NOT 401/403
-    mockMvc.perform(get("/v1/categories")).andExpect(status().isNotFound());
+    // Returns 200 with empty list since controllers are now registered
+    mockMvc.perform(get("/v1/categories")).andExpect(status().isOk());
   }
 
   @Test
   void getProductsIsPublic() throws Exception {
-    mockMvc.perform(get("/v1/products")).andExpect(status().isNotFound());
+    mockMvc.perform(get("/v1/products")).andExpect(status().isOk());
   }
 
   @Test
