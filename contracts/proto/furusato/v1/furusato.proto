@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package furusato.v1;
+
+option java_multiple_files = true;
+option java_package = "com.asoviewclone.proto.furusato.v1";
+
+// Placeholder message for furusato domain contract.
+message FurusatoPing {
+  string message = 1;
+}

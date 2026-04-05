@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package gift.v1;
+
+option java_multiple_files = true;
+option java_package = "com.asoviewclone.proto.gift.v1";
+
+// Placeholder message for gift domain contract.
+message GiftPing {
+  string message = 1;
+}

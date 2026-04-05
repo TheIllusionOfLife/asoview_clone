@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package catalog.v1;
+
+option java_multiple_files = true;
+option java_package = "com.asoviewclone.proto.catalog.v1";
+
+// Placeholder message for catalog domain contract.
+message CatalogPing {
+  string message = 1;
+}

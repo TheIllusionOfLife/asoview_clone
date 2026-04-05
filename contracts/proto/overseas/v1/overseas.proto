@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package overseas.v1;
+
+option java_multiple_files = true;
+option java_package = "com.asoviewclone.proto.overseas.v1";
+
+// Placeholder message for overseas domain contract.
+message OverseasPing {
+  string message = 1;
+}
