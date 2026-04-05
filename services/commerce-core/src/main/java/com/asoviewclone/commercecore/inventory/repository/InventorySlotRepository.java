@@ -102,7 +102,11 @@ public class InventorySlotRepository {
         .readWriteTransaction()
         .run(
             tx -> {
-              InventoryHold hold = readHoldInTransaction(tx, holdId);
+              // Idempotent: if hold is already gone (previously confirmed), no-op
+              InventoryHold hold = readHoldInTransactionOrNull(tx, holdId);
+              if (hold == null) {
+                return null;
+              }
 
               // Reject if hold has expired
               if (hold.isExpired(clockProvider.now())) {
@@ -166,6 +170,22 @@ public class InventorySlotRepository {
       }
     }
     throw new NotFoundException("InventorySlot", slotId);
+  }
+
+  private InventoryHold readHoldInTransactionOrNull(TransactionContext tx, String holdId) {
+    Statement stmt =
+        Statement.newBuilder(
+                "SELECT hold_id, slot_id, user_id, quantity, expires_at, created_at"
+                    + " FROM inventory_holds WHERE hold_id = @holdId")
+            .bind("holdId")
+            .to(holdId)
+            .build();
+    try (ResultSet rs = tx.executeQuery(stmt)) {
+      if (rs.next()) {
+        return mapHold(rs);
+      }
+    }
+    return null;
   }
 
   private InventoryHold readHoldInTransaction(TransactionContext tx, String holdId) {

@@ -40,9 +40,12 @@ public class OrderServiceImpl implements OrderService {
       throw new ValidationException("Order must have at least one item");
     }
 
-    // Idempotency check
+    // Idempotency check: verify the existing order belongs to the same user
     Optional<Order> existing = orderRepository.findByIdempotencyKey(idempotencyKey);
     if (existing.isPresent()) {
+      if (!existing.get().userId().equals(userId)) {
+        throw new ValidationException("Idempotency key already used by another user");
+      }
       return existing.get();
     }
 

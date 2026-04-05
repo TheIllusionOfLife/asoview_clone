@@ -45,9 +45,12 @@ public class PaymentServiceImpl implements PaymentService {
   @Override
   @Transactional
   public Payment createPaymentIntent(String orderId, String userId, String idempotencyKey) {
-    // Idempotency check
+    // Idempotency check: verify the existing payment belongs to the same user
     Optional<Payment> existing = paymentRepository.findByIdempotencyKey(idempotencyKey);
     if (existing.isPresent()) {
+      if (!existing.get().getUserId().equals(userId)) {
+        throw new ValidationException("Idempotency key already used by another user");
+      }
       return existing.get();
     }
 
@@ -79,8 +82,9 @@ public class PaymentServiceImpl implements PaymentService {
 
     // Save payment to JPA (Cloud SQL) first, then update order in Spanner.
     // Cross-store tradeoff: if Spanner update fails after JPA commit, order stays
-    // PENDING (recoverable via retry). The reverse (Spanner first) would leave
-    // order in PAYMENT_PENDING with no Payment record, which is worse.
+    // PENDING with a PROCESSING payment. The idempotency check will return the
+    // existing payment on retry, but the order won't advance to PAYMENT_PENDING.
+    // confirmPayment will still work (it reads order by ID, not by status).
     // Phase 2 should introduce @TransactionalEventListener or outbox pattern.
     Payment saved = paymentRepository.save(payment);
     orderRepository.updateStatus(orderId, OrderStatus.PAYMENT_PENDING);
