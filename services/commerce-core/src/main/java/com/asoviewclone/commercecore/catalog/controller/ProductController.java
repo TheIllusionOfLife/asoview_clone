@@ -26,13 +26,11 @@ public class ProductController {
   @GetMapping
   public Page<ProductResponse> listProducts(
       @RequestParam(required = false) UUID categoryId,
-      @RequestParam(required = false) ProductStatus status,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "20") int size) {
-    // Default to ACTIVE to prevent exposing DRAFT/ARCHIVED products publicly
-    ProductStatus effectiveStatus = (status != null) ? status : ProductStatus.ACTIVE;
+    // Public endpoint always shows ACTIVE only. Client cannot override status.
     return catalogService
-        .listProducts(categoryId, effectiveStatus, PageRequest.of(page, size))
+        .listProducts(categoryId, ProductStatus.ACTIVE, PageRequest.of(page, size))
         .map(ProductResponse::from);
   }
 

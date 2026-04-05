@@ -32,9 +32,10 @@ public class PaymentController {
     String idempotencyKey = request.getOrDefault("idempotencyKey", orderId);
     Payment payment =
         paymentService.createPaymentIntent(orderId, user.userId().toString(), idempotencyKey);
-    return Map.of(
-        "paymentId", payment.getPaymentId().toString(),
-        "status", payment.getStatus().name(),
-        "providerPaymentId", payment.getProviderPaymentId());
+    java.util.Map<String, Object> response = new java.util.HashMap<>();
+    response.put("paymentId", payment.getPaymentId().toString());
+    response.put("status", payment.getStatus().name());
+    response.put("providerPaymentId", payment.getProviderPaymentId());
+    return response;
   }
 }

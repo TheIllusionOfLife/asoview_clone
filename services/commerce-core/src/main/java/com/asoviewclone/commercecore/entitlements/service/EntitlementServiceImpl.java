@@ -10,6 +10,8 @@ import com.asoviewclone.commercecore.orders.model.Order;
 import com.asoviewclone.commercecore.orders.model.OrderItem;
 import com.asoviewclone.commercecore.payments.service.EntitlementCreator;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Primary;
@@ -32,15 +34,25 @@ public class EntitlementServiceImpl implements EntitlementCreator {
 
   @Override
   public void createEntitlementsForOrder(Order order) {
-    // Idempotency: check if entitlements already exist for this order
+    // Collect existing entitlements by orderItemId to handle partial creation on retry
     List<Entitlement> existing = entitlementRepository.findByOrderId(order.orderId());
-    if (!existing.isEmpty()) {
-      log.info("Entitlements already exist for order {}, skipping", order.orderId());
+    Set<String> existingOrderItemIds =
+        existing.stream().map(Entitlement::orderItemId).collect(Collectors.toSet());
+
+    // Count existing entitlements per order item for quantity-aware idempotency
+    long expectedTotal = order.items().stream().mapToLong(OrderItem::quantity).sum();
+    if (existing.size() >= expectedTotal) {
+      log.info("All entitlements already exist for order {}, skipping", order.orderId());
       return;
     }
 
     for (OrderItem item : order.items()) {
-      for (int i = 0; i < item.quantity(); i++) {
+      // Count how many entitlements already exist for this order item
+      long existingForItem =
+          existing.stream().filter(e -> e.orderItemId().equals(item.orderItemId())).count();
+      long remaining = item.quantity() - existingForItem;
+
+      for (long i = 0; i < remaining; i++) {
         Entitlement entitlement =
             entitlementRepository.save(
                 new Entitlement(

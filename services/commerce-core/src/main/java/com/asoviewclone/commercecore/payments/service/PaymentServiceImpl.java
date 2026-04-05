@@ -45,13 +45,17 @@ public class PaymentServiceImpl implements PaymentService {
   @Override
   @Transactional
   public Payment createPaymentIntent(String orderId, String userId, String idempotencyKey) {
-    // Idempotency check: verify the existing payment belongs to the same user
+    // Idempotency check: verify the existing payment belongs to the same user and order
     Optional<Payment> existing = paymentRepository.findByIdempotencyKey(idempotencyKey);
     if (existing.isPresent()) {
-      if (!existing.get().getUserId().equals(userId)) {
+      Payment ep = existing.get();
+      if (!ep.getUserId().equals(userId)) {
         throw new ValidationException("Idempotency key already used by another user");
       }
-      return existing.get();
+      if (!ep.getOrderId().equals(orderId)) {
+        throw new ValidationException("Idempotency key already used for a different order");
+      }
+      return ep;
     }
 
     Order order = orderRepository.findById(orderId);
@@ -112,6 +116,9 @@ public class PaymentServiceImpl implements PaymentService {
     // Confirm inventory holds first. If this fails, payment stays PROCESSING
     // and can be retried by the caller.
     Order order = orderRepository.findById(payment.getOrderId());
+    if (order.status() == OrderStatus.CANCELLED) {
+      throw new ConflictException("Order has been cancelled, cannot confirm payment");
+    }
     for (OrderItem item : order.items()) {
       if (item.holdId() != null) {
         inventoryService.confirmHold(item.holdId());

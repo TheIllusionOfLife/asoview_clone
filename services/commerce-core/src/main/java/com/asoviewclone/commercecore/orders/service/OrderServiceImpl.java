@@ -10,6 +10,7 @@ import com.asoviewclone.commercecore.orders.model.OrderStatus;
 import com.asoviewclone.commercecore.orders.repository.OrderRepository;
 import com.asoviewclone.common.error.NotFoundException;
 import com.asoviewclone.common.error.ValidationException;
+import com.google.cloud.spanner.SpannerException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -100,6 +101,30 @@ public class OrderServiceImpl implements OrderService {
 
       return orderRepository.save(
           userId, total.toPlainString(), currency, idempotencyKey, orderItems);
+    } catch (SpannerException e) {
+      // Handle idempotency race: concurrent insert with same idempotency key
+      if (e.getErrorCode() == com.google.cloud.spanner.ErrorCode.ALREADY_EXISTS) {
+        Optional<Order> raceWinner = orderRepository.findByIdempotencyKey(idempotencyKey);
+        if (raceWinner.isPresent() && raceWinner.get().userId().equals(userId)) {
+          // Release holds we created since the other request won
+          for (InventoryHold hold : holds) {
+            try {
+              inventoryService.releaseHold(hold.holdId());
+            } catch (Exception ignored) {
+            }
+          }
+          return raceWinner.get();
+        }
+      }
+      // Release any holds that were created
+      for (InventoryHold hold : holds) {
+        try {
+          inventoryService.releaseHold(hold.holdId());
+        } catch (Exception ignored) {
+          // Best effort release
+        }
+      }
+      throw e;
     } catch (Exception e) {
       // Release any holds that were created
       for (InventoryHold hold : holds) {
