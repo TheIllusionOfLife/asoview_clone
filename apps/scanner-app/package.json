@@ -15,7 +15,7 @@
     "react": "^19.2.3",
     "react-native": "~0.84.1",
     "react-native-safe-area-context": "~5.4.0",
-    "react-native-screens": "~4.10.0"
+    "react-native-screens": "~4.24.0"
   },
   "devDependencies": {
     "@types/react": "^19.1.0",
