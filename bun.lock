@@ -4,6 +4,40 @@
     "": {
       "name": "asoview-clone",
     },
+    "apps/ads-web": {
+      "name": "@asoview/ads-web",
+      "version": "0.0.0",
+      "dependencies": {
+        "@asoview/design-tokens": "workspace:*",
+        "@asoview/frontend-shared": "workspace:*",
+        "next": "^15.3.1",
+        "react": "^19.1.0",
+        "react-dom": "^19.1.0",
+      },
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "@types/react": "^19.1.0",
+        "@types/react-dom": "^19.1.0",
+        "typescript": "^5.7.0",
+      },
+    },
+    "apps/area-gate-web": {
+      "name": "@asoview/area-gate-web",
+      "version": "0.0.0",
+      "dependencies": {
+        "@asoview/design-tokens": "workspace:*",
+        "@asoview/frontend-shared": "workspace:*",
+        "next": "^15.3.1",
+        "react": "^19.1.0",
+        "react-dom": "^19.1.0",
+      },
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "@types/react": "^19.1.0",
+        "@types/react-dom": "^19.1.0",
+        "typescript": "^5.7.0",
+      },
+    },
     "apps/asoview-web": {
       "name": "@asoview/asoview-web",
       "version": "0.0.0",
@@ -72,6 +106,40 @@
         "typescript": "^5.7.0",
       },
     },
+    "apps/urakata-reservation-web": {
+      "name": "@asoview/urakata-reservation-web",
+      "version": "0.0.0",
+      "dependencies": {
+        "@asoview/design-tokens": "workspace:*",
+        "@asoview/frontend-shared": "workspace:*",
+        "next": "^15.3.1",
+        "react": "^19.1.0",
+        "react-dom": "^19.1.0",
+      },
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "@types/react": "^19.1.0",
+        "@types/react-dom": "^19.1.0",
+        "typescript": "^5.7.0",
+      },
+    },
+    "apps/urakata-ticket-web": {
+      "name": "@asoview/urakata-ticket-web",
+      "version": "0.0.0",
+      "dependencies": {
+        "@asoview/design-tokens": "workspace:*",
+        "@asoview/frontend-shared": "workspace:*",
+        "next": "^15.3.1",
+        "react": "^19.1.0",
+        "react-dom": "^19.1.0",
+      },
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "@types/react": "^19.1.0",
+        "@types/react-dom": "^19.1.0",
+        "typescript": "^5.7.0",
+      },
+    },
     "libraries/design-tokens": {
       "name": "@asoview/design-tokens",
       "version": "0.0.0",
@@ -88,6 +156,10 @@
     },
   },
   "packages": {
+    "@asoview/ads-web": ["@asoview/ads-web@workspace:apps/ads-web"],
+
+    "@asoview/area-gate-web": ["@asoview/area-gate-web@workspace:apps/area-gate-web"],
+
     "@asoview/asoview-web": ["@asoview/asoview-web@workspace:apps/asoview-web"],
 
     "@asoview/design-tokens": ["@asoview/design-tokens@workspace:libraries/design-tokens"],
@@ -99,6 +171,10 @@
     "@asoview/gift-web": ["@asoview/gift-web@workspace:apps/gift-web"],
 
     "@asoview/overseas-web": ["@asoview/overseas-web@workspace:apps/overseas-web"],
+
+    "@asoview/urakata-reservation-web": ["@asoview/urakata-reservation-web@workspace:apps/urakata-reservation-web"],
+
+    "@asoview/urakata-ticket-web": ["@asoview/urakata-ticket-web@workspace:apps/urakata-ticket-web"],
 
     "@emnapi/runtime": ["@emnapi/runtime@1.9.2", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-3U4+MIWHImeyu1wnmVygh5WlgfYDtyf0k8AbLhMFxOipihf6nrWC4syIm/SwEeec0mNSafiiNnMJwbza/Is6Lw=="],
 
