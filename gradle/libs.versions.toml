@@ -1,0 +1,22 @@
+[versions]
+spring-boot = "3.4.4"
+spring-cloud = "2024.0.1"
+spring-dependency-management = "1.1.7"
+grpc = "1.71.0"
+protobuf = "4.30.2"
+spotless = "7.0.3"
+checkstyle = "10.23.1"
+
+[libraries]
+grpc-bom = { module = "io.grpc:grpc-bom", version.ref = "grpc" }
+grpc-netty-shaded = { module = "io.grpc:grpc-netty-shaded" }
+grpc-protobuf = { module = "io.grpc:grpc-protobuf" }
+grpc-stub = { module = "io.grpc:grpc-stub" }
+grpc-services = { module = "io.grpc:grpc-services" }
+protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf" }
+spring-cloud-bom = { module = "org.springframework.cloud:spring-cloud-dependencies", version.ref = "spring-cloud" }
+
+[plugins]
+spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
+spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "spring-dependency-management" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }

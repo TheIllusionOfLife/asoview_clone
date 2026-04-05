@@ -1,0 +1,33 @@
+name: Docker Build
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-images:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - gateway
+          - commerce-core
+          - ticketing-service
+          - reservation-service
+          - ads-service
+          - analytics-ingest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        env:
+          SERVICE: ${{ matrix.service }}
+          SHA: ${{ github.sha }}
+        run: |
+          docker build \
+            -f "services/${SERVICE}/Dockerfile" \
+            -t "asoview-clone/${SERVICE}:${SHA}" \
+            .

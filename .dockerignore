@@ -1,0 +1,14 @@
+.git
+.github
+.gradle
+**/build
+**/node_modules
+**/.next
+**/.expo
+**/dist
+docs
+infra
+contracts
+*.md
+.editorconfig
+biome.json

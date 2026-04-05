@@ -1,0 +1,20 @@
+# Cloud Build config stub for GKE delivery pipeline.
+# Expand as services are deployed.
+steps:
+  - id: build-java
+    name: eclipse-temurin:21-jdk
+    entrypoint: ./gradlew
+    args: ["build", "--no-daemon"]
+
+  - id: build-images
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        for svc in gateway commerce-core ticketing-service reservation-service ads-service analytics-ingest; do
+          docker build -f "services/$${svc}/Dockerfile" -t "$_REGION-docker.pkg.dev/$PROJECT_ID/asoview-clone/$${svc}:$SHORT_SHA" .
+        done
+
+substitutions:
+  _REGION: asia-northeast1

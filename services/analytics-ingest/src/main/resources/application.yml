@@ -1,0 +1,6 @@
+spring:
+  application:
+    name: analytics-ingest
+
+server:
+  port: 8085

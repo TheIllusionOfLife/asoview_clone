@@ -1,0 +1,24 @@
+{
+  "name": "@asoview/scanner-app",
+  "version": "0.0.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios"
+  },
+  "dependencies": {
+    "expo": "~55.0.11",
+    "expo-router": "~55.0.10",
+    "expo-status-bar": "~55.0.5",
+    "react": "^19.2.3",
+    "react-native": "~0.84.1",
+    "react-native-safe-area-context": "~5.4.0",
+    "react-native-screens": "~4.10.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "typescript": "^5.7.0"
+  }
+}

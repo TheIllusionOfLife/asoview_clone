@@ -1,0 +1,10 @@
+{
+  "name": "asoview-clone",
+  "private": true,
+  "packageManager": "bun@1.2.23",
+  "workspaces": [
+    "apps/*",
+    "libraries/frontend-shared",
+    "libraries/design-tokens"
+  ]
+}

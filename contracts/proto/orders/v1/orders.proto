@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package orders.v1;
+
+option java_multiple_files = true;
+option java_package = "com.asoviewclone.proto.orders.v1";
+
+// Placeholder message for orders domain contract.
+message OrdersPing {
+  string message = 1;
+}

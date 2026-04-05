@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package inventory.v1;
+
+option java_multiple_files = true;
+option java_package = "com.asoviewclone.proto.inventory.v1";
+
+// Placeholder message for inventory domain contract.
+message InventoryPing {
+  string message = 1;
+}
