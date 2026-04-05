@@ -30,11 +30,13 @@ module "networking" {
 }
 
 module "gke" {
-  source       = "../../modules/gke"
-  project_id   = var.project_id
-  region       = var.region
-  zone         = var.zone
-  cluster_name = "asoview-clone-dev"
+  source        = "../../modules/gke"
+  project_id    = var.project_id
+  region        = var.region
+  zone          = var.zone
+  cluster_name  = "asoview-clone-dev"
+  network_id    = module.networking.network_id
+  subnetwork_id = module.networking.subnetwork_id
 }
 
 module "spanner" {

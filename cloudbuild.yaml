@@ -13,7 +13,7 @@ steps:
       - -c
       - |
         for svc in gateway commerce-core ticketing-service reservation-service ads-service analytics-ingest; do
-          docker build -f "services/$${svc}/Dockerfile" -t "$$_REGION-docker.pkg.dev/$$PROJECT_ID/asoview-clone/$${svc}:$$SHORT_SHA" .
+          docker build -f "services/$${svc}/Dockerfile" -t "$_REGION-docker.pkg.dev/$PROJECT_ID/asoview-clone/$${svc}:$SHORT_SHA" .
         done
 
 substitutions:

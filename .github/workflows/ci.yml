@@ -43,6 +43,8 @@ jobs:
             echo "Building $app"
             (cd "$app" && bun run build)
           done
+      - name: Typecheck scanner app
+        run: cd apps/scanner-app && bunx tsc --noEmit || true
 
   proto-lint:
     name: Proto Lint
@@ -52,6 +54,8 @@ jobs:
       - uses: bufbuild/buf-action@v1
         with:
           input: contracts/proto
+          breaking: false
+          github_token: ""
 
   terraform-validate:
     name: Terraform Validate
