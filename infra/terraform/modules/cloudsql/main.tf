@@ -8,6 +8,9 @@ variable "instance_name" {
   type    = string
   default = "asoview-clone-pg"
 }
+variable "network_id" {
+  type = string
+}
 
 resource "google_sql_database_instance" "main" {
   name             = var.instance_name
@@ -20,7 +23,7 @@ resource "google_sql_database_instance" "main" {
 
     ip_configuration {
       ipv4_enabled    = false
-      private_network = "default"
+      private_network = var.network_id
     }
   }
 
