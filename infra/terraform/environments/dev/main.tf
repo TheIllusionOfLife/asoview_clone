@@ -58,6 +58,7 @@ module "redis" {
   source     = "../../modules/redis"
   project_id = var.project_id
   region     = var.region
+  network_id = module.networking.network_id
 }
 
 module "pubsub" {
