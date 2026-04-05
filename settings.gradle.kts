@@ -1,7 +1,5 @@
 pluginManagement {
-    if (file("build-logic").exists()) {
-        includeBuild("build-logic")
-    }
+    includeBuild("build-logic")
 }
 
 rootProject.name = "asoview-clone"
