@@ -77,12 +77,15 @@ public class InventorySlotRepository {
               Instant now = clockProvider.now();
               Instant expiresAt = now.plus(HOLD_TTL);
 
+              String productVariantId = slot.productVariantId();
               tx.buffer(
                   Mutation.newInsertBuilder("inventory_holds")
                       .set("hold_id")
                       .to(holdId)
                       .set("slot_id")
                       .to(slotId)
+                      .set("product_variant_id")
+                      .to(productVariantId)
                       .set("user_id")
                       .to(userId)
                       .set("quantity")
@@ -93,7 +96,8 @@ public class InventorySlotRepository {
                       .to(Timestamp.ofTimeSecondsAndNanos(now.getEpochSecond(), 0))
                       .build());
 
-              return new InventoryHold(holdId, slotId, userId, quantity, expiresAt, now);
+              return new InventoryHold(
+                  holdId, slotId, productVariantId, userId, quantity, expiresAt, now);
             });
   }
 
@@ -175,7 +179,8 @@ public class InventorySlotRepository {
   private InventoryHold readHoldInTransactionOrNull(TransactionContext tx, String holdId) {
     Statement stmt =
         Statement.newBuilder(
-                "SELECT hold_id, slot_id, user_id, quantity, expires_at, created_at"
+                "SELECT hold_id, slot_id, product_variant_id, user_id, quantity,"
+                    + " expires_at, created_at"
                     + " FROM inventory_holds WHERE hold_id = @holdId")
             .bind("holdId")
             .to(holdId)
@@ -191,7 +196,8 @@ public class InventorySlotRepository {
   private InventoryHold readHoldInTransaction(TransactionContext tx, String holdId) {
     Statement stmt =
         Statement.newBuilder(
-                "SELECT hold_id, slot_id, user_id, quantity, expires_at, created_at"
+                "SELECT hold_id, slot_id, product_variant_id, user_id, quantity,"
+                    + " expires_at, created_at"
                     + " FROM inventory_holds WHERE hold_id = @holdId")
             .bind("holdId")
             .to(holdId)
@@ -241,6 +247,7 @@ public class InventorySlotRepository {
     return new InventoryHold(
         rs.getString("hold_id"),
         rs.getString("slot_id"),
+        rs.getString("product_variant_id"),
         rs.getString("user_id"),
         rs.getLong("quantity"),
         rs.getTimestamp("expires_at").toDate().toInstant(),
