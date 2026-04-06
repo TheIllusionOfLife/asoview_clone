@@ -12,6 +12,7 @@ dependencyResolutionManagement {
 
 // Shared libraries
 include("libraries:java-common")
+include("libraries:proto-contracts")
 
 // Backend services
 include("services:gateway")

@@ -1,0 +1,20 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/asoview
+    username: asoview
+    password: asoview
+  jpa:
+    show-sql: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  cloud:
+    gcp:
+      spanner:
+        project-id: asoview-clone
+        instance-id: asoview-clone
+        database: asoview
+        emulator:
+          enabled: true
+        emulator-host: localhost:9010

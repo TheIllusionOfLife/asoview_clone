@@ -1,6 +1,18 @@
 spring:
   application:
     name: gateway
+  cloud:
+    gateway:
+      routes:
+        - id: commerce-core-public
+          uri: ${COMMERCE_CORE_URI:http://localhost:8081}
+          predicates:
+            - Path=/v1/**
+
+  # Disable gRPC auto-configuration (not using gRPC routes in Phase 1)
+  grpc:
+    discovery:
+      enabled: false
 
 server:
   port: 8080

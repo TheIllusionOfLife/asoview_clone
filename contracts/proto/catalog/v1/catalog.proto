@@ -2,10 +2,81 @@ syntax = "proto3";
 
 package catalog.v1;
 
+import "google/protobuf/timestamp.proto";
+
 option java_multiple_files = true;
 option java_package = "com.asoviewclone.proto.catalog.v1";
 
-// Placeholder message for catalog domain contract.
-message CatalogPing {
-  string message = 1;
+message Category {
+  string id = 1;
+  string name = 2;
+  string slug = 3;
+  string parent_id = 4;
+  int32 display_order = 5;
+  string image_url = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message Product {
+  string id = 1;
+  string tenant_id = 2;
+  string venue_id = 3;
+  string category_id = 4;
+  string title = 5;
+  string description = 6;
+  string image_url = 7;
+  ProductStatus status = 8;
+  repeated ProductVariant variants = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+message ProductVariant {
+  string id = 1;
+  string product_id = 2;
+  string name = 3;
+  string price_amount = 4;
+  string price_currency = 5;
+  int32 duration_minutes = 6;
+  int32 max_participants = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+enum ProductStatus {
+  PRODUCT_STATUS_UNSPECIFIED = 0;
+  PRODUCT_STATUS_DRAFT = 1;
+  PRODUCT_STATUS_ACTIVE = 2;
+  PRODUCT_STATUS_ARCHIVED = 3;
+}
+
+message ListCategoriesRequest {}
+
+message ListCategoriesResponse {
+  repeated Category categories = 1;
+}
+
+message GetProductRequest {
+  string product_id = 1;
+}
+
+message GetProductResponse {
+  Product product = 1;
+}
+
+message ListProductsRequest {
+  string category_id = 1;
+  ProductStatus status = 2;
+  int32 page_size = 3;
+  string page_token = 4;
+}
+
+message ListProductsResponse {
+  repeated Product products = 1;
+  string next_page_token = 2;
+}
+
+service CatalogService {
+  rpc ListCategories(ListCategoriesRequest) returns (ListCategoriesResponse);
+  rpc GetProduct(GetProductRequest) returns (GetProductResponse);
+  rpc ListProducts(ListProductsRequest) returns (ListProductsResponse);
 }

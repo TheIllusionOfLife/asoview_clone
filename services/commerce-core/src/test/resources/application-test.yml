@@ -1,0 +1,15 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  flyway:
+    locations: classpath:db/migration
+  cloud:
+    gcp:
+      spanner:
+        project-id: test-project
+        instance-id: test-instance
+        database: test-database
+        emulator:
+          enabled: true

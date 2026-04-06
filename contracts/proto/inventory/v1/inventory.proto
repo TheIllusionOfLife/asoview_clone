@@ -2,10 +2,67 @@ syntax = "proto3";
 
 package inventory.v1;
 
+import "google/protobuf/timestamp.proto";
+
 option java_multiple_files = true;
 option java_package = "com.asoviewclone.proto.inventory.v1";
 
-// Placeholder message for inventory domain contract.
-message InventoryPing {
-  string message = 1;
+message InventorySlot {
+  string slot_id = 1;
+  string product_variant_id = 2;
+  string slot_date = 3;
+  string start_time = 4;
+  string end_time = 5;
+  int32 total_capacity = 6;
+  int32 reserved_count = 7;
+  int32 available_count = 8;
+  google.protobuf.Timestamp created_at = 9;
+}
+
+message InventoryHold {
+  string hold_id = 1;
+  string slot_id = 2;
+  string user_id = 3;
+  int32 quantity = 4;
+  google.protobuf.Timestamp expires_at = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message GetAvailableSlotsRequest {
+  string product_variant_id = 1;
+  string start_date = 2;
+  string end_date = 3;
+}
+
+message GetAvailableSlotsResponse {
+  repeated InventorySlot slots = 1;
+}
+
+message HoldInventoryRequest {
+  string slot_id = 1;
+  string user_id = 2;
+  int32 quantity = 3;
+}
+
+message HoldInventoryResponse {
+  InventoryHold hold = 1;
+}
+
+message ReleaseHoldRequest {
+  string hold_id = 1;
+}
+
+message ReleaseHoldResponse {}
+
+message ConfirmHoldRequest {
+  string hold_id = 1;
+}
+
+message ConfirmHoldResponse {}
+
+service InventoryService {
+  rpc GetAvailableSlots(GetAvailableSlotsRequest) returns (GetAvailableSlotsResponse);
+  rpc HoldInventory(HoldInventoryRequest) returns (HoldInventoryResponse);
+  rpc ReleaseHold(ReleaseHoldRequest) returns (ReleaseHoldResponse);
+  rpc ConfirmHold(ConfirmHoldRequest) returns (ConfirmHoldResponse);
 }
