@@ -57,8 +57,8 @@ public class OrderController {
 
   /**
    * Single-order lookup. Used by the consumer web app's checkout polling loop and ticket page.
-   * Returns 404 if the order does not exist OR belongs to a different user — never 403, so we
-   * don't leak existence of orders the caller doesn't own.
+   * Returns 404 if the order does not exist OR belongs to a different user — never 403, so we don't
+   * leak existence of orders the caller doesn't own.
    */
   @GetMapping("/orders/{orderId}")
   public OrderResponse getOrder(

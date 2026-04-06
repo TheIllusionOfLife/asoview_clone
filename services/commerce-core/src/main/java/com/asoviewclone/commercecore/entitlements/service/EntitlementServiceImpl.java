@@ -81,7 +81,8 @@ public class EntitlementServiceImpl implements EntitlementCreator {
       // expected to exist (the order references it) but defend against null so a corrupt slot
       // id never crashes payment confirmation — entitlements without validity are still usable
       // by the QR scanner, the frontend just won't gate the QR display on a window.
-      InventorySlot slot = slotCache.computeIfAbsent(item.slotId(), inventorySlotRepository::findById);
+      InventorySlot slot =
+          slotCache.computeIfAbsent(item.slotId(), inventorySlotRepository::findById);
       Instant validFrom = null;
       Instant validUntil = null;
       if (slot != null && slot.slotDate() != null) {
@@ -132,8 +133,8 @@ public class EntitlementServiceImpl implements EntitlementCreator {
 
   /**
    * Returns ticket passes joined with their parent entitlement so the consumer web app's
-   * /tickets/[orderId] page has the order id and validity window in a single response. When
-   * {@code orderIdOrNull} is non-null the result is filtered to that order.
+   * /tickets/[orderId] page has the order id and validity window in a single response. When {@code
+   * orderIdOrNull} is non-null the result is filtered to that order.
    */
   public List<TicketPassView> listUserTicketPassViews(String userId, String orderIdOrNull) {
     return entitlementRepository.findTicketPassViewsByUserId(userId, orderIdOrNull);

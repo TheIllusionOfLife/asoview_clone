@@ -140,9 +140,9 @@ public class EntitlementRepository {
   }
 
   /**
-   * Returns ticket passes joined with their parent entitlement so the caller has the order id
-   * and validity window in a single query (no N+1). When {@code orderIdOrNull} is non-null the
-   * result is filtered to that order — used by the frontend's /tickets/[orderId] page.
+   * Returns ticket passes joined with their parent entitlement so the caller has the order id and
+   * validity window in a single query (no N+1). When {@code orderIdOrNull} is non-null the result
+   * is filtered to that order — used by the frontend's /tickets/[orderId] page.
    */
   public List<TicketPassView> findTicketPassViewsByUserId(String userId, String orderIdOrNull) {
     StringBuilder sql =

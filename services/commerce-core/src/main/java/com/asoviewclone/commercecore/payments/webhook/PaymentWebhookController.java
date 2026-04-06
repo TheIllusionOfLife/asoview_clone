@@ -104,7 +104,8 @@ public class PaymentWebhookController {
           // AFTER_COMMIT listener may still be in-flight). If we leave the row
           // in place, the next delivery hits the duplicate check and is
           // silently dropped forever.
-          processedEvents.deleteById(event.rawEventId());
+          processedEvents.deleteById(
+              new ProcessedWebhookEventId(event.provider(), event.rawEventId()));
           return ResponseEntity.status(HttpStatus.ACCEPTED).body("unknown");
         }
         log.info(
@@ -118,7 +119,8 @@ public class PaymentWebhookController {
       Payment result = paymentService.failByProviderPaymentId(event.providerPaymentId());
       if (result == null) {
         // Same rationale as above: undo the replay row so Stripe's retry can proceed.
-        processedEvents.deleteById(event.rawEventId());
+        processedEvents.deleteById(
+            new ProcessedWebhookEventId(event.provider(), event.rawEventId()));
         return ResponseEntity.status(HttpStatus.ACCEPTED).body("unknown");
       }
       log.info(
@@ -150,7 +152,7 @@ public class PaymentWebhookController {
           event.providerPaymentId(),
           e.getMessage());
       // Undo the replay guard so a genuine retry can proceed.
-      processedEvents.deleteById(event.rawEventId());
+      processedEvents.deleteById(new ProcessedWebhookEventId(event.provider(), event.rawEventId()));
       return ResponseEntity.status(HttpStatus.ACCEPTED).body("conflict");
     }
   }

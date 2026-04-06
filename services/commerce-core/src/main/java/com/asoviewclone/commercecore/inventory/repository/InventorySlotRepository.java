@@ -67,8 +67,8 @@ public class InventorySlotRepository {
   }
 
   /**
-   * Single-slot lookup by id. Returns {@code null} when no row exists. Used by entitlement
-   * creation to read the slot's date/time so the resulting entitlement carries a validity window.
+   * Single-slot lookup by id. Returns {@code null} when no row exists. Used by entitlement creation
+   * to read the slot's date/time so the resulting entitlement carries a validity window.
    */
   public InventorySlot findById(String slotId) {
     Statement stmt =
@@ -175,7 +175,7 @@ public class InventorySlotRepository {
                       .set("expires_at")
                       .to(toSpannerTimestamp(expiresAt))
                       .set("created_at")
-                      .to(toSpannerTimestamp(now))
+                      .to(toAuditTimestamp(now))
                       .build());
 
               return new InventoryHold(
@@ -218,7 +218,7 @@ public class InventorySlotRepository {
                       .set("reserved_count")
                       .to(slot.reservedCount() + hold.quantity())
                       .set("created_at")
-                      .to(toSpannerTimestamp(slot.createdAt()))
+                      .to(toAuditTimestamp(slot.createdAt()))
                       .build());
 
               // Delete the hold
@@ -272,7 +272,7 @@ public class InventorySlotRepository {
                       .set("reserved_count")
                       .to(newReserved)
                       .set("created_at")
-                      .to(toSpannerTimestamp(slot.createdAt()))
+                      .to(toAuditTimestamp(slot.createdAt()))
                       .build());
               return null;
             });
@@ -361,13 +361,29 @@ public class InventorySlotRepository {
 
   /**
    * Convert an {@link Instant} to a Spanner {@link Timestamp} preserving nanosecond precision.
-   * Centralizes the conversion so hold-expiry comparisons (which run on a sub-second cadence in
-   * the live availability UI) don't drop fractional seconds the way the older
-   * {@code ofTimeSecondsAndNanos(epochSeconds, 0)} pattern did. A hold that expired 200ms ago is
-   * therefore correctly excluded from active-hold counts on the very next read.
+   * Centralizes the conversion so hold-expiry comparisons (which run on a sub-second cadence in the
+   * live availability UI) don't drop fractional seconds the way the older {@code
+   * ofTimeSecondsAndNanos(epochSeconds, 0)} pattern did. A hold that expired 200ms ago is therefore
+   * correctly excluded from active-hold counts on the very next read.
+   *
+   * <p>Use this for {@code expires_at} writes and {@code @now} query bind parameters. Do NOT use it
+   * for {@code created_at} columns marked {@code allow_commit_timestamp=true} — those require a
+   * value strictly &lt;= the actual commit time, and a sub-millisecond round-trip can leave a
+   * full-precision now() ahead of the commit clock and trigger {@code FAILED_PRECONDITION: Cannot
+   * write timestamps in the future}. For those columns, see {@link #toAuditTimestamp}.
    */
   private static Timestamp toSpannerTimestamp(Instant instant) {
     return Timestamp.ofTimeSecondsAndNanos(instant.getEpochSecond(), instant.getNano());
+  }
+
+  /**
+   * Truncated form for {@code allow_commit_timestamp=true} columns (e.g. {@code created_at}). Drops
+   * the nano fraction so the written value is at most one second in the past relative to commit
+   * time, which Spanner accepts. Sub-second precision is irrelevant for audit timestamps but
+   * critical for the hold-expiry math handled by {@link #toSpannerTimestamp}.
+   */
+  private static Timestamp toAuditTimestamp(Instant instant) {
+    return Timestamp.ofTimeSecondsAndNanos(instant.getEpochSecond(), 0);
   }
 
   private InventorySlot mapSlot(ResultSet rs) {
