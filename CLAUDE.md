@@ -185,3 +185,72 @@ Always read the actual file before fixing. Document the false-positive verdict i
 ### Spotless runs globally — coordinate when multiple agents touch files
 
 `./gradlew spotlessApply` formats every Java file in the repo, not just changed ones. Two agents (or main + agent) editing files in parallel will produce conflicting formatting changes. When delegating to a subagent that may touch the same files, either send a `SendMessage` to coordinate (skip-list, sequencing) or wait for the agent to complete before editing.
+
+## Process Lessons (workflow patterns from PR #18)
+
+Generalizable lessons from 55 commits + 4 reviewer rounds (CodeRabbit, Codex, Devin, Gemini). These are workflow rules, not code patterns.
+
+### Always run `./gradlew spotlessApply` before committing Java
+
+PR #18 had 7 separate `style: apply spotless formatting` commits, each one a CI failure that round-tripped through fix → push → wait → re-fix. Spotless runs in CI but locally is opt-in. Either:
+
+```bash
+./gradlew spotlessApply :services:commerce-core:build  # before every commit
+```
+
+or install the pre-commit hook once:
+
+```bash
+./scripts/install-git-hooks.sh   # writes .git/hooks/pre-commit, runs spotlessApply on staged Java
+```
+
+### Coordination logic needs failure-mode TDD before implementation
+
+The saga went through 7+ fix iterations because each review round found a new compensation edge case (current step left FAILED instead of COMPENSATED, sibling COMPENSATED siblings ignored by recovery, post-saga CAS outside try-catch, cross-store rollback divergence, etc.). Before writing any code that does CAS, retry, compensation, or cross-store writes:
+
+1. Enumerate every failure mode: network blip, partial commit, concurrent writer, idempotent no-op against deleted state, JPA-vs-Spanner commit ordering, exhausted retries.
+2. Write a test for each failure mode FIRST.
+3. Only then write the happy path.
+
+The saga code that survived review is the one where every named failure mode has a named test.
+
+### Version checks: fetch from the actual source
+
+Before claiming a major version is "not GA yet" or "latest is X", fetch the truth:
+
+```bash
+curl -s https://repo1.maven.org/maven2/<group>/<artifact>/maven-metadata.xml | grep -E '<latest>|<release>'
+curl -s https://services.gradle.org/versions/current
+```
+
+PR #18 upgraded Spring Boot **twice** (3.5.13 → 4.0.5) because the first attempt assumed 4.x was not GA. It was; Maven Central confirmed it.
+
+### Reviewer findings: ~50% false-positive rate, verify every one
+
+Across CodeRabbit / Codex / Devin / Gemini on PR #18, roughly half of all flagged "potential_issue" findings were false positives. Verifying takes minutes; fixing a false positive wastes a commit and confuses the reviewer next round. Process:
+
+1. Read the actual file at the cited line.
+2. Trace the call paths the reviewer assumes exist.
+3. If false-positive, document the verdict in the commit message of the next real fix so it doesn't get re-litigated.
+
+Common false-positive patterns we hit (also documented in "Recurring Pitfalls"):
+- Reviewer assumes a validation that doesn't exist anywhere.
+- Reviewer flags a missing migration that lives in a later V file.
+- Reviewer doesn't notice `@TransactionalEventListener(AFTER_COMMIT)` semantics.
+- Reviewer says a version doesn't exist when it does (always check Maven Central).
+
+### Don't defer items without explicit user approval
+
+Every "we'll fix it in the next PR" on PR #17 turned into a CRITICAL finding on PR #18 that required a saga compensation rewrite. The user explicitly pushed back: "Postponing these would just make those debts bigger. Upgrade now." Default to addressing findings in the same PR. Only defer when the user explicitly approves AND the deferral is recorded in the PR body's "Post-Merge Recommendations" section.
+
+### Subagent coordination: scope to non-overlapping files
+
+Multiple background agents editing the same files cause merge conflicts and silent reverts (we hit this with PaymentConfirmationSaga.java when an agent rebased over manual edits). When delegating:
+
+- Give each agent a disjoint file scope. List the exact files in the prompt.
+- If the main thread plans to edit a file the agent might touch, send a `SendMessage` skip-list before launching.
+- Sequence dependent agents instead of running in parallel.
+
+### Conventional commits + small focused commits compound during review
+
+PR #18 has 55 commits and reviewers cited specific commits in their findings. Small, focused commits with conventional messages (`fix(payments): ...`, `test(inventory): ...`) make review feedback easier to address — you can revert one commit instead of unwinding a mega-commit. Avoid bundling unrelated changes.
