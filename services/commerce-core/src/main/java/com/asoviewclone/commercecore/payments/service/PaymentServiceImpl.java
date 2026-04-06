@@ -118,27 +118,51 @@ public class PaymentServiceImpl implements PaymentService {
       throw new ConflictException("Cannot confirm payment in status " + payment.getStatus());
     }
 
-    // Confirm inventory holds first. If this fails, payment stays PROCESSING
-    // and can be retried by the caller.
     Order order = orderRepository.findById(payment.getOrderId());
     if (order.status() == OrderStatus.CANCELLED) {
       throw new ConflictException("Order has been cancelled, cannot confirm payment");
     }
-    // Saga throws ConflictException on partial failure (with compensation applied).
-    // The @Transactional wrapper will roll back this JPA method, leaving the payment row
-    // in its prior PROCESSING state. The caller can retry.
-    paymentConfirmationSaga.confirm(payment, order);
 
-    // Create entitlements. If this fails, holds are confirmed but entitlements
-    // are missing. The caller can retry (entitlement creation is idempotent).
-    entitlementCreator.createEntitlementsForOrder(order);
+    // Move the order into the intermediate CONFIRMING state BEFORE running the
+    // saga. CONFIRMING blocks concurrent cancels from running between the saga's
+    // hold-confirmations and the final PAID write, which would otherwise leave
+    // Spanner reservations applied while the order is CANCELLED.
+    boolean enteredConfirming =
+        orderRepository.updateStatusIf(
+            payment.getOrderId(), OrderStatus.PAYMENT_PENDING, OrderStatus.CONFIRMING);
+    if (!enteredConfirming) {
+      throw new ConflictException(
+          "Order " + payment.getOrderId() + " is not in PAYMENT_PENDING; confirm aborted");
+    }
+
+    try {
+      // Saga throws ConflictException on partial failure (with compensation applied).
+      paymentConfirmationSaga.confirm(payment, order);
+
+      // Create entitlements. Idempotent on (orderItemId).
+      entitlementCreator.createEntitlementsForOrder(order);
+    } catch (RuntimeException e) {
+      // Saga (or entitlement creation) failed. Roll the order back to
+      // PAYMENT_PENDING so the caller can retry.
+      boolean rolledBack =
+          orderRepository.updateStatusIf(
+              payment.getOrderId(), OrderStatus.CONFIRMING, OrderStatus.PAYMENT_PENDING);
+      if (!rolledBack) {
+        log.error(
+            "Failed to roll back order {} from CONFIRMING to PAYMENT_PENDING after saga failure",
+            payment.getOrderId());
+      }
+      payment.setStatus(PaymentStatus.FAILED);
+      paymentRepository.save(payment);
+      throw e;
+    }
 
     // Only mark SUCCEEDED after all downstream effects complete.
     payment.setStatus(PaymentStatus.SUCCEEDED);
     paymentRepository.save(payment);
     boolean swapped =
         orderRepository.updateStatusIf(
-            payment.getOrderId(), OrderStatus.PAYMENT_PENDING, OrderStatus.PAID);
+            payment.getOrderId(), OrderStatus.CONFIRMING, OrderStatus.PAID);
     if (!swapped) {
       throw new ConflictException(
           "Order " + payment.getOrderId() + " status changed concurrently; confirm aborted");
