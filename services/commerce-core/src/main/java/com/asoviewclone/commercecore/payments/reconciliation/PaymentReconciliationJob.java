@@ -10,6 +10,8 @@ import com.asoviewclone.common.error.NotFoundException;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,10 +43,14 @@ public class PaymentReconciliationJob {
     this.orderRepository = orderRepository;
   }
 
+  /** Maximum payments inspected per run. Bounded so the job stays within a short transaction. */
+  private static final int BATCH_SIZE = 100;
+
   @Scheduled(fixedDelay = 300_000)
   @Transactional
   public void reconcileProcessingPayments() {
-    List<Payment> processing = paymentRepository.findByStatus(PaymentStatus.PROCESSING);
+    Pageable batch = PageRequest.of(0, BATCH_SIZE);
+    List<Payment> processing = paymentRepository.findByStatus(PaymentStatus.PROCESSING, batch);
     if (processing.isEmpty()) {
       return;
     }
@@ -52,19 +58,28 @@ public class PaymentReconciliationJob {
       try {
         Order order = orderRepository.findById(payment.getOrderId());
         if (order.status() == OrderStatus.PAID) {
-          log.warn(
-              "Reconciling divergent payment {}: order {} is PAID, promoting payment to SUCCEEDED",
-              payment.getPaymentId(),
-              payment.getOrderId());
-          payment.setStatus(PaymentStatus.SUCCEEDED);
-          paymentRepository.save(payment);
+          // CAS PROCESSING→SUCCEEDED. If a concurrent confirmPayment already
+          // wrote SUCCEEDED (or any other terminal status), the update count
+          // is 0 and we leave the row alone — no last-writer-wins overwrite.
+          int updated =
+              paymentRepository.updateStatusIf(
+                  payment.getPaymentId(), PaymentStatus.PROCESSING, PaymentStatus.SUCCEEDED);
+          if (updated == 1) {
+            log.warn(
+                "Reconciled divergent payment {}: order {} is PAID, promoted PROCESSING→SUCCEEDED",
+                payment.getPaymentId(),
+                payment.getOrderId());
+          }
         } else if (order.status() == OrderStatus.CANCELLED) {
-          log.warn(
-              "Reconciling divergent payment {}: order {} is CANCELLED, marking payment FAILED",
-              payment.getPaymentId(),
-              payment.getOrderId());
-          payment.setStatus(PaymentStatus.FAILED);
-          paymentRepository.save(payment);
+          int updated =
+              paymentRepository.updateStatusIf(
+                  payment.getPaymentId(), PaymentStatus.PROCESSING, PaymentStatus.FAILED);
+          if (updated == 1) {
+            log.warn(
+                "Reconciled divergent payment {}: order {} is CANCELLED, marked PROCESSING→FAILED",
+                payment.getPaymentId(),
+                payment.getOrderId());
+          }
         }
         // For PENDING/PAYMENT_PENDING/CONFIRMING/REFUNDED, leave the payment alone — the
         // confirmPayment flow may still be in progress, or the divergence is the other
