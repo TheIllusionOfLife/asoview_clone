@@ -248,20 +248,6 @@ public class OrderRepository {
     return Boolean.TRUE.equals(result);
   }
 
-  public void updateStatus(String orderId, OrderStatus newStatus) {
-    Instant now = clockProvider.now();
-    databaseClient.write(
-        List.of(
-            Mutation.newUpdateBuilder("orders")
-                .set("order_id")
-                .to(orderId)
-                .set("status")
-                .to(newStatus.name())
-                .set("updated_at")
-                .to(Timestamp.ofTimeSecondsAndNanos(now.getEpochSecond(), 0))
-                .build()));
-  }
-
   private Map<String, List<OrderItem>> findItemsByOrderIds(List<String> orderIds) {
     Statement stmt =
         Statement.newBuilder(
