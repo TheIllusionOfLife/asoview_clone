@@ -76,9 +76,11 @@ public class PaymentServiceImpl implements PaymentService {
 
     Order order = orderRepository.findById(orderId);
 
-    // Verify order ownership
+    // Verify order ownership. Throw NotFoundException (404) — not ValidationException (400) —
+    // to match the GET /v1/orders/{id} non-enumeration policy: callers must not be able to
+    // distinguish "order does not exist" from "order exists but belongs to someone else".
     if (!order.userId().equals(userId)) {
-      throw new ValidationException("Order does not belong to the authenticated user");
+      throw new NotFoundException("Order", orderId);
     }
 
     if (!order.status().canTransitionTo(OrderStatus.PAYMENT_PENDING)) {

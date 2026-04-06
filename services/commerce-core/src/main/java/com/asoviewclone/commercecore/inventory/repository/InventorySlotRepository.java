@@ -217,8 +217,9 @@ public class InventorySlotRepository {
                       .to(slot.totalCapacity())
                       .set("reserved_count")
                       .to(slot.reservedCount() + hold.quantity())
-                      .set("created_at")
-                      .to(toAuditTimestamp(slot.createdAt()))
+                      // created_at is intentionally omitted from this UPDATE: it is an audit
+                      // timestamp set on insert and must never change. Spanner mutation updates
+                      // touch only the columns we name, so dropping it leaves the original value.
                       .build());
 
               // Delete the hold
@@ -271,8 +272,7 @@ public class InventorySlotRepository {
                       .to(slot.totalCapacity())
                       .set("reserved_count")
                       .to(newReserved)
-                      .set("created_at")
-                      .to(toAuditTimestamp(slot.createdAt()))
+                      // created_at is intentionally omitted: see confirmHold for the rationale.
                       .build());
               return null;
             });

@@ -63,12 +63,9 @@ public class OrderController {
   @GetMapping("/orders/{orderId}")
   public OrderResponse getOrder(
       @AuthenticationPrincipal AuthenticatedUser user, @PathVariable String orderId) {
-    Order order;
-    try {
-      order = orderService.getOrder(orderId);
-    } catch (NotFoundException e) {
-      throw new NotFoundException("Order", orderId);
-    }
+    // orderService.getOrder already throws NotFoundException with the right shape;
+    // let it propagate. Only the cross-user case needs an explicit throw.
+    Order order = orderService.getOrder(orderId);
     if (!user.userId().toString().equals(order.userId())) {
       throw new NotFoundException("Order", orderId);
     }

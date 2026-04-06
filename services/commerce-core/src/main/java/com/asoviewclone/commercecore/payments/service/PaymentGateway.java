@@ -25,8 +25,10 @@ public interface PaymentGateway {
   /**
    * @param providerPaymentId the gateway's intent id (e.g. Stripe {@code pi_...})
    * @param clientSecret the value the browser SDK needs to confirm the intent (Stripe Elements
-   *     {@code pi_..._secret_...}). Nullable for gateways that don't expose one (Stub never has;
-   *     Fake returns a synthetic value for deterministic frontend tests).
+   *     {@code pi_..._secret_...}). Stripe returns the real secret. Stub and Fake gateways return a
+   *     deterministic synthetic value ({@code <intentId>_secret_(stub|fake)}) so local dev and
+   *     Playwright tests can render the same UI flow without hitting Stripe. May be {@code null} if
+   *     a future gateway has no equivalent concept.
    * @param success whether the intent was successfully created on the provider
    */
   record PaymentResult(String providerPaymentId, String clientSecret, boolean success) {}

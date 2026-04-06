@@ -170,11 +170,13 @@ public class EntitlementRepository {
                 rs.getString("order_id"),
                 rs.getString("qr_code_payload"),
                 TicketPassStatus.valueOf(rs.getString("status")),
-                rs.isNull("valid_from") ? null : rs.getTimestamp("valid_from").toDate().toInstant(),
+                rs.isNull("valid_from")
+                    ? null
+                    : rs.getTimestamp("valid_from").toSqlTimestamp().toInstant(),
                 rs.isNull("valid_until")
                     ? null
-                    : rs.getTimestamp("valid_until").toDate().toInstant(),
-                rs.getTimestamp("created_at").toDate().toInstant()));
+                    : rs.getTimestamp("valid_until").toSqlTimestamp().toInstant(),
+                rs.getTimestamp("created_at").toSqlTimestamp().toInstant()));
       }
     }
     return result;
@@ -225,9 +227,11 @@ public class EntitlementRepository {
         rs.getString("product_variant_id"),
         EntitlementType.valueOf(rs.getString("type")),
         EntitlementStatus.valueOf(rs.getString("status")),
-        rs.isNull("valid_from") ? null : rs.getTimestamp("valid_from").toDate().toInstant(),
-        rs.isNull("valid_until") ? null : rs.getTimestamp("valid_until").toDate().toInstant(),
-        rs.getTimestamp("created_at").toDate().toInstant());
+        rs.isNull("valid_from") ? null : rs.getTimestamp("valid_from").toSqlTimestamp().toInstant(),
+        rs.isNull("valid_until")
+            ? null
+            : rs.getTimestamp("valid_until").toSqlTimestamp().toInstant(),
+        rs.getTimestamp("created_at").toSqlTimestamp().toInstant());
   }
 
   private TicketPass mapTicketPass(ResultSet rs) {
@@ -236,7 +240,7 @@ public class EntitlementRepository {
         rs.getString("entitlement_id"),
         rs.getString("qr_code_payload"),
         TicketPassStatus.valueOf(rs.getString("status")),
-        rs.isNull("used_at") ? null : rs.getTimestamp("used_at").toDate().toInstant(),
-        rs.getTimestamp("created_at").toDate().toInstant());
+        rs.isNull("used_at") ? null : rs.getTimestamp("used_at").toSqlTimestamp().toInstant(),
+        rs.getTimestamp("created_at").toSqlTimestamp().toInstant());
   }
 }

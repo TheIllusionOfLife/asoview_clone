@@ -16,9 +16,11 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Primary;
@@ -69,7 +71,9 @@ public class EntitlementServiceImpl implements EntitlementCreator {
     }
 
     // Cache slot lookups across items so multi-quantity orders don't re-query the same row.
-    Map<String, InventorySlot> slotCache = new HashMap<>();
+    // Wrapped in Optional so a missing slot (computeIfAbsent skips null returns from the mapper
+    // and would re-query on every iteration) is also cached as Optional.empty().
+    Map<String, Optional<InventorySlot>> slotCache = new HashMap<>();
 
     // Create any missing entitlements (quantity-aware per item) plus their ticket passes.
     for (OrderItem item : order.items()) {
@@ -78,20 +82,36 @@ public class EntitlementServiceImpl implements EntitlementCreator {
       long remaining = item.quantity() - existingForItem;
 
       // Resolve the slot's wall-clock window into UTC instants once per item. The slot is
-      // expected to exist (the order references it) but defend against null so a corrupt slot
-      // id never crashes payment confirmation — entitlements without validity are still usable
-      // by the QR scanner, the frontend just won't gate the QR display on a window.
+      // expected to exist (the order references it) but defend against null AND malformed
+      // date/time strings so a corrupt slot row never crashes payment confirmation — orders
+      // without validity are still scannable, the frontend just won't render a window.
       InventorySlot slot =
-          slotCache.computeIfAbsent(item.slotId(), inventorySlotRepository::findById);
+          slotCache
+              .computeIfAbsent(
+                  item.slotId(), id -> Optional.ofNullable(inventorySlotRepository.findById(id)))
+              .orElse(null);
       Instant validFrom = null;
       Instant validUntil = null;
       if (slot != null && slot.slotDate() != null) {
-        LocalDate date = LocalDate.parse(slot.slotDate());
-        if (slot.startTime() != null) {
-          validFrom = date.atTime(LocalTime.parse(slot.startTime())).atZone(VENUE_ZONE).toInstant();
-        }
-        if (slot.endTime() != null) {
-          validUntil = date.atTime(LocalTime.parse(slot.endTime())).atZone(VENUE_ZONE).toInstant();
+        try {
+          LocalDate date = LocalDate.parse(slot.slotDate());
+          if (slot.startTime() != null) {
+            validFrom =
+                date.atTime(LocalTime.parse(slot.startTime())).atZone(VENUE_ZONE).toInstant();
+          }
+          if (slot.endTime() != null) {
+            validUntil =
+                date.atTime(LocalTime.parse(slot.endTime())).atZone(VENUE_ZONE).toInstant();
+          }
+        } catch (DateTimeParseException e) {
+          log.warn(
+              "Slot {} has malformed date/time (date={}, start={}, end={}); creating entitlement without validity window",
+              slot.slotId(),
+              slot.slotDate(),
+              slot.startTime(),
+              slot.endTime());
+          validFrom = null;
+          validUntil = null;
         }
       }
 
