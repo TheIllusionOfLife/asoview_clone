@@ -153,7 +153,22 @@ public class SpannerEmulatorConfig {
                       + " OPTIONS (allow_commit_timestamp=true))"
                       + " PRIMARY KEY (ticket_pass_id)",
                   "CREATE INDEX idx_ticket_passes_entitlement ON"
-                      + " ticket_passes(entitlement_id)"))
+                      + " ticket_passes(entitlement_id)",
+                  "CREATE TABLE payment_confirmation_steps (step_id STRING(36) NOT NULL,"
+                      + " payment_id STRING(36) NOT NULL,"
+                      + " order_item_id STRING(36) NOT NULL,"
+                      + " hold_id STRING(36) NOT NULL,"
+                      + " slot_id STRING(36) NOT NULL,"
+                      + " quantity INT64 NOT NULL,"
+                      + " status STRING(16) NOT NULL,"
+                      + " attempted_at TIMESTAMP NOT NULL"
+                      + " OPTIONS (allow_commit_timestamp=true),"
+                      + " updated_at TIMESTAMP NOT NULL"
+                      + " OPTIONS (allow_commit_timestamp=true))"
+                      + " PRIMARY KEY (step_id)",
+                  "CREATE INDEX idx_steps_payment ON payment_confirmation_steps(payment_id)",
+                  "CREATE INDEX idx_steps_status ON"
+                      + " payment_confirmation_steps(status, attempted_at)"))
           .get();
     } catch (ExecutionException | InterruptedException e) {
       throw new RuntimeException("Failed to initialize Spanner emulator", e);

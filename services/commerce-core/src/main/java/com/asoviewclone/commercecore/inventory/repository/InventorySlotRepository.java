@@ -150,6 +150,36 @@ public class InventorySlotRepository {
             });
   }
 
+  public void releaseConfirmedHold(String slotId, long quantity) {
+    databaseClient
+        .readWriteTransaction()
+        .run(
+            tx -> {
+              InventorySlot slot = readSlotInTransaction(tx, slotId);
+              long newReserved = Math.max(0, slot.reservedCount() - quantity);
+              tx.buffer(
+                  Mutation.newUpdateBuilder("inventory_slots")
+                      .set("slot_id")
+                      .to(slot.slotId())
+                      .set("product_variant_id")
+                      .to(slot.productVariantId())
+                      .set("slot_date")
+                      .to(slot.slotDate())
+                      .set("start_time")
+                      .to(slot.startTime())
+                      .set("end_time")
+                      .to(slot.endTime())
+                      .set("total_capacity")
+                      .to(slot.totalCapacity())
+                      .set("reserved_count")
+                      .to(newReserved)
+                      .set("created_at")
+                      .to(Timestamp.ofTimeSecondsAndNanos(slot.createdAt().getEpochSecond(), 0))
+                      .build());
+              return null;
+            });
+  }
+
   public void releaseHold(String holdId) {
     databaseClient.write(
         List.of(

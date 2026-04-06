@@ -2,13 +2,13 @@ package com.asoviewclone.commercecore.payments.service;
 
 import com.asoviewclone.commercecore.inventory.service.InventoryService;
 import com.asoviewclone.commercecore.orders.model.Order;
-import com.asoviewclone.commercecore.orders.model.OrderItem;
 import com.asoviewclone.commercecore.orders.model.OrderStatus;
 import com.asoviewclone.commercecore.orders.repository.OrderRepository;
 import com.asoviewclone.commercecore.payments.event.PaymentCreatedEvent;
 import com.asoviewclone.commercecore.payments.model.Payment;
 import com.asoviewclone.commercecore.payments.model.PaymentStatus;
 import com.asoviewclone.commercecore.payments.repository.PaymentRepository;
+import com.asoviewclone.commercecore.payments.saga.PaymentConfirmationSaga;
 import com.asoviewclone.common.error.ConflictException;
 import com.asoviewclone.common.error.NotFoundException;
 import com.asoviewclone.common.error.ValidationException;
@@ -31,6 +31,7 @@ public class PaymentServiceImpl implements PaymentService {
   private final PaymentGateway paymentGateway;
   private final EntitlementCreator entitlementCreator;
   private final ApplicationEventPublisher eventPublisher;
+  private final PaymentConfirmationSaga paymentConfirmationSaga;
 
   public PaymentServiceImpl(
       PaymentRepository paymentRepository,
@@ -38,13 +39,15 @@ public class PaymentServiceImpl implements PaymentService {
       InventoryService inventoryService,
       PaymentGateway paymentGateway,
       EntitlementCreator entitlementCreator,
-      ApplicationEventPublisher eventPublisher) {
+      ApplicationEventPublisher eventPublisher,
+      PaymentConfirmationSaga paymentConfirmationSaga) {
     this.paymentRepository = paymentRepository;
     this.orderRepository = orderRepository;
     this.inventoryService = inventoryService;
     this.paymentGateway = paymentGateway;
     this.entitlementCreator = entitlementCreator;
     this.eventPublisher = eventPublisher;
+    this.paymentConfirmationSaga = paymentConfirmationSaga;
   }
 
   @Override
@@ -121,10 +124,12 @@ public class PaymentServiceImpl implements PaymentService {
     if (order.status() == OrderStatus.CANCELLED) {
       throw new ConflictException("Order has been cancelled, cannot confirm payment");
     }
-    for (OrderItem item : order.items()) {
-      if (item.holdId() != null) {
-        inventoryService.confirmHold(item.holdId());
-      }
+    try {
+      paymentConfirmationSaga.confirm(payment, order);
+    } catch (ConflictException e) {
+      payment.setStatus(PaymentStatus.FAILED);
+      paymentRepository.save(payment);
+      throw e;
     }
 
     // Create entitlements. If this fails, holds are confirmed but entitlements
