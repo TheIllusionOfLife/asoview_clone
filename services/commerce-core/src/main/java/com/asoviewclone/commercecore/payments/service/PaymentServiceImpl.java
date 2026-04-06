@@ -18,7 +18,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class PaymentServiceImpl implements PaymentService {
@@ -32,6 +35,7 @@ public class PaymentServiceImpl implements PaymentService {
   private final EntitlementCreator entitlementCreator;
   private final ApplicationEventPublisher eventPublisher;
   private final PaymentConfirmationSaga paymentConfirmationSaga;
+  private final TransactionTemplate requiresNewTxTemplate;
 
   public PaymentServiceImpl(
       PaymentRepository paymentRepository,
@@ -40,7 +44,8 @@ public class PaymentServiceImpl implements PaymentService {
       PaymentGateway paymentGateway,
       EntitlementCreator entitlementCreator,
       ApplicationEventPublisher eventPublisher,
-      PaymentConfirmationSaga paymentConfirmationSaga) {
+      PaymentConfirmationSaga paymentConfirmationSaga,
+      PlatformTransactionManager transactionManager) {
     this.paymentRepository = paymentRepository;
     this.orderRepository = orderRepository;
     this.inventoryService = inventoryService;
@@ -48,6 +53,9 @@ public class PaymentServiceImpl implements PaymentService {
     this.entitlementCreator = entitlementCreator;
     this.eventPublisher = eventPublisher;
     this.paymentConfirmationSaga = paymentConfirmationSaga;
+    this.requiresNewTxTemplate = new TransactionTemplate(transactionManager);
+    this.requiresNewTxTemplate.setPropagationBehavior(
+        TransactionDefinition.PROPAGATION_REQUIRES_NEW);
   }
 
   @Override
@@ -163,8 +171,11 @@ public class PaymentServiceImpl implements PaymentService {
             "Failed to roll back order {} from CONFIRMING to PAYMENT_PENDING after saga failure",
             payment.getOrderId());
       }
-      payment.setStatus(PaymentStatus.FAILED);
-      paymentRepository.save(payment);
+      // The outer @Transactional rolls back on `throw e`, so we cannot
+      // persist the FAILED status here — it would be discarded with the
+      // rest of the JPA transaction. Commit it independently in a new
+      // transaction so the failure is durable across the rollback.
+      markPaymentFailedInNewTransaction(payment.getPaymentId().toString());
       throw e;
     }
 
@@ -180,5 +191,24 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     return payment;
+  }
+
+  /**
+   * Persists a FAILED payment status in a new transaction so the write survives
+   * the rollback of the calling {@code @Transactional} method. Uses a programmatic
+   * {@link TransactionTemplate} with {@code PROPAGATION_REQUIRES_NEW} because a
+   * self-call to a {@code @Transactional} method would bypass Spring's proxy and
+   * silently run in the existing transaction (which is about to roll back).
+   */
+  private void markPaymentFailedInNewTransaction(String paymentId) {
+    requiresNewTxTemplate.executeWithoutResult(
+        status ->
+            paymentRepository
+                .findById(java.util.UUID.fromString(paymentId))
+                .ifPresent(
+                    p -> {
+                      p.setStatus(PaymentStatus.FAILED);
+                      paymentRepository.save(p);
+                    }));
   }
 }

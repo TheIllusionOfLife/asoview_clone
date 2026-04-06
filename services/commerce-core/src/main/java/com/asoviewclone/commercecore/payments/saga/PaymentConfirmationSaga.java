@@ -52,6 +52,21 @@ public class PaymentConfirmationSaga {
         stepRepository.findByPaymentId(payment.getPaymentId().toString());
     List<PaymentConfirmationStep> steps;
     if (!existing.isEmpty()) {
+      // If any prior attempt left a step COMPENSATED, the saga's previous run
+      // already determined it could not complete atomically. Retrying would
+      // silently re-confirm the remaining FAILED steps against now-deleted
+      // hold rows (confirmHold is idempotent and treats missing holds as
+      // success), leaving partial inventory reserved while the caller marks
+      // the order PAID. Refuse the retry — the entire payment must be failed.
+      boolean anyCompensated =
+          existing.stream()
+              .anyMatch(s -> s.status() == PaymentConfirmationStepStatus.COMPENSATED);
+      if (anyCompensated) {
+        throw new ConflictException(
+            "Saga for payment "
+                + payment.getPaymentId()
+                + " has compensated steps from a prior attempt; cannot resume");
+      }
       steps = new ArrayList<>(existing);
     } else {
       steps = new ArrayList<>();
