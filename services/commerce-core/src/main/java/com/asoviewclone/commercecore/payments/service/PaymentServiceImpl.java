@@ -160,9 +160,37 @@ public class PaymentServiceImpl implements PaymentService {
 
       // Create entitlements. Idempotent on (orderItemId).
       entitlementCreator.createEntitlementsForOrder(order);
+
+      // Only mark SUCCEEDED after all downstream effects complete.
+      //
+      // Cross-store consistency caveat: this method is @Transactional. The JPA
+      // payment.setStatus + paymentRepository.save are buffered in the JPA
+      // persistence context and only commit when this method returns. The
+      // Spanner CAS below commits in its own transaction immediately. There is a
+      // narrow window where the Spanner order is PAID but the JPA payment row is
+      // still PROCESSING (e.g. JPA commit fails with a connection drop after the
+      // Spanner CAS succeeds). PaymentReconciliationJob detects and repairs this
+      // case by walking PAID orders whose payment rows remain in PROCESSING and
+      // promoting them to SUCCEEDED.
+      payment.setStatus(PaymentStatus.SUCCEEDED);
+      paymentRepository.save(payment);
+      boolean swapped =
+          orderRepository.updateStatusIf(
+              payment.getOrderId(), OrderStatus.CONFIRMING, OrderStatus.PAID);
+      if (!swapped) {
+        // Treat CAS-loss as a recoverable conflict so the catch block runs the
+        // standard recovery path (rollback CONFIRMING→PAYMENT_PENDING, mark
+        // payment FAILED). Throwing OUTSIDE the try previously leaked the
+        // saga's confirmed inventory.
+        throw new ConflictException(
+            "Order " + payment.getOrderId() + " status changed concurrently; confirm aborted");
+      }
     } catch (RuntimeException e) {
-      // Saga (or entitlement creation) failed. Roll the order back to
-      // PAYMENT_PENDING so the caller can retry.
+      // Saga, entitlement creation, or final CAS failed. Roll the order back to
+      // PAYMENT_PENDING so the caller can retry. The post-saga CAS is now
+      // included in this try so a deadline/network failure on it (which would
+      // otherwise leave the order stuck in CONFIRMING with no recovery path)
+      // is also handled here.
       boolean rolledBack =
           orderRepository.updateStatusIf(
               payment.getOrderId(), OrderStatus.CONFIRMING, OrderStatus.PAYMENT_PENDING);
@@ -177,27 +205,6 @@ public class PaymentServiceImpl implements PaymentService {
       // transaction so the failure is durable across the rollback.
       markPaymentFailedInNewTransaction(payment.getPaymentId().toString());
       throw e;
-    }
-
-    // Only mark SUCCEEDED after all downstream effects complete.
-    //
-    // Cross-store consistency caveat: this method is @Transactional. The JPA
-    // payment.setStatus + paymentRepository.save are buffered in the JPA
-    // persistence context and only commit when this method returns. The
-    // Spanner CAS below commits in its own transaction immediately. There is a
-    // narrow window where the Spanner order is PAID but the JPA payment row is
-    // still PROCESSING (e.g. JPA commit fails with a connection drop after the
-    // Spanner CAS succeeds). PaymentReconciliationJob detects and repairs this
-    // case by walking PAID orders whose payment rows remain in PROCESSING and
-    // promoting them to SUCCEEDED.
-    payment.setStatus(PaymentStatus.SUCCEEDED);
-    paymentRepository.save(payment);
-    boolean swapped =
-        orderRepository.updateStatusIf(
-            payment.getOrderId(), OrderStatus.CONFIRMING, OrderStatus.PAID);
-    if (!swapped) {
-      throw new ConflictException(
-          "Order " + payment.getOrderId() + " status changed concurrently; confirm aborted");
     }
 
     return payment;
