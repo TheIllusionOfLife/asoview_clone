@@ -2,10 +2,6 @@ plugins {
     id("asoview.spring-boot-conventions")
 }
 
-// Override Spring Boot managed Testcontainers version for Docker Desktop 29.x compatibility.
-// TC 1.21.4 fixes hardcoded docker-java API version 1.32 -> 1.44.
-extra["testcontainers.version"] = "1.21.4"
-
 // scanner-app-api scope: check-in and ticket validation endpoints live here.
 // Extract to a separate service if operational needs require it.
 

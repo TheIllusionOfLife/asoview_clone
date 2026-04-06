@@ -47,9 +47,9 @@ spring-retry = { module = "org.springframework.retry:spring-retry", version.ref 
 
 # Testcontainers
 testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }
-testcontainers-junit-jupiter = { module = "org.testcontainers:junit-jupiter" }
-testcontainers-postgresql = { module = "org.testcontainers:postgresql" }
-testcontainers-gcloud = { module = "org.testcontainers:gcloud" }
+testcontainers-junit-jupiter = { module = "org.testcontainers:testcontainers-junit-jupiter" }
+testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql" }
+testcontainers-gcloud = { module = "org.testcontainers:testcontainers-gcloud" }
 
 # javax.annotation (for protobuf generated code)
 javax-annotation-api = { module = "javax.annotation:javax.annotation-api", version = "1.3.2" }
