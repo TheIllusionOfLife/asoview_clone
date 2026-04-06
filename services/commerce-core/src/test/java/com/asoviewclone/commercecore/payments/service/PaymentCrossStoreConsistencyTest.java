@@ -1,6 +1,7 @@
 package com.asoviewclone.commercecore.payments.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -33,6 +34,7 @@ import com.google.cloud.Timestamp;
 import com.google.cloud.spanner.DatabaseClient;
 import com.google.cloud.spanner.Mutation;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -182,8 +184,14 @@ class PaymentCrossStoreConsistencyTest {
         paymentService.createPaymentIntent(order.orderId(), userId, UUID.randomUUID().toString());
     assertThat(payment).isNotNull();
 
-    // Order stays in PENDING; payment row exists.
-    Order reloaded = orderRepository.findById(order.orderId());
-    assertThat(reloaded.status()).isEqualTo(OrderStatus.PENDING);
+    // The AFTER_COMMIT listener fires asynchronously and exhausts its retries before
+    // logging and giving up. Wait for the listener path to settle before asserting.
+    await()
+        .atMost(Duration.ofSeconds(5))
+        .untilAsserted(
+            () -> {
+              Order reloaded = orderRepository.findById(order.orderId());
+              assertThat(reloaded.status()).isEqualTo(OrderStatus.PENDING);
+            });
   }
 }
