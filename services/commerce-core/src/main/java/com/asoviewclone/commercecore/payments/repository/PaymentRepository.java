@@ -18,6 +18,13 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
   Optional<Payment> findByOrderId(String orderId);
 
   /**
+   * Looks up a payment by the provider-issued identifier stored in {@code provider_payment_id}
+   * (e.g., a Stripe {@code pi_...}). A partial unique index (V6) guarantees at most one row per
+   * non-null provider id.
+   */
+  Optional<Payment> findByProviderPaymentId(String providerPaymentId);
+
+  /**
    * Bounded lookup by status. Used by the reconciliation job to sweep PROCESSING payments in
    * batches without loading the entire table into memory.
    */

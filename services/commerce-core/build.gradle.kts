@@ -34,6 +34,9 @@ dependencies {
     implementation(libs.spring.retry)
     implementation("org.springframework:spring-aspects")
 
+    // Stripe Java SDK (payments gateway, phase 2)
+    implementation(libs.stripe.java)
+
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
