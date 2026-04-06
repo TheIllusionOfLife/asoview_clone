@@ -9,18 +9,18 @@
 # Intended to be run from the docker-compose "spanner-init" service using the
 # google/cloud-sdk:slim image. Requires the following environment variables:
 #
-#   SPANNER_EMULATOR_HOST  host:port of the emulator (e.g. spanner-emulator:9020)
-#   SPANNER_PROJECT_ID     GCP project id (e.g. asoview-local)
-#   SPANNER_INSTANCE_ID    instance id (e.g. asoview-local)
-#   SPANNER_DATABASE_ID    database id (e.g. commerce)
+#   SPANNER_EMULATOR_HOST  host:port of the emulator (e.g. spanner-emulator:9010)
+#   SPANNER_PROJECT_ID     GCP project id (e.g. asoview-clone)
+#   SPANNER_INSTANCE_ID    instance id (e.g. asoview-clone)
+#   SPANNER_DATABASE_ID    database id (e.g. asoview)
 #   SPANNER_DDL_DIR        directory containing V*.sql files (mounted)
 
 set -euo pipefail
 
 : "${SPANNER_EMULATOR_HOST:?SPANNER_EMULATOR_HOST must be set}"
-: "${SPANNER_PROJECT_ID:=asoview-local}"
-: "${SPANNER_INSTANCE_ID:=asoview-local}"
-: "${SPANNER_DATABASE_ID:=commerce}"
+: "${SPANNER_PROJECT_ID:=asoview-clone}"
+: "${SPANNER_INSTANCE_ID:=asoview-clone}"
+: "${SPANNER_DATABASE_ID:=asoview}"
 : "${SPANNER_DDL_DIR:=/ddl}"
 
 export CLOUDSDK_AUTH_DISABLE_CREDENTIALS=true
