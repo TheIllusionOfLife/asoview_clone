@@ -124,3 +124,64 @@ Key env vars (local profile defaults in `application-local.yml`):
 - `SPRING_DATA_REDIS_HOST=localhost`
 
 Tests use Testcontainers (Postgres, Redis, Spanner emulator via `org.testcontainers:gcloud`) so no running docker-compose is required for `./gradlew test`.
+
+## Recurring Pitfalls (learned the hard way on PR #18)
+
+These are not generic best practices — each one bit us during the booking/payment correctness work. Read before touching the saga, payments, or Spanner DDL.
+
+### Cross-store consistency: Spanner CAS commits immediately, JPA commits at method exit
+
+`@Transactional` on a method that mixes JPA writes and Spanner CAS calls does NOT make them atomic. Spanner uses its own transactions; the JPA tx commits at method return. A successful Spanner CAS followed by a JPA commit failure leaves Cloud SQL behind Spanner. Patterns we settled on:
+
+- For PENDING → PAYMENT_PENDING: publish a `PaymentCreatedEvent` and have `PaymentCreatedEventListener` (`@TransactionalEventListener(AFTER_COMMIT)` + `@Retryable`) drive the Spanner CAS after the JPA commit. The listener's CAS is idempotent so retries are safe.
+- For exhausted retries / divergent state repair: `PaymentReconciliationJob` sweeps PROCESSING payments and CASs the order forward (or marks payment FAILED) based on the order's actual state. Always use `PaymentRepository.updateStatusIf(...)` (a `@Modifying` CAS query), never plain `save()`, to avoid last-writer-wins overwrites.
+- For PAYMENT_PENDING → PAID: `confirmPayment` first CASs to an intermediate `CONFIRMING` state so concurrent cancels are blocked between the saga and the final PAID write. The post-saga CAS must live INSIDE the same try-catch that handles saga failures, otherwise a Spanner network blip leaves the order stuck in CONFIRMING permanently.
+
+### `@Transactional` self-call bypasses Spring's proxy
+
+A `@Transactional(propagation = REQUIRES_NEW)` method invoked via `this.method(...)` from another method on the same bean runs in the existing transaction (because the call doesn't go through the proxy). Symptoms: a "FAILED status persisted in a new transaction" pattern silently rolls back with the outer transaction.
+
+Use a programmatic `TransactionTemplate` with `PROPAGATION_REQUIRES_NEW` instead. See `PaymentServiceImpl.markPaymentFailedInNewTransaction`.
+
+### Inventory hold confirmation is idempotent — recovery jobs must check sibling state
+
+`InventorySlotRepository.confirmHold` is a no-op when the hold row is already deleted (so concurrent confirmHolds and saga retries don't double-increment `reserved_count`). This idempotency is load-bearing but also dangerous: a `SagaRecoveryJob` that retries a stale FAILED step in isolation will silently mark it CONFIRMED against a deleted hold, with no actual reservation.
+
+Rule: any job that retries a saga step **must** read all sibling steps for the same `payment_id` and refuse to retry if any sibling is COMPENSATED. Pattern: see `SagaRecoveryJob.recoverStalePending`. Same goes for `PaymentConfirmationSaga.confirm` itself — it refuses to resume if any prior step is COMPENSATED.
+
+### Saga compensation marks COMPENSATED only after a successful release
+
+In `PaymentConfirmationSaga`, the compensation loop must mark a step COMPENSATED only after `releaseConfirmedHold` succeeds. If the release throws, mark the step FAILED so `SagaRecoveryJob` (which queries `WHERE status IN ('PENDING','FAILED')`) can retry it. COMPENSATED is terminal and is what the recovery sibling-check looks for.
+
+### Status transitions: prefer CAS over read-then-write
+
+For order/payment/saga-step status changes, use the dedicated CAS methods (`OrderRepository.updateStatusIf`, `PaymentRepository.updateStatusIf`, `PaymentConfirmationStepRepository.updateStatusIf`) and treat a `false`/0 return as a benign concurrent winner. Plain `save()` or `updateStatus()` allows last-writer-wins races.
+
+### Spanner DDL: never edit existing `db/spanner/V*.sql` in place
+
+`SpannerDdlBootstrap.isAlreadyExists` swallows `FAILED_PRECONDITION` so the bootstrap is idempotent on re-runs, but this means **modifying an already-applied V file is silently ignored on existing instances**. Always add a new forward migration (`V<n+1>__add_<column>.sql`) with `ALTER TABLE ... ADD COLUMN ...`. The Cloud Spanner ALTER syntax is forgiving and the bootstrap handles it.
+
+The test schema in `services/commerce-core/src/test/java/.../testutil/SpannerEmulatorConfig.java` is hand-written and can drift from `db/spanner/*.sql`. If you change a Spanner DDL file, mirror the change in `SpannerEmulatorConfig` (or, better, refactor the test config to load from the migration files — Phase 2 candidate).
+
+### Spring Boot 4 / Spring Cloud 2025.x migration gotchas
+
+When bumping `spring-boot` in `gradle/libs.versions.toml`, the following are not auto-applied and produced cryptic build/runtime failures during the 3.x → 4.0.5 upgrade:
+
+- `WebMvcTest`, `AutoConfigureMockMvc` moved to `org.springframework.boot.webmvc.test.autoconfigure.*`. Add `spring-boot-starter-webmvc-test` to test deps.
+- `spring-cloud-starter-gateway` was renamed to `spring-cloud-starter-gateway-server-webflux` in Spring Cloud 2025.x.
+- `spring-boot-starter-flyway` is now needed explicitly — Flyway autoconfig is no longer pulled by `flyway-core` alone.
+- Spring Cloud GCP 8.x ships with `spring-cloud-gcp-starter-data-spanner` but the auto-config is fragile — `Application.java` excludes `GcpSpannerAutoConfiguration`, `SpannerRepositoriesAutoConfiguration`, `SpannerTransactionManagerAutoConfiguration`, and `GcpFirestoreAutoConfiguration` and wires beans manually in `SpannerConfig`.
+
+### Reviewer findings: verify against current code, every time
+
+CodeRabbit, Codex, Devin, and Gemini all flag legitimate bugs and false positives in roughly equal measure on this codebase. Common false-positive patterns we've seen:
+
+- Reviewers assume validations exist that don't (e.g. flagging "hardcoded slot date will become past" when `slot_date` is `STRING(10)` with no temporal validation anywhere).
+- Reviewers flag a missing migration when the migration exists in a later V file (e.g. flagging V4 missing the partial unique index when it lives in V5).
+- Reviewers flag "event published before commit may rollback" without noticing the listener is `@TransactionalEventListener(AFTER_COMMIT)`.
+
+Always read the actual file before fixing. Document the false-positive verdict in the commit message so future sessions don't re-litigate.
+
+### Spotless runs globally — coordinate when multiple agents touch files
+
+`./gradlew spotlessApply` formats every Java file in the repo, not just changed ones. Two agents (or main + agent) editing files in parallel will produce conflicting formatting changes. When delegating to a subagent that may touch the same files, either send a `SendMessage` to coordinate (skip-list, sequencing) or wait for the agent to complete before editing.
