@@ -6,11 +6,13 @@ import com.asoviewclone.commercecore.orders.model.Order;
 import com.asoviewclone.commercecore.orders.service.OrderService;
 import com.asoviewclone.commercecore.orders.service.OrderService.CreateOrderItemRequest;
 import com.asoviewclone.commercecore.security.AuthenticatedUser;
+import com.asoviewclone.common.error.NotFoundException;
 import com.asoviewclone.common.error.ValidationException;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -50,6 +52,26 @@ public class OrderController {
             .map(i -> new CreateOrderItemRequest(i.productVariantId(), i.slotId(), i.quantity()))
             .toList();
     Order order = orderService.createOrder(user.userId().toString(), idempotencyKey, items);
+    return OrderResponse.from(order);
+  }
+
+  /**
+   * Single-order lookup. Used by the consumer web app's checkout polling loop and ticket page.
+   * Returns 404 if the order does not exist OR belongs to a different user — never 403, so we
+   * don't leak existence of orders the caller doesn't own.
+   */
+  @GetMapping("/orders/{orderId}")
+  public OrderResponse getOrder(
+      @AuthenticationPrincipal AuthenticatedUser user, @PathVariable String orderId) {
+    Order order;
+    try {
+      order = orderService.getOrder(orderId);
+    } catch (NotFoundException e) {
+      throw new NotFoundException("Order", orderId);
+    }
+    if (!user.userId().toString().equals(order.userId())) {
+      throw new NotFoundException("Order", orderId);
+    }
     return OrderResponse.from(order);
   }
 
