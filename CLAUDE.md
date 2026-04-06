@@ -120,7 +120,7 @@ SPRING_PROFILES_ACTIVE=local ./gradlew :services:commerce-core:bootRun
 Key env vars (local profile defaults in `application-local.yml`):
 
 - `SPANNER_EMULATOR_HOST=localhost:9010`
-- `SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/commerce`
+- `SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/asoview`
 - `SPRING_DATA_REDIS_HOST=localhost`
 
 Tests use Testcontainers (Postgres, Redis, Spanner emulator via `org.testcontainers:gcloud`) so no running docker-compose is required for `./gradlew test`.
