@@ -45,6 +45,12 @@ public class Payment {
   @Column(name = "provider_payment_id")
   private String providerPaymentId;
 
+  // Persisted so the idempotent createPaymentIntent replay path can return the same client_secret
+  // to the browser without re-fetching it from the provider. Nullable for gateways that don't
+  // expose one (older Stub rows that pre-date V8 will land NULL).
+  @Column(name = "client_secret")
+  private String clientSecret;
+
   @Column(name = "idempotency_key", nullable = false, unique = true)
   private String idempotencyKey;
 
@@ -103,6 +109,14 @@ public class Payment {
 
   public void setProviderPaymentId(String providerPaymentId) {
     this.providerPaymentId = providerPaymentId;
+  }
+
+  public String getClientSecret() {
+    return clientSecret;
+  }
+
+  public void setClientSecret(String clientSecret) {
+    this.clientSecret = clientSecret;
   }
 
   public String getIdempotencyKey() {

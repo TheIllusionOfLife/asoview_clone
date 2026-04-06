@@ -5,6 +5,7 @@ import com.asoviewclone.commercecore.entitlements.model.EntitlementStatus;
 import com.asoviewclone.commercecore.entitlements.model.EntitlementType;
 import com.asoviewclone.commercecore.entitlements.model.TicketPass;
 import com.asoviewclone.commercecore.entitlements.model.TicketPassStatus;
+import com.asoviewclone.commercecore.entitlements.model.TicketPassView;
 import com.asoviewclone.common.time.ClockProvider;
 import com.google.cloud.Timestamp;
 import com.google.cloud.spanner.DatabaseClient;
@@ -138,6 +139,49 @@ public class EntitlementRepository {
     return result;
   }
 
+  /**
+   * Returns ticket passes joined with their parent entitlement so the caller has the order id and
+   * validity window in a single query (no N+1). When {@code orderIdOrNull} is non-null the result
+   * is filtered to that order — used by the frontend's /tickets/[orderId] page.
+   */
+  public List<TicketPassView> findTicketPassViewsByUserId(String userId, String orderIdOrNull) {
+    StringBuilder sql =
+        new StringBuilder(
+            "SELECT tp.ticket_pass_id, tp.entitlement_id, tp.qr_code_payload, tp.status,"
+                + " tp.created_at, e.order_id, e.valid_from, e.valid_until"
+                + " FROM ticket_passes tp"
+                + " JOIN entitlements e ON tp.entitlement_id = e.entitlement_id"
+                + " WHERE e.user_id = @uid");
+    if (orderIdOrNull != null) {
+      sql.append(" AND e.order_id = @oid");
+    }
+    sql.append(" ORDER BY tp.created_at DESC");
+    Statement.Builder builder = Statement.newBuilder(sql.toString()).bind("uid").to(userId);
+    if (orderIdOrNull != null) {
+      builder.bind("oid").to(orderIdOrNull);
+    }
+    List<TicketPassView> result = new ArrayList<>();
+    try (ResultSet rs = databaseClient.singleUse().executeQuery(builder.build())) {
+      while (rs.next()) {
+        result.add(
+            new TicketPassView(
+                rs.getString("ticket_pass_id"),
+                rs.getString("entitlement_id"),
+                rs.getString("order_id"),
+                rs.getString("qr_code_payload"),
+                TicketPassStatus.valueOf(rs.getString("status")),
+                rs.isNull("valid_from")
+                    ? null
+                    : rs.getTimestamp("valid_from").toSqlTimestamp().toInstant(),
+                rs.isNull("valid_until")
+                    ? null
+                    : rs.getTimestamp("valid_until").toSqlTimestamp().toInstant(),
+                rs.getTimestamp("created_at").toSqlTimestamp().toInstant()));
+      }
+    }
+    return result;
+  }
+
   public List<TicketPass> findTicketPassesByEntitlementId(String entitlementId) {
     Statement stmt =
         Statement.newBuilder(
@@ -183,9 +227,11 @@ public class EntitlementRepository {
         rs.getString("product_variant_id"),
         EntitlementType.valueOf(rs.getString("type")),
         EntitlementStatus.valueOf(rs.getString("status")),
-        rs.isNull("valid_from") ? null : rs.getTimestamp("valid_from").toDate().toInstant(),
-        rs.isNull("valid_until") ? null : rs.getTimestamp("valid_until").toDate().toInstant(),
-        rs.getTimestamp("created_at").toDate().toInstant());
+        rs.isNull("valid_from") ? null : rs.getTimestamp("valid_from").toSqlTimestamp().toInstant(),
+        rs.isNull("valid_until")
+            ? null
+            : rs.getTimestamp("valid_until").toSqlTimestamp().toInstant(),
+        rs.getTimestamp("created_at").toSqlTimestamp().toInstant());
   }
 
   private TicketPass mapTicketPass(ResultSet rs) {
@@ -194,7 +240,7 @@ public class EntitlementRepository {
         rs.getString("entitlement_id"),
         rs.getString("qr_code_payload"),
         TicketPassStatus.valueOf(rs.getString("status")),
-        rs.isNull("used_at") ? null : rs.getTimestamp("used_at").toDate().toInstant(),
-        rs.getTimestamp("created_at").toDate().toInstant());
+        rs.isNull("used_at") ? null : rs.getTimestamp("used_at").toSqlTimestamp().toInstant(),
+        rs.getTimestamp("created_at").toSqlTimestamp().toInstant());
   }
 }

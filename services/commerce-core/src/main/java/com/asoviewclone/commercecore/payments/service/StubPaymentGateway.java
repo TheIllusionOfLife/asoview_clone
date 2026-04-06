@@ -36,7 +36,8 @@ public class StubPaymentGateway implements PaymentGateway {
   @Override
   public PaymentResult createIntent(
       String orderId, BigDecimal amount, String currency, String idempotencyKey) {
-    return new PaymentResult("stub-" + UUID.randomUUID(), true);
+    String intentId = "stub-" + UUID.randomUUID();
+    return new PaymentResult(intentId, intentId + "_secret_stub", true);
   }
 
   @Override

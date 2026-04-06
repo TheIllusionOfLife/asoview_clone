@@ -36,6 +36,9 @@ public class PaymentController {
     response.put("paymentId", payment.getPaymentId().toString());
     response.put("status", payment.getStatus().name());
     response.put("providerPaymentId", payment.getProviderPaymentId());
+    // Stripe Elements on the frontend needs the client_secret to confirm the intent.
+    // Persisted on the row by V8 so this is identical on idempotent replays.
+    response.put("clientSecret", payment.getClientSecret());
     return response;
   }
 }

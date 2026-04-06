@@ -85,7 +85,7 @@ public class StripePaymentGateway implements PaymentGateway {
       // after a local JPA save failure does not mint a second PaymentIntent.
       RequestOptions options = RequestOptions.builder().setIdempotencyKey(idempotencyKey).build();
       PaymentIntent intent = PaymentIntent.create(params, options);
-      return new PaymentResult(intent.getId(), true);
+      return new PaymentResult(intent.getId(), intent.getClientSecret(), true);
     } catch (StripeException e) {
       log.warn("Stripe createIntent failed for order {}: {}", orderId, e.getMessage());
       throw new ConflictException("Stripe rejected payment intent creation: " + e.getMessage());
