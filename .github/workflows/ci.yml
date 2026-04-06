@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main]
 
+# Opt in to GitHub Actions' forced Node.js 20 -> 24 migration ahead of the
+# 2026-06-02 cutoff so deprecated-action annotations stop blocking CI runs.
+# See https://github.blog/changelog/ for the deprecation timeline.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 permissions:
   contents: read
 
@@ -53,7 +59,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: bufbuild/buf-setup-action@v1
+      - uses: bufbuild/buf-setup-action@v1.50.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
       - run: buf lint contracts/proto
 
   spanner-ddl-immutability:
