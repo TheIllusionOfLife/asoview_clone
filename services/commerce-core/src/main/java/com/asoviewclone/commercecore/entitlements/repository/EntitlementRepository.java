@@ -138,6 +138,24 @@ public class EntitlementRepository {
     return result;
   }
 
+  public List<TicketPass> findTicketPassesByEntitlementId(String entitlementId) {
+    Statement stmt =
+        Statement.newBuilder(
+                "SELECT ticket_pass_id, entitlement_id, qr_code_payload,"
+                    + " status, used_at, created_at"
+                    + " FROM ticket_passes WHERE entitlement_id = @eid")
+            .bind("eid")
+            .to(entitlementId)
+            .build();
+    List<TicketPass> result = new ArrayList<>();
+    try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
+      while (rs.next()) {
+        result.add(mapTicketPass(rs));
+      }
+    }
+    return result;
+  }
+
   public List<Entitlement> findByOrderId(String orderId) {
     Statement stmt =
         Statement.newBuilder(

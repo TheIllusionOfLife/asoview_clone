@@ -10,8 +10,6 @@ import com.asoviewclone.commercecore.orders.model.Order;
 import com.asoviewclone.commercecore.orders.model.OrderItem;
 import com.asoviewclone.commercecore.payments.service.EntitlementCreator;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Primary;
@@ -34,20 +32,24 @@ public class EntitlementServiceImpl implements EntitlementCreator {
 
   @Override
   public void createEntitlementsForOrder(Order order) {
-    // Collect existing entitlements by orderItemId to handle partial creation on retry
+    // Repair any existing entitlements that are missing ticket passes (partial
+    // creation from a previous failed attempt).
     List<Entitlement> existing = entitlementRepository.findByOrderId(order.orderId());
-    Set<String> existingOrderItemIds =
-        existing.stream().map(Entitlement::orderItemId).collect(Collectors.toSet());
-
-    // Count existing entitlements per order item for quantity-aware idempotency
-    long expectedTotal = order.items().stream().mapToLong(OrderItem::quantity).sum();
-    if (existing.size() >= expectedTotal) {
-      log.info("All entitlements already exist for order {}, skipping", order.orderId());
-      return;
+    for (Entitlement e : existing) {
+      if (entitlementRepository.findTicketPassesByEntitlementId(e.entitlementId()).isEmpty()) {
+        entitlementRepository.saveTicketPass(
+            new TicketPass(
+                null,
+                e.entitlementId(),
+                qrCodeGenerator.generate(),
+                TicketPassStatus.VALID,
+                null,
+                null));
+      }
     }
 
+    // Create any missing entitlements (quantity-aware per item) plus their ticket passes.
     for (OrderItem item : order.items()) {
-      // Count how many entitlements already exist for this order item
       long existingForItem =
           existing.stream().filter(e -> e.orderItemId().equals(item.orderItemId())).count();
       long remaining = item.quantity() - existingForItem;

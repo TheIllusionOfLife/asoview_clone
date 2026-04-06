@@ -12,13 +12,18 @@ public class TenantAccessChecker {
 
   public AuthenticatedUser getCurrentUser() {
     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-    if (auth == null || !(auth.getPrincipal() instanceof AuthenticatedUser)) {
+    if (auth == null
+        || !auth.isAuthenticated()
+        || !(auth.getPrincipal() instanceof AuthenticatedUser)) {
       throw new AccessDeniedException("No authenticated user");
     }
     return (AuthenticatedUser) auth.getPrincipal();
   }
 
   public void requireTenantRole(UUID tenantId, TenantRole requiredRole) {
+    if (requiredRole == null) {
+      throw new IllegalArgumentException("requiredRole must not be null");
+    }
     AuthenticatedUser user = getCurrentUser();
     if (!user.hasTenantRole(tenantId, requiredRole)) {
       throw new AccessDeniedException(

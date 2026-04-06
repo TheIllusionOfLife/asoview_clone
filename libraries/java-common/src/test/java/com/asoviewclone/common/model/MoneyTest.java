@@ -11,20 +11,31 @@ class MoneyTest {
   @Test
   void createFromBigDecimal() {
     Money money = Money.of(new BigDecimal("1000"), "JPY");
-    assertThat(money.amount()).isEqualByComparingTo("1000.00");
+    assertThat(money.amount()).isEqualByComparingTo("1000");
+    assertThat(money.amount().scale()).isEqualTo(0);
     assertThat(money.currency()).isEqualTo("JPY");
   }
 
   @Test
-  void createFromString() {
+  void createFromStringJpyRoundsToInteger() {
+    // JPY has 0 fraction digits, so 500.5 rounds to 501
     Money money = Money.of("500.5", "JPY");
+    assertThat(money.amount()).isEqualByComparingTo("501");
+    assertThat(money.amount().scale()).isEqualTo(0);
+  }
+
+  @Test
+  void createFromStringUsdKeepsTwoDecimals() {
+    Money money = Money.of("500.5", "USD");
     assertThat(money.amount()).isEqualByComparingTo("500.50");
+    assertThat(money.amount().scale()).isEqualTo(2);
   }
 
   @Test
   void jpyFactory() {
     Money money = Money.jpy(3000);
-    assertThat(money.amount()).isEqualByComparingTo("3000.00");
+    assertThat(money.amount()).isEqualByComparingTo("3000");
+    assertThat(money.amount().scale()).isEqualTo(0);
     assertThat(money.currency()).isEqualTo("JPY");
   }
 
@@ -33,7 +44,7 @@ class MoneyTest {
     Money a = Money.jpy(1000);
     Money b = Money.jpy(500);
     Money result = a.add(b);
-    assertThat(result.amount()).isEqualByComparingTo("1500.00");
+    assertThat(result.amount()).isEqualByComparingTo("1500");
   }
 
   @Test
@@ -41,14 +52,14 @@ class MoneyTest {
     Money a = Money.jpy(1000);
     Money b = Money.jpy(300);
     Money result = a.subtract(b);
-    assertThat(result.amount()).isEqualByComparingTo("700.00");
+    assertThat(result.amount()).isEqualByComparingTo("700");
   }
 
   @Test
   void multiply() {
     Money money = Money.jpy(500);
     Money result = money.multiply(3);
-    assertThat(result.amount()).isEqualByComparingTo("1500.00");
+    assertThat(result.amount()).isEqualByComparingTo("1500");
   }
 
   @Test

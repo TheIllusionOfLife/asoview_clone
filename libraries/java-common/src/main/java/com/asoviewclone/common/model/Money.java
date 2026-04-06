@@ -2,6 +2,7 @@ package com.asoviewclone.common.model;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Currency;
 import java.util.Objects;
 
 public record Money(BigDecimal amount, String currency) {
@@ -12,7 +13,16 @@ public record Money(BigDecimal amount, String currency) {
     if (currency.length() != 3) {
       throw new IllegalArgumentException("currency must be a 3-letter ISO code");
     }
-    amount = amount.setScale(2, RoundingMode.HALF_UP);
+    int scale;
+    try {
+      scale = Currency.getInstance(currency).getDefaultFractionDigits();
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException("Unknown ISO currency code: " + currency, e);
+    }
+    if (scale < 0) {
+      scale = 2;
+    }
+    amount = amount.setScale(scale, RoundingMode.HALF_UP);
   }
 
   public static Money of(BigDecimal amount, String currency) {
