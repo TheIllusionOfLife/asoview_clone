@@ -181,11 +181,15 @@ class OrderCancelConfirmRaceTest {
 
   private void waitForStatus(String orderId, OrderStatus expected) throws InterruptedException {
     long deadline = System.currentTimeMillis() + 5_000;
+    OrderStatus last = null;
     while (System.currentTimeMillis() < deadline) {
-      if (orderRepository.findById(orderId).status() == expected) {
+      last = orderRepository.findById(orderId).status();
+      if (last == expected) {
         return;
       }
       Thread.sleep(50);
     }
+    throw new AssertionError(
+        "Timed out waiting for order " + orderId + " to reach " + expected + "; last seen " + last);
   }
 }

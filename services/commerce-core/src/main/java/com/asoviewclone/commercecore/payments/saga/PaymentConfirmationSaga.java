@@ -165,24 +165,52 @@ public class PaymentConfirmationSaga {
           }
         }
         for (PaymentConfirmationStep done : confirmed) {
+          // Split the release and the status write into separate try blocks so
+          // a status-update failure (after a successful release) is logged
+          // distinctly and does not mask the release outcome. This is
+          // audit-only — recovery job and saga retry already handle the
+          // partial-state correctly via the COMPENSATED-sibling guard.
+          boolean released = false;
           try {
             inventorySlotRepository.releaseConfirmedHold(done.slotId(), done.quantity());
-            stepRepository.updateStatus(done.stepId(), PaymentConfirmationStepStatus.COMPENSATED);
+            released = true;
           } catch (Exception compEx) {
             log.error(
-                "Compensation failed for step {} slot {}", done.stepId(), done.slotId(), compEx);
+                "Compensation release failed for step {} slot {}",
+                done.stepId(),
+                done.slotId(),
+                compEx);
+          }
+          if (released) {
+            try {
+              stepRepository.updateStatus(done.stepId(), PaymentConfirmationStepStatus.COMPENSATED);
+            } catch (Exception statusEx) {
+              log.error(
+                  "Compensation status write failed for step {} (capacity already released)",
+                  done.stepId(),
+                  statusEx);
+            }
           }
         }
         // Mark the failing step COMPENSATED if its reservation was successfully
         // rolled back, otherwise FAILED so the recovery job can retry it.
         // COMPENSATED steps are terminal — the saga refuses to resume any
         // payment with COMPENSATED steps, and the recovery job's PENDING/FAILED
-        // filter naturally skips them.
-        stepRepository.updateStatus(
-            step.stepId(),
-            currentStepCompensated
-                ? PaymentConfirmationStepStatus.COMPENSATED
-                : PaymentConfirmationStepStatus.FAILED);
+        // filter naturally skips them. Wrap in try-catch so a status-write
+        // failure does not mask the ConflictException below.
+        try {
+          stepRepository.updateStatus(
+              step.stepId(),
+              currentStepCompensated
+                  ? PaymentConfirmationStepStatus.COMPENSATED
+                  : PaymentConfirmationStepStatus.FAILED);
+        } catch (Exception statusEx) {
+          log.error(
+              "Failed to mark current step {} as {} after compensation",
+              step.stepId(),
+              currentStepCompensated ? "COMPENSATED" : "FAILED",
+              statusEx);
+        }
         throw new ConflictException(
             "Saga compensation completed for payment "
                 + payment.getPaymentId()
