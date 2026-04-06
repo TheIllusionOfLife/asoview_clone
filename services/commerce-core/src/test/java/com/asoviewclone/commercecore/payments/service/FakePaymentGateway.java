@@ -38,7 +38,7 @@ public class FakePaymentGateway implements PaymentGateway {
       String orderId, BigDecimal amount, String currency, String idempotencyKey) {
     String intentId = "fake-" + UUID.randomUUID();
     intentToOrder.put(intentId, orderId);
-    return new PaymentResult(intentId, true);
+    return new PaymentResult(intentId, intentId + "_secret_fake", true);
   }
 
   @Override

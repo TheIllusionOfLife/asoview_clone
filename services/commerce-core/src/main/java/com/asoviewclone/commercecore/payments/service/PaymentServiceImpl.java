@@ -99,6 +99,9 @@ public class PaymentServiceImpl implements PaymentService {
 
     payment.setProvider(paymentGateway.providerName());
     payment.setProviderPaymentId(result.providerPaymentId());
+    // Persist clientSecret on the row so the idempotent replay path above can return it
+    // verbatim without re-fetching from the provider — keeps the replay offline-safe.
+    payment.setClientSecret(result.clientSecret());
     payment.setStatus(PaymentStatus.PROCESSING);
 
     // Save payment in the JPA transaction; the order status is advanced by an

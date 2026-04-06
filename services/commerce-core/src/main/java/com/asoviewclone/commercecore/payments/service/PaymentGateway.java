@@ -22,5 +22,12 @@ public interface PaymentGateway {
    */
   PaymentGatewayEvent verifyWebhook(String signatureHeader, byte[] rawBody);
 
-  record PaymentResult(String providerPaymentId, boolean success) {}
+  /**
+   * @param providerPaymentId the gateway's intent id (e.g. Stripe {@code pi_...})
+   * @param clientSecret the value the browser SDK needs to confirm the intent (Stripe Elements
+   *     {@code pi_..._secret_...}). Nullable for gateways that don't expose one (Stub never has;
+   *     Fake returns a synthetic value for deterministic frontend tests).
+   * @param success whether the intent was successfully created on the provider
+   */
+  record PaymentResult(String providerPaymentId, String clientSecret, boolean success) {}
 }
