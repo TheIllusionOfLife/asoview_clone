@@ -14,7 +14,6 @@ CREATE INDEX idx_slots_variant_date ON inventory_slots(product_variant_id, slot_
 CREATE TABLE inventory_holds (
     hold_id STRING(36) NOT NULL,
     slot_id STRING(36) NOT NULL,
-    product_variant_id STRING(36) NOT NULL,
     user_id STRING(36) NOT NULL,
     quantity INT64 NOT NULL,
     expires_at TIMESTAMP NOT NULL,

@@ -107,14 +107,19 @@ public class SpannerEmulatorConfig {
                       + " created_at TIMESTAMP NOT NULL"
                       + " OPTIONS (allow_commit_timestamp=true))"
                       + " PRIMARY KEY (slot_id)",
+                  // Base inventory_holds CREATE intentionally OMITS
+                  // product_variant_id, mirroring V1__inventory.sql. The
+                  // ALTER TABLE statement below mirrors V5__inventory_holds_add_variant.sql.
+                  // Splitting the schema this way catches any future in-place
+                  // edit to V1 that would otherwise diverge from production.
                   "CREATE TABLE inventory_holds (hold_id STRING(36) NOT NULL,"
                       + " slot_id STRING(36) NOT NULL,"
-                      + " product_variant_id STRING(36) NOT NULL,"
                       + " user_id STRING(36) NOT NULL,"
                       + " quantity INT64 NOT NULL, expires_at TIMESTAMP NOT NULL,"
                       + " created_at TIMESTAMP NOT NULL"
                       + " OPTIONS (allow_commit_timestamp=true))"
                       + " PRIMARY KEY (hold_id)",
+                  "ALTER TABLE inventory_holds ADD COLUMN product_variant_id STRING(36)",
                   "CREATE INDEX idx_holds_slot ON inventory_holds(slot_id)",
                   "CREATE TABLE orders (order_id STRING(36) NOT NULL,"
                       + " user_id STRING(36) NOT NULL, status STRING(32) NOT NULL,"
