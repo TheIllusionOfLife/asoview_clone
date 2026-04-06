@@ -80,8 +80,7 @@ public class PaymentConfirmationSaga {
         if (se.getErrorCode() == com.google.cloud.spanner.ErrorCode.ALREADY_EXISTS) {
           // A concurrent attempt inserted steps first. Re-read and resume.
           steps =
-              new ArrayList<>(
-                  stepRepository.findByPaymentId(payment.getPaymentId().toString()));
+              new ArrayList<>(stepRepository.findByPaymentId(payment.getPaymentId().toString()));
         } else {
           throw new ConflictException(
               "Failed to persist saga steps for payment "

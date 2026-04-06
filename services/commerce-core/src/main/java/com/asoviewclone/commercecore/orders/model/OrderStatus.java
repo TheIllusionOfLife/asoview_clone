@@ -11,8 +11,7 @@ public enum OrderStatus {
   REFUNDED;
 
   private static final Set<OrderStatus> PENDING_TRANSITIONS = Set.of(PAYMENT_PENDING, CANCELLED);
-  private static final Set<OrderStatus> PAYMENT_PENDING_TRANSITIONS =
-      Set.of(CONFIRMING, CANCELLED);
+  private static final Set<OrderStatus> PAYMENT_PENDING_TRANSITIONS = Set.of(CONFIRMING, CANCELLED);
   // CONFIRMING is an intermediate state held while the payment confirmation saga
   // is running. Cancel is intentionally not allowed: a concurrent cancel must wait
   // for CONFIRMING to resolve to PAID (success) or back to PAYMENT_PENDING (saga
