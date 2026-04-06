@@ -35,8 +35,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * Validates that createOrder rejects an order where the slot belongs to a different product
- * variant than the one requested, and that no hold rows remain for that slot after rejection.
+ * Validates that createOrder rejects an order where the slot belongs to a different product variant
+ * than the one requested, and that no hold rows remain for that slot after rejection.
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -121,8 +121,7 @@ class SlotVariantMismatchTest {
                     userId,
                     UUID.randomUUID().toString(),
                     List.of(
-                        new OrderService.CreateOrderItemRequest(
-                            variantBId, slotIdForVariantA, 1))))
+                        new OrderService.CreateOrderItemRequest(variantBId, slotIdForVariantA, 1))))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Slot does not belong to requested product variant");
 

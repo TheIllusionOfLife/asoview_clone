@@ -65,8 +65,7 @@ public class OrderServiceImpl implements OrderService {
         // populates the hold's productVariantId from the slot row, so a mismatch means
         // the client referenced a slot that does not belong to their variant.
         if (!hold.productVariantId().equals(item.productVariantId())) {
-          throw new ValidationException(
-              "Slot does not belong to requested product variant");
+          throw new ValidationException("Slot does not belong to requested product variant");
         }
       }
 
@@ -178,8 +177,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     // Compare-and-swap: only mark CANCELLED if status hasn't changed under us.
-    boolean swapped =
-        orderRepository.updateStatusIf(orderId, currentStatus, OrderStatus.CANCELLED);
+    boolean swapped = orderRepository.updateStatusIf(orderId, currentStatus, OrderStatus.CANCELLED);
     if (!swapped) {
       throw new ConflictException(
           "Order " + orderId + " status changed concurrently; cancel aborted");

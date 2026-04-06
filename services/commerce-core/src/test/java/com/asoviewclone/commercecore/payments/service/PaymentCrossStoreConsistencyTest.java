@@ -45,10 +45,10 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 /**
- * Verifies the AFTER_COMMIT event listener path for advancing order status to PAYMENT_PENDING
- * after the JPA payment commit. Uses a spied OrderRepository to inject transient failures and
- * verify the @Retryable backoff succeeds, and that a permanent failure leaves the payment row but
- * the order in PENDING without bubbling exceptions to the caller.
+ * Verifies the AFTER_COMMIT event listener path for advancing order status to PAYMENT_PENDING after
+ * the JPA payment commit. Uses a spied OrderRepository to inject transient failures and verify
+ * the @Retryable backoff succeeds, and that a permanent failure leaves the payment row but the
+ * order in PENDING without bubbling exceptions to the caller.
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -79,11 +79,7 @@ class PaymentCrossStoreConsistencyTest {
     Category category =
         categoryRepository.save(
             new Category(
-                "XstoreCat-" + UUID.randomUUID(),
-                "xstore-" + UUID.randomUUID(),
-                null,
-                1,
-                null));
+                "XstoreCat-" + UUID.randomUUID(), "xstore-" + UUID.randomUUID(), null, 1, null));
     Product product =
         productRepository.save(
             new Product(
@@ -148,8 +144,7 @@ class PaymentCrossStoreConsistencyTest {
         .updateStatusIf(anyString(), any(OrderStatus.class), any(OrderStatus.class));
 
     Payment payment =
-        paymentService.createPaymentIntent(
-            order.orderId(), userId, UUID.randomUUID().toString());
+        paymentService.createPaymentIntent(order.orderId(), userId, UUID.randomUUID().toString());
     assertThat(payment).isNotNull();
 
     // Wait for retry to eventually succeed.
@@ -165,9 +160,7 @@ class PaymentCrossStoreConsistencyTest {
     assertThat(finalStatus).isEqualTo(OrderStatus.PAYMENT_PENDING);
     verify(orderRepository, atLeast(3))
         .updateStatusIf(
-            eq(order.orderId()),
-            eq(OrderStatus.PENDING),
-            eq(OrderStatus.PAYMENT_PENDING));
+            eq(order.orderId()), eq(OrderStatus.PENDING), eq(OrderStatus.PAYMENT_PENDING));
   }
 
   @Test
@@ -181,15 +174,12 @@ class PaymentCrossStoreConsistencyTest {
     doThrow(new RuntimeException("permanent spanner failure"))
         .when(orderRepository)
         .updateStatusIf(
-            eq(order.orderId()),
-            eq(OrderStatus.PENDING),
-            eq(OrderStatus.PAYMENT_PENDING));
+            eq(order.orderId()), eq(OrderStatus.PENDING), eq(OrderStatus.PAYMENT_PENDING));
 
     // The listener swallows the final failure (logged only); the caller must not see the
     // exception.
     Payment payment =
-        paymentService.createPaymentIntent(
-            order.orderId(), userId, UUID.randomUUID().toString());
+        paymentService.createPaymentIntent(order.orderId(), userId, UUID.randomUUID().toString());
     assertThat(payment).isNotNull();
 
     // Order stays in PENDING; payment row exists.

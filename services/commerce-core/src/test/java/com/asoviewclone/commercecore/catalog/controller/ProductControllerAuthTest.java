@@ -52,8 +52,7 @@ class ProductControllerAuthTest {
   void getActiveProductIsPublic() throws Exception {
     UUID productId = UUID.randomUUID();
     UUID tenantId = UUID.randomUUID();
-    Product product =
-        new Product(tenantId, null, null, "Kayak", "Fun", null, ProductStatus.ACTIVE);
+    Product product = new Product(tenantId, null, null, "Kayak", "Fun", null, ProductStatus.ACTIVE);
     when(catalogService.getProduct(productId)).thenReturn(product);
 
     mockMvc.perform(get("/v1/products/" + productId)).andExpect(status().isOk());
@@ -63,8 +62,7 @@ class ProductControllerAuthTest {
   void getNonActiveProductReturnsNotFound() throws Exception {
     UUID productId = UUID.randomUUID();
     UUID tenantId = UUID.randomUUID();
-    Product draft =
-        new Product(tenantId, null, null, "Draft", "WIP", null, ProductStatus.DRAFT);
+    Product draft = new Product(tenantId, null, null, "Draft", "WIP", null, ProductStatus.DRAFT);
     when(catalogService.getProduct(productId)).thenReturn(draft);
 
     // Controller throws NotFoundException; without GlobalExceptionHandler on this slice,

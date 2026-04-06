@@ -27,9 +27,7 @@ public class PaymentCreatedEventListener {
   }
 
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-  @Retryable(
-      maxAttempts = 3,
-      backoff = @Backoff(delay = 200, multiplier = 2.0, maxDelay = 2000))
+  @Retryable(maxAttempts = 3, backoff = @Backoff(delay = 200, multiplier = 2.0, maxDelay = 2000))
   public void onPaymentCreated(PaymentCreatedEvent event) {
     boolean swapped =
         orderRepository.updateStatusIf(

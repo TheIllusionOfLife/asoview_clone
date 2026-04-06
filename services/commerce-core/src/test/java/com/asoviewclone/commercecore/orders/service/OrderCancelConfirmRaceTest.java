@@ -67,12 +67,14 @@ class OrderCancelConfirmRaceTest {
 
   @BeforeEach
   void setUp() {
-    Tenant tenant = tenantRepository.save(new Tenant("Race Operator", "race-op-" + UUID.randomUUID()));
+    Tenant tenant =
+        tenantRepository.save(new Tenant("Race Operator", "race-op-" + UUID.randomUUID()));
     Venue venue =
         venueRepository.save(new Venue(tenant.getId(), "Race Venue", "Tokyo", 35.6, 139.7));
     Category category =
         categoryRepository.save(
-            new Category("RaceCat-" + UUID.randomUUID(), "race-" + UUID.randomUUID(), null, 1, null));
+            new Category(
+                "RaceCat-" + UUID.randomUUID(), "race-" + UUID.randomUUID(), null, 1, null));
     Product product =
         productRepository.save(
             new Product(
@@ -121,8 +123,7 @@ class OrderCancelConfirmRaceTest {
             List.of(new OrderService.CreateOrderItemRequest(variantId, slotId, 1)));
 
     Payment payment =
-        paymentService.createPaymentIntent(
-            order.orderId(), userId, UUID.randomUUID().toString());
+        paymentService.createPaymentIntent(order.orderId(), userId, UUID.randomUUID().toString());
 
     // Wait (briefly) for AFTER_COMMIT listener to move order to PAYMENT_PENDING.
     waitForStatus(order.orderId(), OrderStatus.PAYMENT_PENDING);
@@ -176,8 +177,7 @@ class OrderCancelConfirmRaceTest {
     assertThat(conflicts.get()).isEqualTo(1);
 
     Order finalOrder = orderRepository.findById(order.orderId());
-    assertThat(finalOrder.status())
-        .isIn(OrderStatus.CANCELLED, OrderStatus.PAID);
+    assertThat(finalOrder.status()).isIn(OrderStatus.CANCELLED, OrderStatus.PAID);
   }
 
   private void waitForStatus(String orderId, OrderStatus expected) throws InterruptedException {
