@@ -72,6 +72,51 @@ public class PaymentConfirmationStepRepository {
     return out;
   }
 
+  /**
+   * Compare-and-swap status update. Returns {@code true} if the row was in {@code expected} and was
+   * updated to {@code newStatus}, {@code false} if a concurrent writer (e.g. saga vs recovery job)
+   * had already advanced it. Used to make the saga's PENDING→CONFIRMED transition safe against
+   * concurrent recovery, treating the loss as a benign concurrent winner.
+   */
+  public boolean updateStatusIf(
+      String stepId,
+      PaymentConfirmationStepStatus expected,
+      PaymentConfirmationStepStatus newStatus) {
+    Instant now = clockProvider.now();
+    return Boolean.TRUE.equals(
+        databaseClient
+            .readWriteTransaction()
+            .run(
+                tx -> {
+                  Statement stmt =
+                      Statement.newBuilder(
+                              "SELECT status FROM payment_confirmation_steps WHERE step_id = @id")
+                          .bind("id")
+                          .to(stepId)
+                          .build();
+                  try (ResultSet rs = tx.executeQuery(stmt)) {
+                    if (!rs.next()) {
+                      return false;
+                    }
+                    PaymentConfirmationStepStatus current =
+                        PaymentConfirmationStepStatus.valueOf(rs.getString("status"));
+                    if (current != expected) {
+                      return false;
+                    }
+                  }
+                  tx.buffer(
+                      Mutation.newUpdateBuilder("payment_confirmation_steps")
+                          .set("step_id")
+                          .to(stepId)
+                          .set("status")
+                          .to(newStatus.name())
+                          .set("updated_at")
+                          .to(Timestamp.ofTimeSecondsAndNanos(now.getEpochSecond(), 0))
+                          .build());
+                  return true;
+                }));
+  }
+
   public void updateStatus(String stepId, PaymentConfirmationStepStatus newStatus) {
     Instant now = clockProvider.now();
     databaseClient.write(

@@ -127,7 +127,13 @@ public class PaymentConfirmationSaga {
         // Hold is now confirmed in Spanner. Track this BEFORE attempting the step
         // status update so a failure of updateStatus does not leak the reservation.
         holdConfirmed = true;
-        stepRepository.updateStatus(step.stepId(), PaymentConfirmationStepStatus.CONFIRMED);
+        // Compare-and-swap PENDING→CONFIRMED. If a concurrent recovery job
+        // already won the swap, treat the loss as benign — confirmHold is
+        // idempotent so the reservation is correct either way.
+        stepRepository.updateStatusIf(
+            step.stepId(),
+            PaymentConfirmationStepStatus.PENDING,
+            PaymentConfirmationStepStatus.CONFIRMED);
         confirmed.add(step);
       } catch (Exception e) {
         log.warn(
@@ -139,9 +145,17 @@ public class PaymentConfirmationSaga {
         // If we already confirmed the hold for the current step but the status
         // update threw, the reservation was applied. Compensate it before walking
         // the previously-confirmed list so capacity is fully released.
+        //
+        // Track whether the current step's release succeeded: if it did, the
+        // step is terminal COMPENSATED (recovery must NOT retry it — the hold
+        // row is gone and a retried confirmHold would be a silent no-op,
+        // marking CONFIRMED without re-reserving capacity). If the release
+        // threw, the step is FAILED so recovery can retry the whole sequence.
+        boolean currentStepCompensated = false;
         if (holdConfirmed) {
           try {
             inventorySlotRepository.releaseConfirmedHold(step.slotId(), step.quantity());
+            currentStepCompensated = true;
           } catch (Exception compEx) {
             log.error(
                 "Compensation failed for current step {} slot {}",
@@ -159,10 +173,16 @@ public class PaymentConfirmationSaga {
                 "Compensation failed for step {} slot {}", done.stepId(), done.slotId(), compEx);
           }
         }
-        // Mark the failing step as FAILED (not COMPENSATED) so the recovery job
-        // can retry it. COMPENSATED is reserved for steps that successfully
-        // confirmed and were rolled back.
-        stepRepository.updateStatus(step.stepId(), PaymentConfirmationStepStatus.FAILED);
+        // Mark the failing step COMPENSATED if its reservation was successfully
+        // rolled back, otherwise FAILED so the recovery job can retry it.
+        // COMPENSATED steps are terminal — the saga refuses to resume any
+        // payment with COMPENSATED steps, and the recovery job's PENDING/FAILED
+        // filter naturally skips them.
+        stepRepository.updateStatus(
+            step.stepId(),
+            currentStepCompensated
+                ? PaymentConfirmationStepStatus.COMPENSATED
+                : PaymentConfirmationStepStatus.FAILED);
         throw new ConflictException(
             "Saga compensation completed for payment "
                 + payment.getPaymentId()

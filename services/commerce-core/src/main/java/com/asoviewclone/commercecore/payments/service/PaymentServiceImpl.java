@@ -180,6 +180,16 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     // Only mark SUCCEEDED after all downstream effects complete.
+    //
+    // Cross-store consistency caveat: this method is @Transactional. The JPA
+    // payment.setStatus + paymentRepository.save are buffered in the JPA
+    // persistence context and only commit when this method returns. The
+    // Spanner CAS below commits in its own transaction immediately. There is a
+    // narrow window where the Spanner order is PAID but the JPA payment row is
+    // still PROCESSING (e.g. JPA commit fails with a connection drop after the
+    // Spanner CAS succeeds). PaymentReconciliationJob detects and repairs this
+    // case by walking PAID orders whose payment rows remain in PROCESSING and
+    // promoting them to SUCCEEDED.
     payment.setStatus(PaymentStatus.SUCCEEDED);
     paymentRepository.save(payment);
     boolean swapped =

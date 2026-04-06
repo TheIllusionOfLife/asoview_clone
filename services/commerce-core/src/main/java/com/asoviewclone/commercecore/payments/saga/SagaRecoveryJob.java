@@ -38,7 +38,11 @@ public class SagaRecoveryJob {
     for (PaymentConfirmationStep step : stepRepository.findStalePending(threshold)) {
       try {
         inventoryService.confirmHold(step.holdId());
-        stepRepository.updateStatus(step.stepId(), PaymentConfirmationStepStatus.CONFIRMED);
+        // CAS the step from its observed status to CONFIRMED. If a concurrent
+        // saga thread already advanced it, the swap is a benign no-op
+        // (confirmHold is idempotent so the reservation is correct either way).
+        stepRepository.updateStatusIf(
+            step.stepId(), step.status(), PaymentConfirmationStepStatus.CONFIRMED);
       } catch (Exception e) {
         log.warn("Recovery: failed to confirm stale pending step {}", step.stepId(), e);
       }
