@@ -58,6 +58,9 @@ public class OrderServiceImpl implements OrderService {
       // Hold inventory for each item
       for (CreateOrderItemRequest item : items) {
         InventoryHold hold = inventoryService.holdInventory(item.slotId(), userId, item.quantity());
+        // Record the hold immediately so the catch block's best-effort release path can
+        // clean it up if validation below throws.
+        holds.add(hold);
         // Validate the slot belongs to the requested product variant. The repository
         // populates the hold's productVariantId from the slot row, so a mismatch means
         // the client referenced a slot that does not belong to their variant.
@@ -65,7 +68,6 @@ public class OrderServiceImpl implements OrderService {
           throw new ValidationException(
               "Slot does not belong to requested product variant");
         }
-        holds.add(hold);
       }
 
       // Look up variant prices from catalog and calculate total
