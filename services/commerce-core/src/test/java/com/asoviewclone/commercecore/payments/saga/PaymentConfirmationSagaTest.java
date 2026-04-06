@@ -37,6 +37,7 @@ import com.google.cloud.spanner.Statement;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -206,6 +207,98 @@ class PaymentConfirmationSagaTest {
         .extracting(PaymentConfirmationStep::status)
         .containsExactlyInAnyOrder(
             PaymentConfirmationStepStatus.COMPENSATED, PaymentConfirmationStepStatus.FAILED);
+  }
+
+  @Test
+  void confirmResumesFromPriorPendingStepsWithoutDuplicateInsert() {
+    Order order =
+        orderService.createOrder(
+            userId,
+            UUID.randomUUID().toString(),
+            List.of(
+                new OrderService.CreateOrderItemRequest(variantId, slotIdA, 1),
+                new OrderService.CreateOrderItemRequest(variantId, slotIdB, 2)));
+
+    Payment payment = makeFakePayment();
+    Instant now = clockProvider.now();
+    String paymentId = payment.getPaymentId().toString();
+
+    // Simulate a prior attempt that already inserted PENDING step rows. The
+    // saga must reuse them rather than re-inserting (which would violate the
+    // unique index on (payment_id, order_item_id) and surface ALREADY_EXISTS).
+    List<PaymentConfirmationStep> seeded = new ArrayList<>();
+    for (OrderItem item : order.items()) {
+      seeded.add(
+          new PaymentConfirmationStep(
+              UUID.randomUUID().toString(),
+              paymentId,
+              item.orderItemId(),
+              item.holdId(),
+              item.slotId(),
+              item.quantity(),
+              PaymentConfirmationStepStatus.PENDING,
+              now,
+              now));
+    }
+    stepRepository.insertAll(seeded);
+
+    // Resume — must not throw, must confirm normally.
+    saga.confirm(payment, order);
+
+    List<PaymentConfirmationStep> steps = stepRepository.findByPaymentId(paymentId);
+    assertThat(steps).hasSize(2);
+    assertThat(steps).allMatch(s -> s.status() == PaymentConfirmationStepStatus.CONFIRMED);
+    assertThat(readReserved(slotIdA)).isEqualTo(1);
+    assertThat(readReserved(slotIdB)).isEqualTo(2);
+  }
+
+  @Test
+  void confirmRefusesResumeWhenPriorAttemptHasCompensatedStep() {
+    Order order =
+        orderService.createOrder(
+            userId,
+            UUID.randomUUID().toString(),
+            List.of(
+                new OrderService.CreateOrderItemRequest(variantId, slotIdA, 1),
+                new OrderService.CreateOrderItemRequest(variantId, slotIdB, 2)));
+
+    Payment payment = makeFakePayment();
+    Instant now = clockProvider.now();
+    String paymentId = payment.getPaymentId().toString();
+
+    // Seed steps from a prior failed attempt: one COMPENSATED, one FAILED.
+    OrderItem first = order.items().get(0);
+    OrderItem second = order.items().get(1);
+    stepRepository.insertAll(
+        List.of(
+            new PaymentConfirmationStep(
+                UUID.randomUUID().toString(),
+                paymentId,
+                first.orderItemId(),
+                first.holdId(),
+                first.slotId(),
+                first.quantity(),
+                PaymentConfirmationStepStatus.COMPENSATED,
+                now,
+                now),
+            new PaymentConfirmationStep(
+                UUID.randomUUID().toString(),
+                paymentId,
+                second.orderItemId(),
+                second.holdId(),
+                second.slotId(),
+                second.quantity(),
+                PaymentConfirmationStepStatus.FAILED,
+                now,
+                now)));
+
+    assertThatThrownBy(() -> saga.confirm(payment, order))
+        .isInstanceOf(ConflictException.class)
+        .hasMessageContaining("compensated steps from a prior attempt");
+
+    // Reserved counts must remain untouched — the guard prevents any further confirmation.
+    assertThat(readReserved(slotIdA)).isZero();
+    assertThat(readReserved(slotIdB)).isZero();
   }
 
   @Test
