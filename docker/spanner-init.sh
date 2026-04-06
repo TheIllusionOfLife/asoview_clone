@@ -28,12 +28,18 @@ export CLOUDSDK_API_ENDPOINT_OVERRIDES_SPANNER="http://${SPANNER_EMULATOR_HOST%:
 export CLOUDSDK_CORE_PROJECT="${SPANNER_PROJECT_ID}"
 
 echo "[spanner-init] waiting for emulator at ${SPANNER_EMULATOR_HOST}..."
+emulator_ready=false
 for _ in $(seq 1 60); do
   if curl -sf "http://${SPANNER_EMULATOR_HOST%:*}:9020/v1/projects/${SPANNER_PROJECT_ID}/instanceConfigs" >/dev/null 2>&1; then
+    emulator_ready=true
     break
   fi
   sleep 1
 done
+if [ "${emulator_ready}" != "true" ]; then
+  echo "[spanner-init] timed out waiting for emulator at ${SPANNER_EMULATOR_HOST}" >&2
+  exit 1
+fi
 
 echo "[spanner-init] ensuring instance ${SPANNER_INSTANCE_ID}..."
 if ! gcloud spanner instances describe "${SPANNER_INSTANCE_ID}" >/dev/null 2>&1; then
