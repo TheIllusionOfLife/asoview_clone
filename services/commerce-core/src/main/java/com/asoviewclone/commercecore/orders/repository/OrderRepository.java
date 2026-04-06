@@ -208,6 +208,46 @@ public class OrderRepository {
     return orders;
   }
 
+  /**
+   * Compare-and-swap status update. Reads the current status in a read-write transaction, only
+   * writes the new status if the current status matches {@code expected}. Returns true on success,
+   * false if the status did not match.
+   */
+  public boolean updateStatusIf(String orderId, OrderStatus expected, OrderStatus newStatus) {
+    Boolean result =
+        databaseClient
+            .readWriteTransaction()
+            .run(
+                tx -> {
+                  Statement stmt =
+                      Statement.newBuilder("SELECT status FROM orders WHERE order_id = @id")
+                          .bind("id")
+                          .to(orderId)
+                          .build();
+                  OrderStatus current = null;
+                  try (ResultSet rs = tx.executeQuery(stmt)) {
+                    if (rs.next()) {
+                      current = OrderStatus.valueOf(rs.getString("status"));
+                    }
+                  }
+                  if (current == null || current != expected) {
+                    return Boolean.FALSE;
+                  }
+                  Instant now = clockProvider.now();
+                  tx.buffer(
+                      Mutation.newUpdateBuilder("orders")
+                          .set("order_id")
+                          .to(orderId)
+                          .set("status")
+                          .to(newStatus.name())
+                          .set("updated_at")
+                          .to(Timestamp.ofTimeSecondsAndNanos(now.getEpochSecond(), 0))
+                          .build());
+                  return Boolean.TRUE;
+                });
+    return Boolean.TRUE.equals(result);
+  }
+
   public void updateStatus(String orderId, OrderStatus newStatus) {
     Instant now = clockProvider.now();
     databaseClient.write(

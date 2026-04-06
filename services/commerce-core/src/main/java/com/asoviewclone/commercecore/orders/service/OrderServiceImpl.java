@@ -8,6 +8,7 @@ import com.asoviewclone.commercecore.orders.model.Order;
 import com.asoviewclone.commercecore.orders.model.OrderItem;
 import com.asoviewclone.commercecore.orders.model.OrderStatus;
 import com.asoviewclone.commercecore.orders.repository.OrderRepository;
+import com.asoviewclone.common.error.ConflictException;
 import com.asoviewclone.common.error.NotFoundException;
 import com.asoviewclone.common.error.ValidationException;
 import com.google.cloud.spanner.SpannerException;
@@ -151,8 +152,9 @@ public class OrderServiceImpl implements OrderService {
   @Override
   public void cancelOrder(String orderId) {
     Order order = orderRepository.findById(orderId);
-    if (!order.status().canTransitionTo(OrderStatus.CANCELLED)) {
-      throw new ValidationException("Cannot cancel order in status " + order.status());
+    OrderStatus currentStatus = order.status();
+    if (!currentStatus.canTransitionTo(OrderStatus.CANCELLED)) {
+      throw new ValidationException("Cannot cancel order in status " + currentStatus);
     }
 
     // Release inventory holds for each item
@@ -166,6 +168,12 @@ public class OrderServiceImpl implements OrderService {
       }
     }
 
-    orderRepository.updateStatus(orderId, OrderStatus.CANCELLED);
+    // Compare-and-swap: only mark CANCELLED if status hasn't changed under us.
+    boolean swapped =
+        orderRepository.updateStatusIf(orderId, currentStatus, OrderStatus.CANCELLED);
+    if (!swapped) {
+      throw new ConflictException(
+          "Order " + orderId + " status changed concurrently; cancel aborted");
+    }
   }
 }

@@ -132,7 +132,13 @@ public class PaymentServiceImpl implements PaymentService {
     // Only mark SUCCEEDED after all downstream effects complete.
     payment.setStatus(PaymentStatus.SUCCEEDED);
     paymentRepository.save(payment);
-    orderRepository.updateStatus(payment.getOrderId(), OrderStatus.PAID);
+    boolean swapped =
+        orderRepository.updateStatusIf(
+            payment.getOrderId(), OrderStatus.PAYMENT_PENDING, OrderStatus.PAID);
+    if (!swapped) {
+      throw new ConflictException(
+          "Order " + payment.getOrderId() + " status changed concurrently; confirm aborted");
+    }
 
     return payment;
   }
