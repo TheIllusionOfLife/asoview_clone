@@ -37,6 +37,22 @@ public class SagaRecoveryJob {
     Instant threshold = clockProvider.now().minus(STALE_AFTER);
     for (PaymentConfirmationStep step : stepRepository.findStalePending(threshold)) {
       try {
+        // If any sibling step for the same payment is already COMPENSATED, the
+        // saga's compensation has already run for the payment as a whole.
+        // Re-confirming this orphan step would re-consume inventory the user
+        // is no longer paying for. Mark it COMPENSATED (terminal) and skip.
+        boolean hasCompensatedSibling =
+            stepRepository.findByPaymentId(step.paymentId()).stream()
+                .anyMatch(s -> s.status() == PaymentConfirmationStepStatus.COMPENSATED);
+        if (hasCompensatedSibling) {
+          stepRepository.updateStatusIf(
+              step.stepId(), step.status(), PaymentConfirmationStepStatus.COMPENSATED);
+          log.warn(
+              "Recovery: step {} has COMPENSATED sibling, marking COMPENSATED and skipping",
+              step.stepId());
+          continue;
+        }
+
         inventoryService.confirmHold(step.holdId());
         // CAS the step from its observed status to CONFIRMED. If a concurrent
         // saga thread already advanced it, the swap is a benign no-op
