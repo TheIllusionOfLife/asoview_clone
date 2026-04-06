@@ -95,7 +95,19 @@ public class PaymentServiceImpl implements PaymentService {
     // Save payment in the JPA transaction; the order status is advanced by an
     // AFTER_COMMIT transactional event listener with retry. This keeps the
     // cross-store write off the critical path and recoverable on transient failure.
-    Payment saved = paymentRepository.save(payment);
+    //
+    // A partial unique index on payments(order_id) WHERE status IN ('CREATED','PROCESSING')
+    // enforces single in-flight payment per order. Concurrent createPaymentIntent
+    // calls with different idempotency keys will race here: the loser gets a
+    // DataIntegrityViolationException that we translate to a ConflictException.
+    Payment saved;
+    try {
+      saved = paymentRepository.save(payment);
+      paymentRepository.flush();
+    } catch (org.springframework.dao.DataIntegrityViolationException e) {
+      throw new ConflictException(
+          "Order " + orderId + " already has a payment in flight");
+    }
     eventPublisher.publishEvent(new PaymentCreatedEvent(orderId));
 
     return saved;
