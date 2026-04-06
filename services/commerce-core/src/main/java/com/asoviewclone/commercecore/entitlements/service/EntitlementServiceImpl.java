@@ -20,7 +20,6 @@ import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Primary;
@@ -70,26 +69,38 @@ public class EntitlementServiceImpl implements EntitlementCreator {
       }
     }
 
-    // Cache slot lookups across items so multi-quantity orders don't re-query the same row.
-    // Wrapped in Optional so a missing slot (computeIfAbsent skips null returns from the mapper
-    // and would re-query on every iteration) is also cached as Optional.empty().
-    Map<String, Optional<InventorySlot>> slotCache = new HashMap<>();
-
-    // Create any missing entitlements (quantity-aware per item) plus their ticket passes.
+    // Compute the per-item "remaining" count once so we can (a) skip slot work entirely for
+    // items that are already fully provisioned and (b) collect just the slot ids we actually
+    // need to look up. Then batch-fetch all required slots in a single Spanner read,
+    // replacing the previous per-item findById N+1 (the per-order Optional cache mitigated
+    // duplicates but still issued one read per distinct slot, sequentially).
+    Map<String, Long> remainingByItem = new HashMap<>();
+    java.util.Set<String> slotIdsToFetch = new java.util.HashSet<>();
     for (OrderItem item : order.items()) {
       long existingForItem =
           existing.stream().filter(e -> e.orderItemId().equals(item.orderItemId())).count();
       long remaining = item.quantity() - existingForItem;
+      remainingByItem.put(item.orderItemId(), remaining);
+      if (remaining > 0 && item.slotId() != null) {
+        slotIdsToFetch.add(item.slotId());
+      }
+    }
+    Map<String, InventorySlot> slotsById = inventorySlotRepository.findByIds(slotIdsToFetch);
 
-      // Resolve the slot's wall-clock window into UTC instants once per item. The slot is
-      // expected to exist (the order references it) but defend against null AND malformed
-      // date/time strings so a corrupt slot row never crashes payment confirmation — orders
-      // without validity are still scannable, the frontend just won't render a window.
-      InventorySlot slot =
-          slotCache
-              .computeIfAbsent(
-                  item.slotId(), id -> Optional.ofNullable(inventorySlotRepository.findById(id)))
-              .orElse(null);
+    // Create any missing entitlements (quantity-aware per item) plus their ticket passes.
+    for (OrderItem item : order.items()) {
+      long remaining = remainingByItem.get(item.orderItemId());
+      if (remaining <= 0) {
+        // Item already fully provisioned (e.g. saga retry resuming after a partial success);
+        // no slot work and no entitlement work to do here.
+        continue;
+      }
+
+      // Resolve the slot's wall-clock window into UTC instants. The slot is expected to exist
+      // (the order references it) but defend against null AND malformed date/time strings so a
+      // corrupt slot row never crashes payment confirmation — orders without validity are still
+      // scannable, the frontend just won't render a window.
+      InventorySlot slot = slotsById.get(item.slotId());
       Instant validFrom = null;
       Instant validUntil = null;
       if (slot != null && slot.slotDate() != null) {

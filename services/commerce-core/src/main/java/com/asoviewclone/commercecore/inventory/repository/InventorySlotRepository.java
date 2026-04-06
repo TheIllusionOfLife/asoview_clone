@@ -67,6 +67,33 @@ public class InventorySlotRepository {
   }
 
   /**
+   * Batched slot lookup. Returns a map keyed by slot id; missing slot ids are absent from the map.
+   * One Spanner single-use read for the entire set, replacing the former per-slot {@link #findById}
+   * calls inside entitlement creation. Empty input returns an empty map.
+   */
+  public java.util.Map<String, InventorySlot> findByIds(java.util.Collection<String> slotIds) {
+    java.util.Map<String, InventorySlot> result = new java.util.HashMap<>();
+    if (slotIds.isEmpty()) {
+      return result;
+    }
+    Statement stmt =
+        Statement.newBuilder(
+                "SELECT slot_id, product_variant_id, slot_date, start_time, end_time,"
+                    + " total_capacity, reserved_count, created_at"
+                    + " FROM inventory_slots WHERE slot_id IN UNNEST(@slotIds)")
+            .bind("slotIds")
+            .toStringArray(slotIds)
+            .build();
+    try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
+      while (rs.next()) {
+        InventorySlot slot = mapSlot(rs);
+        result.put(slot.slotId(), slot);
+      }
+    }
+    return result;
+  }
+
+  /**
    * Single-slot lookup by id. Returns {@code null} when no row exists. Used by entitlement creation
    * to read the slot's date/time so the resulting entitlement carries a validity window.
    */
@@ -395,7 +422,9 @@ public class InventorySlotRepository {
         rs.isNull("end_time") ? null : rs.getString("end_time"),
         rs.getLong("total_capacity"),
         rs.getLong("reserved_count"),
-        rs.getTimestamp("created_at").toDate().toInstant());
+        // toSqlTimestamp().toInstant() preserves nanoseconds; .toDate().toInstant() would
+        // round-trip through java.util.Date and silently drop sub-second precision.
+        rs.getTimestamp("created_at").toSqlTimestamp().toInstant());
   }
 
   private InventoryHold mapHold(ResultSet rs) {
@@ -403,13 +432,19 @@ public class InventorySlotRepository {
     // before that migration land here with NULL. Spanner's getString() throws
     // IllegalStateException on NULL, mirroring the start_time/end_time handling
     // in mapSlot above.
+    //
+    // expires_at MUST be read with nanosecond precision so the InventoryHold.isExpired
+    // boundary check (expires_at <= now) lines up with the active-hold read query
+    // (expires_at > @now). Truncating to milliseconds via .toDate() would let a hold
+    // appear active to the read path while isExpired() considered it expired (or vice
+    // versa) within the same second, undermining the B4 fix.
     return new InventoryHold(
         rs.getString("hold_id"),
         rs.getString("slot_id"),
         rs.isNull("product_variant_id") ? null : rs.getString("product_variant_id"),
         rs.getString("user_id"),
         rs.getLong("quantity"),
-        rs.getTimestamp("expires_at").toDate().toInstant(),
-        rs.getTimestamp("created_at").toDate().toInstant());
+        rs.getTimestamp("expires_at").toSqlTimestamp().toInstant(),
+        rs.getTimestamp("created_at").toSqlTimestamp().toInstant());
   }
 }
