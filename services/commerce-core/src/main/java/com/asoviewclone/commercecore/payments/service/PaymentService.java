@@ -1,8 +1,12 @@
 package com.asoviewclone.commercecore.payments.service;
 
 import com.asoviewclone.commercecore.payments.model.Payment;
+import java.util.Optional;
 
 public interface PaymentService {
+
+  /** Read-only lookup by provider id. Used by the webhook controller to resolve conflicts. */
+  Optional<Payment> findByProviderPaymentId(String providerPaymentId);
 
   Payment createPaymentIntent(String orderId, String userId, String idempotencyKey);
 

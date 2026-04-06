@@ -28,4 +28,6 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
   Page<Product> findByCategoryIdAndVenueIdAndStatus(
       UUID categoryId, UUID venueId, ProductStatus status, Pageable pageable);
+
+  Page<Product> findByCategoryIdAndVenueId(UUID categoryId, UUID venueId, Pageable pageable);
 }

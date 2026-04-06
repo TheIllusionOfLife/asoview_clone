@@ -34,7 +34,8 @@ public class FakePaymentGateway implements PaymentGateway {
   }
 
   @Override
-  public PaymentResult createIntent(String orderId, BigDecimal amount, String currency) {
+  public PaymentResult createIntent(
+      String orderId, BigDecimal amount, String currency, String idempotencyKey) {
     String intentId = "fake-" + UUID.randomUUID();
     intentToOrder.put(intentId, orderId);
     return new PaymentResult(intentId, true);

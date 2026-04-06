@@ -54,6 +54,12 @@ public class ProductController {
   @GetMapping("/{productId}/availability")
   public List<AvailabilityEntry> getAvailability(
       @PathVariable UUID productId, @RequestParam String from, @RequestParam String to) {
+    // Gate on ACTIVE status so callers cannot enumerate inventory for
+    // draft/hidden products via a known product id.
+    Product product = catalogService.getProduct(productId);
+    if (product.getStatus() != ProductStatus.ACTIVE) {
+      throw new com.asoviewclone.common.error.NotFoundException("Product", productId.toString());
+    }
     return inventoryQueryService.getProductAvailability(productId, from, to);
   }
 }

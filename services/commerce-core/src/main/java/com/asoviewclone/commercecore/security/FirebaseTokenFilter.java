@@ -33,6 +33,18 @@ public class FirebaseTokenFilter extends OncePerRequestFilter {
   private final UserRepository userRepository;
   private final TenantUserRepository tenantUserRepository;
 
+  /**
+   * Webhook ingress paths authenticate by provider signature verification inside the handler, not
+   * by Firebase. Short-circuit the filter here so a stray {@code Authorization} header on a
+   * provider-originated request cannot fail verification and return 401 before the webhook handler
+   * ever runs.
+   */
+  @Override
+  protected boolean shouldNotFilter(HttpServletRequest request) {
+    String uri = request.getRequestURI();
+    return uri != null && uri.startsWith("/v1/payments/webhooks/");
+  }
+
   public FirebaseTokenFilter(
       FirebaseAuth firebaseAuth,
       UserRepository userRepository,

@@ -32,6 +32,41 @@ public class InventorySlotRepository {
   }
 
   /**
+   * Batched version of {@link #countActiveHoldQuantity(String)} for availability queries. Returns a
+   * map keyed by slot id; slots with no active holds are present with value 0. One Spanner
+   * single-use read for the entire set, replacing the former per-slot N+1.
+   */
+  public java.util.Map<String, Long> countActiveHoldQuantities(
+      java.util.Collection<String> slotIds) {
+    java.util.Map<String, Long> result = new java.util.HashMap<>();
+    for (String slotId : slotIds) {
+      result.put(slotId, 0L);
+    }
+    if (slotIds.isEmpty()) {
+      return result;
+    }
+    Instant now = clockProvider.now();
+    Statement stmt =
+        Statement.newBuilder(
+                "SELECT slot_id, SUM(quantity) AS total"
+                    + " FROM inventory_holds"
+                    + " WHERE slot_id IN UNNEST(@slotIds)"
+                    + " AND expires_at > @now"
+                    + " GROUP BY slot_id")
+            .bind("slotIds")
+            .toStringArray(slotIds)
+            .bind("now")
+            .to(Timestamp.ofTimeSecondsAndNanos(now.getEpochSecond(), 0))
+            .build();
+    try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
+      while (rs.next()) {
+        result.put(rs.getString("slot_id"), rs.getLong("total"));
+      }
+    }
+    return result;
+  }
+
+  /**
    * Read-side count of unexpired hold quantity for a slot. Uses a single-use read so it does not
    * require a transaction. Intended for availability queries; hot booking paths should continue to
    * use the transactional counterpart inside {@link #holdInventory}.

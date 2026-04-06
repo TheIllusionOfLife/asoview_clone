@@ -99,6 +99,12 @@ public class PaymentWebhookController {
           log.warn(
               "Unknown provider_payment_id={} on success; returning 202 for retry",
               event.providerPaymentId());
+          // Undo the replay guard: Stripe will retry this event and the service
+          // may know about the payment by then (the PaymentCreatedEvent
+          // AFTER_COMMIT listener may still be in-flight). If we leave the row
+          // in place, the next delivery hits the duplicate check and is
+          // silently dropped forever.
+          processedEvents.deleteById(event.rawEventId());
           return ResponseEntity.status(HttpStatus.ACCEPTED).body("unknown");
         }
         log.info(
@@ -111,6 +117,8 @@ public class PaymentWebhookController {
       // FAILED path
       Payment result = paymentService.failByProviderPaymentId(event.providerPaymentId());
       if (result == null) {
+        // Same rationale as above: undo the replay row so Stripe's retry can proceed.
+        processedEvents.deleteById(event.rawEventId());
         return ResponseEntity.status(HttpStatus.ACCEPTED).body("unknown");
       }
       log.info(
@@ -120,13 +128,38 @@ public class PaymentWebhookController {
           result.getOrderId());
       return ResponseEntity.ok("failed");
     } catch (ConflictException e) {
-      // A transient CAS loss (e.g., concurrent manual confirm) — ask provider to retry.
+      // Distinguish terminal from transient conflict. If the payment is
+      // already SUCCEEDED or FAILED (or the order is CANCELLED), retrying
+      // the same webhook can never succeed — ACK 200 so Stripe stops
+      // retrying and does not flood the endpoint with a doomed event. Leave
+      // the replay row in place because the next delivery would hit the
+      // same terminal state.
+      //
+      // For any other conflict (transient CAS loss on an in-flight confirm),
+      // return 202 and undo the replay row so Stripe's next delivery can
+      // actually re-enter the handler.
+      Payment current =
+          paymentService.findByProviderPaymentId(event.providerPaymentId()).orElse(null);
+      boolean terminal =
+          current != null
+              && (current.getStatus()
+                      == com.asoviewclone.commercecore.payments.model.PaymentStatus.SUCCEEDED
+                  || current.getStatus()
+                      == com.asoviewclone.commercecore.payments.model.PaymentStatus.FAILED);
+      if (terminal) {
+        log.info(
+            "Webhook conflict resolved as terminal stripe_event_id={} provider_payment_id={} payment_status={} action=ack",
+            event.rawEventId(),
+            event.providerPaymentId(),
+            current.getStatus());
+        return ResponseEntity.ok("terminal");
+      }
       log.warn(
-          "Webhook conflict stripe_event_id={} provider_payment_id={} action=retry reason={}",
+          "Webhook conflict stripe_event_id={} provider_payment_id={} reason={}",
           event.rawEventId(),
           event.providerPaymentId(),
           e.getMessage());
-      // Undo the replay guard so the retry can actually proceed.
+      // Undo the replay guard so a genuine retry can proceed.
       processedEvents.deleteById(event.rawEventId());
       return ResponseEntity.status(HttpStatus.ACCEPTED).body("conflict");
     }

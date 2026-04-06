@@ -6,7 +6,9 @@ import com.asoviewclone.commercecore.inventory.model.InventorySlot;
 import com.asoviewclone.commercecore.inventory.repository.InventorySlotRepository;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,22 +38,37 @@ public class InventoryQueryService {
    */
   @Transactional(readOnly = true)
   public List<AvailabilityEntry> getProductAvailability(UUID productId, String from, String to) {
-    List<AvailabilityEntry> out = new ArrayList<>();
+    // Collect all slots for all variants first so active-hold counts can be
+    // fetched in a single Spanner query instead of one per slot (N+1).
+    List<InventorySlot> allSlots = new ArrayList<>();
+    Map<String, String> slotToVariant = new java.util.HashMap<>();
     for (ProductVariant variant : catalogService.getProduct(productId).getVariants()) {
-      List<InventorySlot> slots =
-          inventorySlotRepository.findAvailableSlots(variant.getId().toString(), from, to);
+      String variantId = variant.getId().toString();
+      List<InventorySlot> slots = inventorySlotRepository.findAvailableSlots(variantId, from, to);
       for (InventorySlot slot : slots) {
-        long activeHolds = inventorySlotRepository.countActiveHoldQuantity(slot.slotId());
-        long remaining = Math.max(0, slot.availableCapacity(activeHolds));
-        out.add(
-            new AvailabilityEntry(
-                slot.slotId(),
-                variant.getId().toString(),
-                slot.slotDate(),
-                slot.startTime(),
-                slot.endTime(),
-                remaining));
+        allSlots.add(slot);
+        slotToVariant.put(slot.slotId(), variantId);
       }
+    }
+    if (allSlots.isEmpty()) {
+      return List.of();
+    }
+    List<String> slotIds =
+        allSlots.stream().map(InventorySlot::slotId).collect(Collectors.toList());
+    Map<String, Long> holdQtyBySlot = inventorySlotRepository.countActiveHoldQuantities(slotIds);
+
+    List<AvailabilityEntry> out = new ArrayList<>(allSlots.size());
+    for (InventorySlot slot : allSlots) {
+      long activeHolds = holdQtyBySlot.getOrDefault(slot.slotId(), 0L);
+      long remaining = Math.max(0, slot.availableCapacity(activeHolds));
+      out.add(
+          new AvailabilityEntry(
+              slot.slotId(),
+              slotToVariant.get(slot.slotId()),
+              slot.slotDate(),
+              slot.startTime(),
+              slot.endTime(),
+              remaining));
     }
     return out;
   }

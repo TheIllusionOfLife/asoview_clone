@@ -90,7 +90,8 @@ public class PaymentServiceImpl implements PaymentService {
             orderId, userId, new BigDecimal(order.totalAmount()), order.currency(), idempotencyKey);
 
     PaymentGateway.PaymentResult result =
-        paymentGateway.createIntent(orderId, payment.getAmount(), payment.getCurrency());
+        paymentGateway.createIntent(
+            orderId, payment.getAmount(), payment.getCurrency(), idempotencyKey);
 
     if (!result.success()) {
       throw new ConflictException("Payment gateway rejected the request");
@@ -241,7 +242,19 @@ public class PaymentServiceImpl implements PaymentService {
   }
 
   @Override
+  public Optional<Payment> findByProviderPaymentId(String providerPaymentId) {
+    return paymentRepository.findByProviderPaymentId(providerPaymentId);
+  }
+
+  @Override
+  @Transactional
   public Payment confirmByProviderPaymentId(String providerPaymentId) {
+    // @Transactional is critical here: confirmByProviderPaymentId self-invokes
+    // confirmPayment, which would bypass the Spring proxy and run without a
+    // transaction if this method were not itself transactional. The proxy
+    // opens the tx on the external entry point; the self-call then runs
+    // inside that same tx (Spring's @Transactional on confirmPayment would
+    // otherwise be ignored on a self-call).
     Optional<Payment> maybe = paymentRepository.findByProviderPaymentId(providerPaymentId);
     if (maybe.isEmpty()) {
       log.warn(
@@ -280,6 +293,7 @@ public class PaymentServiceImpl implements PaymentService {
   }
 
   @Override
+  @Transactional
   public Payment failByProviderPaymentId(String providerPaymentId) {
     Optional<Payment> maybe = paymentRepository.findByProviderPaymentId(providerPaymentId);
     if (maybe.isEmpty()) {
@@ -291,7 +305,44 @@ public class PaymentServiceImpl implements PaymentService {
         || payment.getStatus() == PaymentStatus.SUCCEEDED) {
       return payment;
     }
-    markPaymentFailedInNewTransaction(payment.getPaymentId().toString());
+
+    // Out-of-order webhook guard: Stripe can deliver payment_intent.payment_failed
+    // AFTER a payment_intent.succeeded has already driven the order to PAID (or
+    // driven the saga to CONFIRMING). Overwriting the payment to FAILED in those
+    // cases would corrupt state: order=PAID with payment=FAILED is unrecoverable
+    // because PaymentReconciliationJob only sweeps PROCESSING rows.
+    //
+    // Only mark FAILED when the order is still in a pre-confirm state.
+    try {
+      Order order = orderRepository.findById(payment.getOrderId());
+      if (order.status() == OrderStatus.PAID
+          || order.status() == OrderStatus.CONFIRMING
+          || order.status() == OrderStatus.REFUNDED) {
+        log.warn(
+            "Ignoring out-of-order FAILED webhook for payment {}: order {} is {}",
+            payment.getPaymentId(),
+            payment.getOrderId(),
+            order.status());
+        return payment;
+      }
+    } catch (NotFoundException e) {
+      log.warn("Webhook fail: order {} not found", payment.getOrderId());
+      return null;
+    }
+
+    // CAS from the currently-observed status to FAILED so a concurrent success
+    // writer does not get overwritten last-writer-wins. If we lose the race
+    // (another writer already moved the row), just return the current payment.
+    PaymentStatus observed = payment.getStatus();
+    Integer updated =
+        requiresNewTxTemplate.execute(
+            status ->
+                paymentRepository.updateStatusIf(
+                    payment.getPaymentId(), observed, PaymentStatus.FAILED));
+    if (updated == null || updated == 0) {
+      return paymentRepository.findById(payment.getPaymentId()).orElse(payment);
+    }
+
     // Roll the order back to PENDING so the user can retry the funnel.
     try {
       orderRepository.updateStatusIf(
@@ -316,8 +367,11 @@ public class PaymentServiceImpl implements PaymentService {
                 .findById(java.util.UUID.fromString(paymentId))
                 .ifPresent(
                     p -> {
-                      p.setStatus(PaymentStatus.FAILED);
-                      paymentRepository.save(p);
+                      // CAS: only mark FAILED from a non-terminal status. Plain
+                      // save() would last-writer-wins over a concurrent
+                      // successful confirmation that already wrote SUCCEEDED.
+                      paymentRepository.updateStatusIf(
+                          p.getPaymentId(), p.getStatus(), PaymentStatus.FAILED);
                     }));
   }
 }

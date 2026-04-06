@@ -36,12 +36,13 @@ public class OrderController {
       @RequestBody CreateOrderRequest request) {
     // Header takes precedence over the legacy body field so browser clients can stay
     // aligned with the standard Idempotency-Key convention and still interop with older
-    // callers that pass it in the body.
+    // callers that pass it in the body. Trim whitespace so "abc" and " abc " cannot
+    // become distinct dedupe keys.
+    String headerTrimmed = idempotencyHeader != null ? idempotencyHeader.trim() : null;
+    String bodyTrimmed = request.idempotencyKey() != null ? request.idempotencyKey().trim() : null;
     String idempotencyKey =
-        idempotencyHeader != null && !idempotencyHeader.isBlank()
-            ? idempotencyHeader
-            : request.idempotencyKey();
-    if (idempotencyKey == null || idempotencyKey.isBlank()) {
+        headerTrimmed != null && !headerTrimmed.isEmpty() ? headerTrimmed : bodyTrimmed;
+    if (idempotencyKey == null || idempotencyKey.isEmpty()) {
       throw new ValidationException("Idempotency-Key header or idempotencyKey body field required");
     }
     List<CreateOrderItemRequest> items =

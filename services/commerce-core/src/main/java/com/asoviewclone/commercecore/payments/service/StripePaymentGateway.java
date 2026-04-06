@@ -3,17 +3,20 @@ package com.asoviewclone.commercecore.payments.service;
 import com.asoviewclone.commercecore.payments.model.PaymentGatewayEvent;
 import com.asoviewclone.common.error.ConflictException;
 import com.asoviewclone.common.error.ValidationException;
+import com.google.gson.JsonSyntaxException;
 import com.stripe.Stripe;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.exception.StripeException;
 import com.stripe.model.Event;
 import com.stripe.model.EventDataObjectDeserializer;
 import com.stripe.model.PaymentIntent;
+import com.stripe.net.RequestOptions;
 import com.stripe.net.Webhook;
 import com.stripe.param.PaymentIntentCreateParams;
 import jakarta.annotation.PostConstruct;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -65,7 +68,8 @@ public class StripePaymentGateway implements PaymentGateway {
   }
 
   @Override
-  public PaymentResult createIntent(String orderId, BigDecimal amount, String currency) {
+  public PaymentResult createIntent(
+      String orderId, BigDecimal amount, String currency, String idempotencyKey) {
     try {
       PaymentIntentCreateParams params =
           PaymentIntentCreateParams.builder()
@@ -77,7 +81,10 @@ public class StripePaymentGateway implements PaymentGateway {
                       .setEnabled(true)
                       .build())
               .build();
-      PaymentIntent intent = PaymentIntent.create(params);
+      // Forward our domain idempotency key to Stripe so a retry of this method
+      // after a local JPA save failure does not mint a second PaymentIntent.
+      RequestOptions options = RequestOptions.builder().setIdempotencyKey(idempotencyKey).build();
+      PaymentIntent intent = PaymentIntent.create(params, options);
       return new PaymentResult(intent.getId(), true);
     } catch (StripeException e) {
       log.warn("Stripe createIntent failed for order {}: {}", orderId, e.getMessage());
@@ -92,9 +99,19 @@ public class StripePaymentGateway implements PaymentGateway {
     }
     Event event;
     try {
-      event = Webhook.constructEvent(new String(rawBody), signatureHeader, webhookSecret);
+      // Explicit UTF-8: Stripe webhook bodies are always UTF-8, and relying on the
+      // JVM default charset is a subtle cross-environment bug (signature
+      // verification sees different bytes on e.g. JVMs with default ISO-8859-1).
+      event =
+          Webhook.constructEvent(
+              new String(rawBody, StandardCharsets.UTF_8), signatureHeader, webhookSecret);
     } catch (SignatureVerificationException e) {
       throw new ValidationException("Stripe webhook signature verification failed");
+    } catch (JsonSyntaxException e) {
+      // Malformed JSON body — return the same 400 as signature failures so the
+      // webhook handler does not surface a 500 to Stripe (which would trigger
+      // retries of a permanently bad payload).
+      throw new ValidationException("Stripe webhook body is not valid JSON: " + e.getMessage());
     }
 
     String type = event.getType();
