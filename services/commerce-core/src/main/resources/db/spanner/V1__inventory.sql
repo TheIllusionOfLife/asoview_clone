@@ -21,4 +21,4 @@ CREATE TABLE inventory_holds (
 ) PRIMARY KEY (hold_id);
 
 CREATE INDEX idx_holds_slot ON inventory_holds(slot_id);
-CREATE INDEX idx_holds_expires ON inventory_holds(expires_at);
+CREATE INDEX idx_holds_expires ON inventory_holds(expires_at)
