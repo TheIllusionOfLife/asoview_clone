@@ -158,8 +158,10 @@ public class PaymentServiceImpl implements PaymentService {
       // Saga throws ConflictException on partial failure (with compensation applied).
       paymentConfirmationSaga.confirm(payment, order);
 
-      // Create entitlements. Idempotent on (orderItemId).
-      entitlementCreator.createEntitlementsForOrder(order);
+      // Entitlement creation is intentionally OUTSIDE this try. The saga has
+      // already confirmed inventory (money is effectively taken); rolling
+      // back here would permanently consume that inventory while refunding
+      // the user. See the post-saga block below for entitlement handling.
 
       // Only mark SUCCEEDED after all downstream effects complete.
       //
@@ -205,6 +207,23 @@ public class PaymentServiceImpl implements PaymentService {
       // transaction so the failure is durable across the rollback.
       markPaymentFailedInNewTransaction(payment.getPaymentId().toString());
       throw e;
+    }
+
+    // Entitlement creation runs AFTER the order is PAID and the payment is
+    // SUCCEEDED. The saga has confirmed inventory, so the user has paid; if
+    // entitlement creation fails we MUST NOT roll back inventory or the
+    // payment, because the money is already taken. Entitlements are
+    // idempotent on orderItemId, so a follow-up retry path can repair them.
+    // TODO(phase-later): add an entitlement-recovery sweep job to
+    // re-attempt creation for PAID orders missing entitlements.
+    try {
+      entitlementCreator.createEntitlementsForOrder(order);
+    } catch (RuntimeException e) {
+      log.error(
+          "Entitlement creation failed for PAID order {} (payment {}); will require recovery",
+          payment.getOrderId(),
+          payment.getPaymentId(),
+          e);
     }
 
     return payment;
