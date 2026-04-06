@@ -165,7 +165,17 @@ public class OrderServiceImpl implements OrderService {
       throw new ValidationException("Cannot cancel order in status " + currentStatus);
     }
 
-    // Release inventory holds for each item
+    // Compare-and-swap FIRST: only proceed to release holds if we won the race.
+    // Releasing holds before the CAS would leak inventory if a concurrent confirm
+    // (PAYMENT_PENDING -> PAID) wins, because the holds would be gone but the
+    // saga still believes they exist.
+    boolean swapped = orderRepository.updateStatusIf(orderId, currentStatus, OrderStatus.CANCELLED);
+    if (!swapped) {
+      throw new ConflictException(
+          "Order " + orderId + " status changed concurrently; cancel aborted");
+    }
+
+    // Release inventory holds for each item now that the cancel is durable.
     for (OrderItem item : order.items()) {
       if (item.holdId() != null) {
         try {
@@ -174,13 +184,6 @@ public class OrderServiceImpl implements OrderService {
           // Best effort: hold may have already expired
         }
       }
-    }
-
-    // Compare-and-swap: only mark CANCELLED if status hasn't changed under us.
-    boolean swapped = orderRepository.updateStatusIf(orderId, currentStatus, OrderStatus.CANCELLED);
-    if (!swapped) {
-      throw new ConflictException(
-          "Order " + orderId + " status changed concurrently; cancel aborted");
     }
   }
 }
