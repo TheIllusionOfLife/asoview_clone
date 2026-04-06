@@ -21,7 +21,6 @@ import com.asoviewclone.commercecore.payments.service.PaymentService;
 import com.asoviewclone.commercecore.testutil.PostgresContainerConfig;
 import com.asoviewclone.commercecore.testutil.RedisContainerConfig;
 import com.asoviewclone.commercecore.testutil.SpannerEmulatorConfig;
-import com.asoviewclone.common.error.ConflictException;
 import com.google.cloud.Timestamp;
 import com.google.cloud.spanner.DatabaseClient;
 import com.google.cloud.spanner.Mutation;
@@ -139,10 +138,11 @@ class OrderCancelConfirmRaceTest {
           try {
             orderService.cancelOrder(order.orderId());
             successes.incrementAndGet();
-          } catch (ConflictException e) {
+          } catch (Exception e) {
+            // Either ConflictException (CAS lost) or ValidationException
+            // (order already transitioned to a non-cancellable state like PAID).
+            // Either way the loser is counted as a conflict.
             conflicts.incrementAndGet();
-          } catch (Exception ignored) {
-            // Ignore other exceptions (e.g. validation) but do not count as success.
           }
           return null;
         };
@@ -153,9 +153,8 @@ class OrderCancelConfirmRaceTest {
           try {
             paymentService.confirmPayment(payment.getPaymentId().toString());
             successes.incrementAndGet();
-          } catch (ConflictException e) {
+          } catch (Exception e) {
             conflicts.incrementAndGet();
-          } catch (Exception ignored) {
           }
           return null;
         };

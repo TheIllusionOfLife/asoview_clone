@@ -124,13 +124,10 @@ public class PaymentServiceImpl implements PaymentService {
     if (order.status() == OrderStatus.CANCELLED) {
       throw new ConflictException("Order has been cancelled, cannot confirm payment");
     }
-    try {
-      paymentConfirmationSaga.confirm(payment, order);
-    } catch (ConflictException e) {
-      payment.setStatus(PaymentStatus.FAILED);
-      paymentRepository.save(payment);
-      throw e;
-    }
+    // Saga throws ConflictException on partial failure (with compensation applied).
+    // The @Transactional wrapper will roll back this JPA method, leaving the payment row
+    // in its prior PROCESSING state. The caller can retry.
+    paymentConfirmationSaga.confirm(payment, order);
 
     // Create entitlements. If this fails, holds are confirmed but entitlements
     // are missing. The caller can retry (entitlement creation is idempotent).

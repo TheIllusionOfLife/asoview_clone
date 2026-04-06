@@ -63,7 +63,15 @@ public class PaymentConfirmationSaga {
     if (steps.isEmpty()) {
       return;
     }
-    stepRepository.insertAll(steps);
+    try {
+      stepRepository.insertAll(steps);
+    } catch (Exception e) {
+      throw new ConflictException(
+          "Failed to persist saga steps for payment "
+              + payment.getPaymentId()
+              + ": "
+              + e.getMessage());
+    }
 
     List<PaymentConfirmationStep> confirmed = new ArrayList<>();
     for (PaymentConfirmationStep step : steps) {
