@@ -24,7 +24,7 @@ dependencies {
     // Cloud SQL / JPA
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     runtimeOnly(libs.postgresql)
-    implementation(libs.flyway.core)
+    implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation(libs.flyway.database.postgresql)
 
     // Cloud Spanner
@@ -40,6 +40,7 @@ dependencies {
 
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.springframework.security:spring-security-test")
     testImplementation(platform(libs.testcontainers.bom))
