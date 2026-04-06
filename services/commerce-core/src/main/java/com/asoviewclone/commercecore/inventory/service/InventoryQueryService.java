@@ -1,0 +1,66 @@
+package com.asoviewclone.commercecore.inventory.service;
+
+import com.asoviewclone.commercecore.catalog.model.ProductVariant;
+import com.asoviewclone.commercecore.catalog.service.CatalogService;
+import com.asoviewclone.commercecore.inventory.model.InventorySlot;
+import com.asoviewclone.commercecore.inventory.repository.InventorySlotRepository;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * Read-side projection over {@link InventorySlotRepository} that joins live hold quantities into
+ * each slot and returns a friendly {@link AvailabilityEntry} for API consumers.
+ *
+ * <p>Separate from {@link InventoryService} because availability is purely a query — no holds, no
+ * writes — and the return shape is API-facing rather than domain-facing.
+ */
+@Service
+public class InventoryQueryService {
+
+  private final CatalogService catalogService;
+  private final InventorySlotRepository inventorySlotRepository;
+
+  public InventoryQueryService(
+      CatalogService catalogService, InventorySlotRepository inventorySlotRepository) {
+    this.catalogService = catalogService;
+    this.inventorySlotRepository = inventorySlotRepository;
+  }
+
+  /**
+   * Returns availability for every variant of {@code productId} in the closed date range {@code
+   * [from, to]}. {@code remaining} accounts for both {@code reserved_count} and any unexpired
+   * {@code inventory_holds} rows.
+   */
+  @Transactional(readOnly = true)
+  public List<AvailabilityEntry> getProductAvailability(UUID productId, String from, String to) {
+    List<AvailabilityEntry> out = new ArrayList<>();
+    for (ProductVariant variant : catalogService.getProduct(productId).getVariants()) {
+      List<InventorySlot> slots =
+          inventorySlotRepository.findAvailableSlots(variant.getId().toString(), from, to);
+      for (InventorySlot slot : slots) {
+        long activeHolds = inventorySlotRepository.countActiveHoldQuantity(slot.slotId());
+        long remaining = Math.max(0, slot.availableCapacity(activeHolds));
+        out.add(
+            new AvailabilityEntry(
+                slot.slotId(),
+                variant.getId().toString(),
+                slot.slotDate(),
+                slot.startTime(),
+                slot.endTime(),
+                remaining));
+      }
+    }
+    return out;
+  }
+
+  public record AvailabilityEntry(
+      String slotId,
+      String productVariantId,
+      String date,
+      String startTime,
+      String endTime,
+      long remaining) {}
+}

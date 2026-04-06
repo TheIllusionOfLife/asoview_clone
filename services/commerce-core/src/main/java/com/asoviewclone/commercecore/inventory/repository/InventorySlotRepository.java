@@ -31,6 +31,32 @@ public class InventorySlotRepository {
     this.clockProvider = clockProvider;
   }
 
+  /**
+   * Read-side count of unexpired hold quantity for a slot. Uses a single-use read so it does not
+   * require a transaction. Intended for availability queries; hot booking paths should continue to
+   * use the transactional counterpart inside {@link #holdInventory}.
+   */
+  public long countActiveHoldQuantity(String slotId) {
+    Instant now = clockProvider.now();
+    Statement stmt =
+        Statement.newBuilder(
+                "SELECT COALESCE(SUM(quantity), 0) as total"
+                    + " FROM inventory_holds"
+                    + " WHERE slot_id = @slotId"
+                    + " AND expires_at > @now")
+            .bind("slotId")
+            .to(slotId)
+            .bind("now")
+            .to(Timestamp.ofTimeSecondsAndNanos(now.getEpochSecond(), 0))
+            .build();
+    try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
+      if (rs.next()) {
+        return rs.getLong("total");
+      }
+    }
+    return 0;
+  }
+
   public List<InventorySlot> findAvailableSlots(
       String productVariantId, String startDate, String endDate) {
     Statement stmt =

@@ -120,7 +120,10 @@ class BrowseAndOrderFlowTest {
     // 2. Browse products
     var products =
         catalogService.listProducts(
-            null, ProductStatus.ACTIVE, org.springframework.data.domain.PageRequest.of(0, 10));
+            null,
+            null,
+            ProductStatus.ACTIVE,
+            org.springframework.data.domain.PageRequest.of(0, 10));
     assertThat(products.getContent()).isNotEmpty();
     assertThat(products.getContent().get(0).getTitle()).isEqualTo("River Rafting");
 
