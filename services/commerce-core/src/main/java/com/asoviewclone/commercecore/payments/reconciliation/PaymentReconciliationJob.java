@@ -12,9 +12,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Reconciles cross-store divergence between Cloud SQL {@code payments} and Spanner {@code orders}.
@@ -36,24 +39,75 @@ public class PaymentReconciliationJob {
 
   private final PaymentRepository paymentRepository;
   private final OrderRepository orderRepository;
+  private final TransactionTemplate requiresNewTxTemplate;
 
   public PaymentReconciliationJob(
-      PaymentRepository paymentRepository, OrderRepository orderRepository) {
+      PaymentRepository paymentRepository,
+      OrderRepository orderRepository,
+      PlatformTransactionManager transactionManager) {
     this.paymentRepository = paymentRepository;
     this.orderRepository = orderRepository;
+    this.requiresNewTxTemplate = new TransactionTemplate(transactionManager);
+    this.requiresNewTxTemplate.setPropagationBehavior(
+        TransactionDefinition.PROPAGATION_REQUIRES_NEW);
   }
 
-  /** Maximum payments inspected per run. Bounded so the job stays within a short transaction. */
+  /** Page size for each batch. */
   private static final int BATCH_SIZE = 100;
 
+  /** Hard upper bound on payments inspected per scheduled run. */
+  private static final int MAX_PER_RUN = 1000;
+
   @Scheduled(fixedDelay = 300_000)
-  @Transactional
   public void reconcileProcessingPayments() {
-    Pageable batch = PageRequest.of(0, BATCH_SIZE);
-    List<Payment> processing = paymentRepository.findByStatus(PaymentStatus.PROCESSING, batch);
-    if (processing.isEmpty()) {
-      return;
+    int processed = 0;
+    while (processed < MAX_PER_RUN) {
+      // Order by paymentId ascending for a stable, deterministic sweep order
+      // (Payment has no createdAt column). This ensures stragglers past the
+      // first page are not starved across runs. Each
+      // iteration re-queries page 0 because processed rows transition OUT of
+      // PROCESSING and would shift the offset for a fixed pageIndex.
+      // Untouched rows (no divergence to repair) act as a natural cursor: if
+      // the batch returns the same untouched rows twice we exit to avoid a
+      // tight loop.
+      Pageable batch = PageRequest.of(0, BATCH_SIZE, Sort.by("paymentId").ascending());
+      List<Payment> processing =
+          paymentRepository.findByStatus(PaymentStatus.PROCESSING, batch);
+      if (processing.isEmpty()) {
+        return;
+      }
+      // Each batch runs in its own short transaction (REQUIRES_NEW) so a long
+      // sweep does not hold one giant transaction across all pages.
+      int sizeBefore = processing.size();
+      requiresNewTxTemplate.executeWithoutResult(status -> reconcileBatch(processing));
+      processed += sizeBefore;
+      if (sizeBefore < BATCH_SIZE) {
+        return;
+      }
+      // Re-fetch to see whether any of the rows we just processed transitioned
+      // out of PROCESSING. If none did (all were left in PROCESSING because
+      // their order was in PAYMENT_PENDING/CONFIRMING/etc.), we have nothing
+      // more to do this run.
+      List<Payment> after = paymentRepository.findByStatus(PaymentStatus.PROCESSING, batch);
+      if (after.size() == sizeBefore && sameIds(after, processing)) {
+        return;
+      }
     }
+  }
+
+  private static boolean sameIds(List<Payment> a, List<Payment> b) {
+    if (a.size() != b.size()) {
+      return false;
+    }
+    for (int i = 0; i < a.size(); i++) {
+      if (!a.get(i).getPaymentId().equals(b.get(i).getPaymentId())) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private void reconcileBatch(List<Payment> processing) {
     for (Payment payment : processing) {
       try {
         Order order = orderRepository.findById(payment.getOrderId());
