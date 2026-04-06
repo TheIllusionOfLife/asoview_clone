@@ -3,6 +3,24 @@ spring:
     name: gateway
   cloud:
     gateway:
+      globalcors:
+        cors-configurations:
+          "[/v1/**]":
+            # Allowed origins come from env so local dev (http://localhost:3000) and
+            # staging/prod hosts are configurable without rebuilding. Keep
+            # credentials disabled because we use bearer tokens, not cookies.
+            allowed-origin-patterns: ${GATEWAY_CORS_ORIGINS:http://localhost:3000}
+            allowed-methods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowed-headers:
+              - Authorization
+              - Content-Type
+              - Idempotency-Key
+            max-age: 3600
       routes:
         - id: commerce-core-public
           uri: ${COMMERCE_CORE_URI:http://localhost:8081}
