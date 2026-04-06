@@ -200,7 +200,12 @@ class PaymentConfirmationSagaTest {
     List<PaymentConfirmationStep> steps =
         stepRepository.findByPaymentId(payment.getPaymentId().toString());
     assertThat(steps).hasSize(2);
-    assertThat(steps).allMatch(s -> s.status() == PaymentConfirmationStepStatus.COMPENSATED);
+    // The first step was confirmed then rolled back -> COMPENSATED.
+    // The second (failing) step never confirmed -> FAILED so the recovery job retries it.
+    assertThat(steps)
+        .extracting(PaymentConfirmationStep::status)
+        .containsExactlyInAnyOrder(
+            PaymentConfirmationStepStatus.COMPENSATED, PaymentConfirmationStepStatus.FAILED);
   }
 
   @Test

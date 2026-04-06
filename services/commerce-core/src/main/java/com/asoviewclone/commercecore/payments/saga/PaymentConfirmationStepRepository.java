@@ -92,7 +92,7 @@ public class PaymentConfirmationStepRepository {
                 "SELECT step_id, payment_id, order_item_id, hold_id, slot_id, quantity,"
                     + " status, attempted_at, updated_at"
                     + " FROM payment_confirmation_steps"
-                    + " WHERE status = 'PENDING' AND attempted_at < @threshold")
+                    + " WHERE status IN ('PENDING', 'FAILED') AND attempted_at < @threshold")
             .bind("threshold")
             .to(Timestamp.ofTimeSecondsAndNanos(threshold.getEpochSecond(), 0))
             .build();

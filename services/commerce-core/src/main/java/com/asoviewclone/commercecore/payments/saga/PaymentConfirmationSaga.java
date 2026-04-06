@@ -146,7 +146,10 @@ public class PaymentConfirmationSaga {
                 "Compensation failed for step {} slot {}", done.stepId(), done.slotId(), compEx);
           }
         }
-        stepRepository.updateStatus(step.stepId(), PaymentConfirmationStepStatus.COMPENSATED);
+        // Mark the failing step as FAILED (not COMPENSATED) so the recovery job
+        // can retry it. COMPENSATED is reserved for steps that successfully
+        // confirmed and were rolled back.
+        stepRepository.updateStatus(step.stepId(), PaymentConfirmationStepStatus.FAILED);
         throw new ConflictException(
             "Saga compensation completed for payment "
                 + payment.getPaymentId()
