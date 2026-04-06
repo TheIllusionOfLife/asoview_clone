@@ -56,7 +56,7 @@ public class InventorySlotRepository {
             .bind("slotIds")
             .toStringArray(slotIds)
             .bind("now")
-            .to(Timestamp.ofTimeSecondsAndNanos(now.getEpochSecond(), 0))
+            .to(toSpannerTimestamp(now))
             .build();
     try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
       while (rs.next()) {
@@ -82,7 +82,7 @@ public class InventorySlotRepository {
             .bind("slotId")
             .to(slotId)
             .bind("now")
-            .to(Timestamp.ofTimeSecondsAndNanos(now.getEpochSecond(), 0))
+            .to(toSpannerTimestamp(now))
             .build();
     try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
       if (rs.next()) {
@@ -152,9 +152,9 @@ public class InventorySlotRepository {
                       .set("quantity")
                       .to(quantity)
                       .set("expires_at")
-                      .to(Timestamp.ofTimeSecondsAndNanos(expiresAt.getEpochSecond(), 0))
+                      .to(toSpannerTimestamp(expiresAt))
                       .set("created_at")
-                      .to(Timestamp.ofTimeSecondsAndNanos(now.getEpochSecond(), 0))
+                      .to(toSpannerTimestamp(now))
                       .build());
 
               return new InventoryHold(
@@ -197,7 +197,7 @@ public class InventorySlotRepository {
                       .set("reserved_count")
                       .to(slot.reservedCount() + hold.quantity())
                       .set("created_at")
-                      .to(Timestamp.ofTimeSecondsAndNanos(slot.createdAt().getEpochSecond(), 0))
+                      .to(toSpannerTimestamp(slot.createdAt()))
                       .build());
 
               // Delete the hold
@@ -251,7 +251,7 @@ public class InventorySlotRepository {
                       .set("reserved_count")
                       .to(newReserved)
                       .set("created_at")
-                      .to(Timestamp.ofTimeSecondsAndNanos(slot.createdAt().getEpochSecond(), 0))
+                      .to(toSpannerTimestamp(slot.createdAt()))
                       .build());
               return null;
             });
@@ -328,7 +328,7 @@ public class InventorySlotRepository {
             .bind("slotId")
             .to(slotId)
             .bind("now")
-            .to(Timestamp.ofTimeSecondsAndNanos(now.getEpochSecond(), 0))
+            .to(toSpannerTimestamp(now))
             .build();
     try (ResultSet rs = tx.executeQuery(stmt)) {
       if (rs.next()) {
@@ -336,6 +336,17 @@ public class InventorySlotRepository {
       }
     }
     return 0;
+  }
+
+  /**
+   * Convert an {@link Instant} to a Spanner {@link Timestamp} preserving nanosecond precision.
+   * Centralizes the conversion so hold-expiry comparisons (which run on a sub-second cadence in
+   * the live availability UI) don't drop fractional seconds the way the older
+   * {@code ofTimeSecondsAndNanos(epochSeconds, 0)} pattern did. A hold that expired 200ms ago is
+   * therefore correctly excluded from active-hold counts on the very next read.
+   */
+  private static Timestamp toSpannerTimestamp(Instant instant) {
+    return Timestamp.ofTimeSecondsAndNanos(instant.getEpochSecond(), instant.getNano());
   }
 
   private InventorySlot mapSlot(ResultSet rs) {
