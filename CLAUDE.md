@@ -80,3 +80,47 @@ Core shared abstractions: entitlements (rights granted to users), orders, paymen
 ## Product Priority Order
 
 Asoview! > UraKata Ticket > UraKata Reservation > Gift > Furusato Nozei > Overseas > AREA GATE > Ads
+
+## Phase 1 Commerce-Core Domain Map
+
+`services/commerce-core` is a modular monolith. Each subpackage under
+`com.asoviewclone.commercecore` owns a domain slice and follows the same
+controller -> service -> repository layering:
+
+- `identity/`: `User`, `Tenant`, `TenantUser`, `Venue` JPA entities (Cloud SQL). Firebase-backed auth wires into `security/` via `FirebaseTokenFilter` and `SecurityConfig`. Tenant RBAC is enforced by `TenantAccessChecker`.
+- `catalog/`: `Category`, `Product`, `ProductVariant` JPA entities (Cloud SQL). Public read endpoints at `/v1/categories` and `/v1/products`.
+- `inventory/`: `InventorySlot` and `InventoryHold` on Spanner (authoritative). Holds now carry `product_variant_id`, validated against the caller's requested variant at order creation. Redis is only a cache.
+- `orders/`: `Order` + `OrderItem` on Spanner. State machine in `OrderStatus`. `OrderRepository.updateStatusIf` provides compare-and-swap used by cancel and confirm paths.
+- `payments/`: `Payment` JPA entity (Cloud SQL). `PaymentServiceImpl.createPaymentIntent` publishes a `PaymentCreatedEvent` on the application event bus; a `@TransactionalEventListener(AFTER_COMMIT)` with `@Retryable` advances the order from PENDING to PAYMENT_PENDING across Spanner. `confirmPayment` uses CAS to transition PAYMENT_PENDING -> PAID.
+- `entitlements/`: `Entitlement` and `TicketPass` on Spanner. Created on payment success, idempotent by `(orderItemId)`.
+
+Cross-cutting:
+
+- Spring Data JPA auditing (`@CreatedDate`, `@LastModifiedDate`, `@CreatedBy`, `@LastModifiedBy`) is populated from the application via an `AuditorAware` wired to `SecurityContextHolder`. The shared `AuditFields` embeddable lives in `libraries/java-common`.
+- A saga coordinator (`payments/saga/PaymentConfirmationSaga`) owns multi-item payment confirmation and per-step compensation via a Spanner `payment_confirmation_steps` ledger; a scheduled `SagaRecoveryJob` resumes stale PENDING steps.
+
+## Local Dev Environment
+
+Prerequisites: JDK 21 (`brew install openjdk@21`), Docker, `bun`.
+
+```bash
+# 1. Start backing services (Postgres 16, Redis 7, Spanner emulator)
+docker compose up -d
+
+# 2. Apply Spanner DDL to the local emulator (init container runs on startup)
+#    If re-running manually, rerun: docker compose run --rm spanner-init
+
+# 3. Build + test all JVM modules
+./gradlew build
+
+# 4. Run commerce-core locally against docker-compose stores
+SPRING_PROFILES_ACTIVE=local ./gradlew :services:commerce-core:bootRun
+```
+
+Key env vars (local profile defaults in `application-local.yml`):
+
+- `SPANNER_EMULATOR_HOST=localhost:9010`
+- `SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/commerce`
+- `SPRING_DATA_REDIS_HOST=localhost`
+
+Tests use Testcontainers (Postgres, Redis, Spanner emulator via `org.testcontainers:gcloud`) so no running docker-compose is required for `./gradlew test`.
