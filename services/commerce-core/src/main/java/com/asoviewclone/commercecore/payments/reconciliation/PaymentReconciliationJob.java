@@ -80,8 +80,22 @@ public class PaymentReconciliationJob {
                 payment.getPaymentId(),
                 payment.getOrderId());
           }
+        } else if (order.status() == OrderStatus.PENDING) {
+          // The AFTER_COMMIT listener that normally advances PENDING→PAYMENT_PENDING
+          // has exhausted its retries, leaving the payment PROCESSING and the order
+          // PENDING with no recovery path. Repair it by performing the same CAS
+          // the listener would have performed.
+          boolean advanced =
+              orderRepository.updateStatusIf(
+                  payment.getOrderId(), OrderStatus.PENDING, OrderStatus.PAYMENT_PENDING);
+          if (advanced) {
+            log.warn(
+                "Reconciled stuck payment {}: order {} advanced PENDING→PAYMENT_PENDING",
+                payment.getPaymentId(),
+                payment.getOrderId());
+          }
         }
-        // For PENDING/PAYMENT_PENDING/CONFIRMING/REFUNDED, leave the payment alone — the
+        // For PAYMENT_PENDING/CONFIRMING/REFUNDED, leave the payment alone — the
         // confirmPayment flow may still be in progress, or the divergence is the other
         // direction (Spanner behind JPA), which is harmless.
       } catch (NotFoundException nfe) {
