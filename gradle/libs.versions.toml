@@ -12,6 +12,7 @@ firebase-admin = "9.8.0"
 spring-retry = "2.0.12"
 spotless = "8.4.0"
 checkstyle = "13.4.0"
+stripe-java = "32.0.0"
 
 [libraries]
 # Spring Cloud
@@ -44,6 +45,9 @@ firebase-admin = { module = "com.google.firebase:firebase-admin", version.ref = 
 
 # Spring Retry (used by transactional event listener retries)
 spring-retry = { module = "org.springframework.retry:spring-retry", version.ref = "spring-retry" }
+
+# Stripe
+stripe-java = { module = "com.stripe:stripe-java", version.ref = "stripe-java" }
 
 # Testcontainers
 testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }

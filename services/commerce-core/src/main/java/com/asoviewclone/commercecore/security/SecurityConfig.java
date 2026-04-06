@@ -28,7 +28,14 @@ public class SecurityConfig {
             auth ->
                 auth.requestMatchers("/healthz", "/actuator/**")
                     .permitAll()
-                    .requestMatchers(HttpMethod.GET, "/v1/categories/**", "/v1/products/**")
+                    // Payment provider webhooks are authenticated by signature verification
+                    // inside the handler, not by Firebase. FirebaseTokenFilter must ALSO
+                    // skip this path so the raw bytes of the request body are preserved and
+                    // no 401 is thrown for a missing bearer token.
+                    .requestMatchers(HttpMethod.POST, "/v1/payments/webhooks/**")
+                    .permitAll()
+                    .requestMatchers(
+                        HttpMethod.GET, "/v1/categories/**", "/v1/products/**", "/v1/areas/**")
                     .permitAll()
                     .anyRequest()
                     .authenticated())

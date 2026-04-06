@@ -31,6 +31,67 @@ public class InventorySlotRepository {
     this.clockProvider = clockProvider;
   }
 
+  /**
+   * Batched version of {@link #countActiveHoldQuantity(String)} for availability queries. Returns a
+   * map keyed by slot id; slots with no active holds are present with value 0. One Spanner
+   * single-use read for the entire set, replacing the former per-slot N+1.
+   */
+  public java.util.Map<String, Long> countActiveHoldQuantities(
+      java.util.Collection<String> slotIds) {
+    java.util.Map<String, Long> result = new java.util.HashMap<>();
+    for (String slotId : slotIds) {
+      result.put(slotId, 0L);
+    }
+    if (slotIds.isEmpty()) {
+      return result;
+    }
+    Instant now = clockProvider.now();
+    Statement stmt =
+        Statement.newBuilder(
+                "SELECT slot_id, SUM(quantity) AS total"
+                    + " FROM inventory_holds"
+                    + " WHERE slot_id IN UNNEST(@slotIds)"
+                    + " AND expires_at > @now"
+                    + " GROUP BY slot_id")
+            .bind("slotIds")
+            .toStringArray(slotIds)
+            .bind("now")
+            .to(Timestamp.ofTimeSecondsAndNanos(now.getEpochSecond(), 0))
+            .build();
+    try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
+      while (rs.next()) {
+        result.put(rs.getString("slot_id"), rs.getLong("total"));
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Read-side count of unexpired hold quantity for a slot. Uses a single-use read so it does not
+   * require a transaction. Intended for availability queries; hot booking paths should continue to
+   * use the transactional counterpart inside {@link #holdInventory}.
+   */
+  public long countActiveHoldQuantity(String slotId) {
+    Instant now = clockProvider.now();
+    Statement stmt =
+        Statement.newBuilder(
+                "SELECT COALESCE(SUM(quantity), 0) as total"
+                    + " FROM inventory_holds"
+                    + " WHERE slot_id = @slotId"
+                    + " AND expires_at > @now")
+            .bind("slotId")
+            .to(slotId)
+            .bind("now")
+            .to(Timestamp.ofTimeSecondsAndNanos(now.getEpochSecond(), 0))
+            .build();
+    try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
+      if (rs.next()) {
+        return rs.getLong("total");
+      }
+    }
+    return 0;
+  }
+
   public List<InventorySlot> findAvailableSlots(
       String productVariantId, String startDate, String endDate) {
     Statement stmt =
@@ -290,10 +351,14 @@ public class InventorySlotRepository {
   }
 
   private InventoryHold mapHold(ResultSet rs) {
+    // product_variant_id was added by V5 as a nullable column, so holds created
+    // before that migration land here with NULL. Spanner's getString() throws
+    // IllegalStateException on NULL, mirroring the start_time/end_time handling
+    // in mapSlot above.
     return new InventoryHold(
         rs.getString("hold_id"),
         rs.getString("slot_id"),
-        rs.getString("product_variant_id"),
+        rs.isNull("product_variant_id") ? null : rs.getString("product_variant_id"),
         rs.getString("user_id"),
         rs.getLong("quantity"),
         rs.getTimestamp("expires_at").toDate().toInstant(),

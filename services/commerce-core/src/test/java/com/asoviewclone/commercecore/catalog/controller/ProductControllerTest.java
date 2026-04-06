@@ -12,6 +12,7 @@ import com.asoviewclone.commercecore.catalog.model.ProductStatus;
 import com.asoviewclone.commercecore.catalog.service.CatalogService;
 import com.asoviewclone.commercecore.identity.repository.TenantUserRepository;
 import com.asoviewclone.commercecore.identity.repository.UserRepository;
+import com.asoviewclone.commercecore.inventory.service.InventoryQueryService;
 import com.google.firebase.auth.FirebaseAuth;
 import java.util.List;
 import java.util.UUID;
@@ -30,6 +31,7 @@ class ProductControllerTest {
 
   @Autowired private MockMvc mockMvc;
   @MockitoBean private CatalogService catalogService;
+  @MockitoBean private InventoryQueryService inventoryQueryService;
   @MockitoBean private FirebaseAuth firebaseAuth;
   @MockitoBean private UserRepository userRepository;
   @MockitoBean private TenantUserRepository tenantUserRepository;
@@ -39,7 +41,7 @@ class ProductControllerTest {
     UUID tenantId = UUID.randomUUID();
     Product product =
         new Product(tenantId, null, null, "Rafting Tour", "Fun!", null, ProductStatus.ACTIVE);
-    when(catalogService.listProducts(eq(null), eq(ProductStatus.ACTIVE), any()))
+    when(catalogService.listProducts(eq(null), eq(null), eq(ProductStatus.ACTIVE), any()))
         .thenReturn(new PageImpl<>(List.of(product), PageRequest.of(0, 20), 1));
 
     mockMvc

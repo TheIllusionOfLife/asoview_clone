@@ -14,5 +14,10 @@ public interface CatalogService {
 
   Product getProduct(UUID productId);
 
-  Page<Product> listProducts(UUID categoryId, ProductStatus status, Pageable pageable);
+  /**
+   * @param venueId optional area filter — phase 2 treats venue as the area primitive. See {@code
+   *     AreaController} for the rationale.
+   */
+  Page<Product> listProducts(
+      UUID categoryId, UUID venueId, ProductStatus status, Pageable pageable);
 }

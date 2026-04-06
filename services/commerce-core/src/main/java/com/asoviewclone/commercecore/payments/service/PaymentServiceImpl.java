@@ -90,13 +90,14 @@ public class PaymentServiceImpl implements PaymentService {
             orderId, userId, new BigDecimal(order.totalAmount()), order.currency(), idempotencyKey);
 
     PaymentGateway.PaymentResult result =
-        paymentGateway.createIntent(orderId, payment.getAmount(), payment.getCurrency());
+        paymentGateway.createIntent(
+            orderId, payment.getAmount(), payment.getCurrency(), idempotencyKey);
 
     if (!result.success()) {
       throw new ConflictException("Payment gateway rejected the request");
     }
 
-    payment.setProvider("STUB");
+    payment.setProvider(paymentGateway.providerName());
     payment.setProviderPaymentId(result.providerPaymentId());
     payment.setStatus(PaymentStatus.PROCESSING);
 
@@ -188,24 +189,35 @@ public class PaymentServiceImpl implements PaymentService {
             "Order " + payment.getOrderId() + " status changed concurrently; confirm aborted");
       }
     } catch (RuntimeException e) {
-      // Saga, entitlement creation, or final CAS failed. Roll the order back to
-      // PAYMENT_PENDING so the caller can retry. The post-saga CAS is now
-      // included in this try so a deadline/network failure on it (which would
-      // otherwise leave the order stuck in CONFIRMING with no recovery path)
-      // is also handled here.
+      // Saga, entitlement creation, or final CAS failed. Try to roll the order
+      // back to PAYMENT_PENDING so the caller can retry.
       boolean rolledBack =
           orderRepository.updateStatusIf(
               payment.getOrderId(), OrderStatus.CONFIRMING, OrderStatus.PAYMENT_PENDING);
-      if (!rolledBack) {
+      if (rolledBack) {
+        // Clean failure: the order is back in PAYMENT_PENDING. Persist
+        // the FAILED payment status in a new transaction so the write
+        // survives the outer @Transactional rollback triggered by `throw e`.
+        markPaymentFailedInNewTransaction(payment.getPaymentId().toString());
+      } else {
+        // Rollback CAS lost the race, meaning the order is NOT in CONFIRMING
+        // anymore. The most common cause is a post-saga CONFIRMING -> PAID CAS
+        // that already committed on Spanner but the client saw a network
+        // timeout: the saga has actually succeeded, inventory is confirmed,
+        // and the order is PAID. Marking the payment FAILED here would be
+        // wrong — the money was taken and the user has their reservation.
+        //
+        // Instead, let the outer @Transactional roll back. The in-memory
+        // SUCCEEDED write on `payment` is discarded with the rollback and
+        // the row on disk stays PROCESSING. PaymentReconciliationJob sweeps
+        // PROCESSING payments, walks the order state, and promotes the row
+        // to SUCCEEDED when it sees the order is PAID. For any other
+        // unexpected terminal state (CANCELLED, REFUNDED) the reconciliation
+        // job promotes the payment to FAILED the same way.
         log.error(
-            "Failed to roll back order {} from CONFIRMING to PAYMENT_PENDING after saga failure",
+            "Rollback CAS failed for order {} after saga failure; leaving payment in PROCESSING for PaymentReconciliationJob to repair",
             payment.getOrderId());
       }
-      // The outer @Transactional rolls back on `throw e`, so we cannot
-      // persist the FAILED status here — it would be discarded with the
-      // rest of the JPA transaction. Commit it independently in a new
-      // transaction so the failure is durable across the rollback.
-      markPaymentFailedInNewTransaction(payment.getPaymentId().toString());
       throw e;
     }
 
@@ -229,6 +241,153 @@ public class PaymentServiceImpl implements PaymentService {
     return payment;
   }
 
+  @Override
+  public Optional<Payment> findByProviderPaymentId(String providerPaymentId) {
+    return paymentRepository.findByProviderPaymentId(providerPaymentId);
+  }
+
+  @Override
+  public boolean isTerminalConflict(String providerPaymentId) {
+    Optional<Payment> maybe = paymentRepository.findByProviderPaymentId(providerPaymentId);
+    if (maybe.isEmpty()) {
+      return false;
+    }
+    Payment p = maybe.get();
+    if (p.getStatus() == PaymentStatus.SUCCEEDED || p.getStatus() == PaymentStatus.FAILED) {
+      return true;
+    }
+    try {
+      Order order = orderRepository.findById(p.getOrderId());
+      // A cancelled / paid / refunded order can never transition back into
+      // PAYMENT_PENDING, so any retry of the same webhook is doomed.
+      return order.status() == OrderStatus.CANCELLED
+          || order.status() == OrderStatus.PAID
+          || order.status() == OrderStatus.REFUNDED;
+    } catch (NotFoundException e) {
+      return false;
+    }
+  }
+
+  @Override
+  @Transactional
+  public Payment confirmByProviderPaymentId(String providerPaymentId) {
+    // @Transactional is critical here: confirmByProviderPaymentId self-invokes
+    // confirmPayment, which would bypass the Spring proxy and run without a
+    // transaction if this method were not itself transactional. The proxy
+    // opens the tx on the external entry point; the self-call then runs
+    // inside that same tx (Spring's @Transactional on confirmPayment would
+    // otherwise be ignored on a self-call).
+    Optional<Payment> maybe = paymentRepository.findByProviderPaymentId(providerPaymentId);
+    if (maybe.isEmpty()) {
+      log.warn(
+          "Webhook confirm for unknown providerPaymentId={}; responding for retry",
+          providerPaymentId);
+      return null;
+    }
+    Payment payment = maybe.get();
+
+    // Webhook-vs-AFTER_COMMIT race: Stripe can fire payment_intent.succeeded
+    // before PaymentCreatedEventListener has advanced the order from PENDING
+    // to PAYMENT_PENDING. Roll the order forward synchronously here so the
+    // confirmPayment CAS (PAYMENT_PENDING -> CONFIRMING) does not fail.
+    //
+    // The CAS itself is idempotent: if the event listener already ran, this
+    // is a no-op that returns false. We only care about the terminal state.
+    try {
+      Order order = orderRepository.findById(payment.getOrderId());
+      if (order.status() == OrderStatus.PENDING) {
+        boolean swapped =
+            orderRepository.updateStatusIf(
+                payment.getOrderId(), OrderStatus.PENDING, OrderStatus.PAYMENT_PENDING);
+        if (swapped) {
+          log.info(
+              "Rolled order {} PENDING->PAYMENT_PENDING synchronously for webhook {}",
+              payment.getOrderId(),
+              providerPaymentId);
+        }
+      }
+    } catch (NotFoundException e) {
+      log.warn("Webhook confirm: order {} not found", payment.getOrderId());
+      return null;
+    }
+
+    return confirmPayment(payment.getPaymentId().toString());
+  }
+
+  @Override
+  @Transactional
+  public Payment failByProviderPaymentId(String providerPaymentId) {
+    Optional<Payment> maybe = paymentRepository.findByProviderPaymentId(providerPaymentId);
+    if (maybe.isEmpty()) {
+      log.warn("Webhook fail for unknown providerPaymentId={}; nothing to do", providerPaymentId);
+      return null;
+    }
+    Payment payment = maybe.get();
+    if (payment.getStatus() == PaymentStatus.FAILED
+        || payment.getStatus() == PaymentStatus.SUCCEEDED) {
+      return payment;
+    }
+
+    // Out-of-order webhook guard: Stripe can deliver payment_intent.payment_failed
+    // AFTER a payment_intent.succeeded has already driven the order to PAID (or
+    // driven the saga to CONFIRMING). Overwriting the payment to FAILED in those
+    // cases would corrupt state: order=PAID with payment=FAILED is unrecoverable
+    // because PaymentReconciliationJob only sweeps PROCESSING rows.
+    //
+    // Only mark FAILED when the order is still in a pre-confirm state.
+    try {
+      Order order = orderRepository.findById(payment.getOrderId());
+      if (order.status() == OrderStatus.PAID
+          || order.status() == OrderStatus.CONFIRMING
+          || order.status() == OrderStatus.REFUNDED) {
+        log.warn(
+            "Ignoring out-of-order FAILED webhook for payment {}: order {} is {}",
+            payment.getPaymentId(),
+            payment.getOrderId(),
+            order.status());
+        return payment;
+      }
+    } catch (NotFoundException e) {
+      log.warn("Webhook fail: order {} not found", payment.getOrderId());
+      return null;
+    }
+
+    // IMPORTANT: order rollback runs BEFORE the payment FAILED CAS. If the
+    // rollback fails and we have already written payment=FAILED, we end up with
+    // payment=FAILED / order=PAYMENT_PENDING — a TERMINALLY stuck state because
+    // OrderStatus.PAYMENT_PENDING can only transition to CONFIRMING or
+    // CANCELLED, and PaymentReconciliationJob only sweeps PROCESSING rows.
+    //
+    // Doing the order rollback first means: if the rollback fails, the payment
+    // stays PROCESSING on disk and the next reconciliation sweep (or another
+    // webhook delivery) can repair the state. We accept a brief window where
+    // the order is PENDING but the payment is still PROCESSING — the user
+    // simply cannot create a second payment until the partial unique index
+    // releases, which mirrors normal retry behavior.
+    try {
+      orderRepository.updateStatusIf(
+          payment.getOrderId(), OrderStatus.PAYMENT_PENDING, OrderStatus.PENDING);
+    } catch (RuntimeException ignored) {
+      // benign — order may already be CANCELLED or in another state
+    }
+
+    // CAS from PROCESSING -> FAILED. Hardcode the expected status (instead of
+    // observing payment.getStatus() inside the new transaction) so a concurrent
+    // success writer that already flipped the row to SUCCEEDED cannot be
+    // overwritten back to FAILED. If we lose the race, return the current
+    // payment row.
+    Integer updated =
+        requiresNewTxTemplate.execute(
+            status ->
+                paymentRepository.updateStatusIf(
+                    payment.getPaymentId(), PaymentStatus.PROCESSING, PaymentStatus.FAILED));
+    if (updated == null || updated == 0) {
+      return paymentRepository.findById(payment.getPaymentId()).orElse(payment);
+    }
+
+    return paymentRepository.findById(payment.getPaymentId()).orElse(payment);
+  }
+
   /**
    * Persists a FAILED payment status in a new transaction so the write survives the rollback of the
    * calling {@code @Transactional} method. Uses a programmatic {@link TransactionTemplate} with
@@ -243,8 +402,15 @@ public class PaymentServiceImpl implements PaymentService {
                 .findById(java.util.UUID.fromString(paymentId))
                 .ifPresent(
                     p -> {
-                      p.setStatus(PaymentStatus.FAILED);
-                      paymentRepository.save(p);
+                      // Hardcode the expected status to PROCESSING (the only
+                      // pre-terminal state this rollback path is allowed to
+                      // downgrade from). Reading p.getStatus() here is unsafe
+                      // because a concurrent confirmPayment may have already
+                      // flushed SUCCEEDED — using p.getStatus() as the CAS
+                      // expected value would then match and overwrite
+                      // SUCCEEDED -> FAILED, corrupting a legitimate success.
+                      paymentRepository.updateStatusIf(
+                          p.getPaymentId(), PaymentStatus.PROCESSING, PaymentStatus.FAILED);
                     }));
   }
 }

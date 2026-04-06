@@ -39,7 +39,24 @@ public class CatalogServiceImpl implements CatalogService {
   }
 
   @Override
-  public Page<Product> listProducts(UUID categoryId, ProductStatus status, Pageable pageable) {
+  public Page<Product> listProducts(
+      UUID categoryId, UUID venueId, ProductStatus status, Pageable pageable) {
+    if (categoryId != null && venueId != null && status != null) {
+      return productRepository.findByCategoryIdAndVenueIdAndStatus(
+          categoryId, venueId, status, pageable);
+    }
+    if (categoryId != null && venueId != null) {
+      // Both filters set but no status — do NOT silently drop the category
+      // filter (the previous version fell through to venueId-only, which
+      // broadened results and changed user-visible semantics).
+      return productRepository.findByCategoryIdAndVenueId(categoryId, venueId, pageable);
+    }
+    if (venueId != null && status != null) {
+      return productRepository.findByVenueIdAndStatus(venueId, status, pageable);
+    }
+    if (venueId != null) {
+      return productRepository.findByVenueId(venueId, pageable);
+    }
     if (categoryId != null && status != null) {
       return productRepository.findByCategoryIdAndStatus(categoryId, status, pageable);
     }

@@ -11,6 +11,7 @@ import com.asoviewclone.commercecore.catalog.model.ProductStatus;
 import com.asoviewclone.commercecore.catalog.service.CatalogService;
 import com.asoviewclone.commercecore.identity.repository.TenantUserRepository;
 import com.asoviewclone.commercecore.identity.repository.UserRepository;
+import com.asoviewclone.commercecore.inventory.service.InventoryQueryService;
 import com.asoviewclone.commercecore.security.FirebaseTokenFilter;
 import com.asoviewclone.commercecore.security.SecurityConfig;
 import com.asoviewclone.common.error.NotFoundException;
@@ -36,13 +37,14 @@ class ProductControllerAuthTest {
 
   @Autowired private MockMvc mockMvc;
   @MockitoBean private CatalogService catalogService;
+  @MockitoBean private InventoryQueryService inventoryQueryService;
   @MockitoBean private FirebaseAuth firebaseAuth;
   @MockitoBean private UserRepository userRepository;
   @MockitoBean private TenantUserRepository tenantUserRepository;
 
   @Test
   void listProductsIsPublic() throws Exception {
-    when(catalogService.listProducts(eq(null), eq(ProductStatus.ACTIVE), any()))
+    when(catalogService.listProducts(eq(null), eq(null), eq(ProductStatus.ACTIVE), any()))
         .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
     mockMvc.perform(get("/v1/products")).andExpect(status().isOk());
