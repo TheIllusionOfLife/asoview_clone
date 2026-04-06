@@ -56,6 +56,32 @@ jobs:
       - uses: bufbuild/buf-setup-action@v1
       - run: buf lint contracts/proto
 
+  spanner-ddl-immutability:
+    name: Spanner DDL Immutability
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Reject in-place edits to applied Spanner V*.sql files
+        # SpannerDdlBootstrap silently swallows FAILED_PRECONDITION on already-
+        # applied DDL, so an in-place edit to an existing V*.sql file ships a
+        # change that never reaches existing instances. Forward migrations only.
+        run: |
+          set -euo pipefail
+          base_sha=$(git merge-base origin/${{ github.base_ref }} HEAD)
+          changed=$(git diff --name-only --diff-filter=M "$base_sha"...HEAD -- 'services/commerce-core/src/main/resources/db/spanner/V*.sql' || true)
+          if [ -n "$changed" ]; then
+            echo "::error::Existing Spanner V*.sql files were modified in place:"
+            echo "$changed" | sed 's/^/  - /'
+            echo ""
+            echo "Spanner DDL bootstrap silently ignores already-applied migrations."
+            echo "Add a new V<n+1>__<description>.sql forward migration instead."
+            exit 1
+          fi
+          echo "OK: no in-place modifications to existing Spanner DDL files."
+
   terraform-validate:
     name: Terraform Validate
     runs-on: ubuntu-latest

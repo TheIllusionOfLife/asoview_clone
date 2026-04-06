@@ -8,6 +8,7 @@ import com.asoviewclone.commercecore.orders.model.Order;
 import com.asoviewclone.commercecore.orders.model.OrderItem;
 import com.asoviewclone.commercecore.orders.model.OrderStatus;
 import com.asoviewclone.commercecore.orders.repository.OrderRepository;
+import com.asoviewclone.common.error.ConflictException;
 import com.asoviewclone.common.error.NotFoundException;
 import com.asoviewclone.common.error.ValidationException;
 import com.google.cloud.spanner.SpannerException;
@@ -57,7 +58,15 @@ public class OrderServiceImpl implements OrderService {
       // Hold inventory for each item
       for (CreateOrderItemRequest item : items) {
         InventoryHold hold = inventoryService.holdInventory(item.slotId(), userId, item.quantity());
+        // Record the hold immediately so the catch block's best-effort release path can
+        // clean it up if validation below throws.
         holds.add(hold);
+        // Validate the slot belongs to the requested product variant. The repository
+        // populates the hold's productVariantId from the slot row, so a mismatch means
+        // the client referenced a slot that does not belong to their variant.
+        if (!hold.productVariantId().equals(item.productVariantId())) {
+          throw new ValidationException("Slot does not belong to requested product variant");
+        }
       }
 
       // Look up variant prices from catalog and calculate total
@@ -151,11 +160,22 @@ public class OrderServiceImpl implements OrderService {
   @Override
   public void cancelOrder(String orderId) {
     Order order = orderRepository.findById(orderId);
-    if (!order.status().canTransitionTo(OrderStatus.CANCELLED)) {
-      throw new ValidationException("Cannot cancel order in status " + order.status());
+    OrderStatus currentStatus = order.status();
+    if (!currentStatus.canTransitionTo(OrderStatus.CANCELLED)) {
+      throw new ValidationException("Cannot cancel order in status " + currentStatus);
     }
 
-    // Release inventory holds for each item
+    // Compare-and-swap FIRST: only proceed to release holds if we won the race.
+    // Releasing holds before the CAS would leak inventory if a concurrent confirm
+    // (PAYMENT_PENDING -> PAID) wins, because the holds would be gone but the
+    // saga still believes they exist.
+    boolean swapped = orderRepository.updateStatusIf(orderId, currentStatus, OrderStatus.CANCELLED);
+    if (!swapped) {
+      throw new ConflictException(
+          "Order " + orderId + " status changed concurrently; cancel aborted");
+    }
+
+    // Release inventory holds for each item now that the cancel is durable.
     for (OrderItem item : order.items()) {
       if (item.holdId() != null) {
         try {
@@ -165,7 +185,5 @@ public class OrderServiceImpl implements OrderService {
         }
       }
     }
-
-    orderRepository.updateStatus(orderId, OrderStatus.CANCELLED);
   }
 }

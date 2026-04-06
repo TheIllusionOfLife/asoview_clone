@@ -31,5 +31,24 @@ services:
       - "9010:9010"
       - "9020:9020"
 
+  spanner-init:
+    image: google/cloud-sdk:slim
+    depends_on:
+      - spanner-emulator
+    environment:
+      SPANNER_EMULATOR_HOST: spanner-emulator:9010
+      SPANNER_PROJECT_ID: asoview-clone
+      SPANNER_INSTANCE_ID: asoview-clone
+      SPANNER_DATABASE_ID: asoview
+      SPANNER_DDL_DIR: /ddl
+      CLOUDSDK_AUTH_DISABLE_CREDENTIALS: "true"
+      CLOUDSDK_API_ENDPOINT_OVERRIDES_SPANNER: http://spanner-emulator:9020/
+      CLOUDSDK_CORE_PROJECT: asoview-clone
+    volumes:
+      - ./docker/spanner-init.sh:/usr/local/bin/spanner-init.sh:ro
+      - ./services/commerce-core/src/main/resources/db/spanner:/ddl:ro
+    entrypoint: ["/bin/bash", "/usr/local/bin/spanner-init.sh"]
+    restart: "no"
+
 volumes:
   postgres-data:

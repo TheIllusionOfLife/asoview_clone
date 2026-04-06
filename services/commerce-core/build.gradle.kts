@@ -2,10 +2,6 @@ plugins {
     id("asoview.spring-boot-conventions")
 }
 
-// Override Spring Boot managed Testcontainers version for Docker Desktop 29.x compatibility.
-// TC 1.21.4 fixes hardcoded docker-java API version 1.32 -> 1.44.
-extra["testcontainers.version"] = "1.21.4"
-
 // scanner-app-api scope: check-in and ticket validation endpoints live here.
 // Extract to a separate service if operational needs require it.
 
@@ -24,7 +20,7 @@ dependencies {
     // Cloud SQL / JPA
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     runtimeOnly(libs.postgresql)
-    implementation(libs.flyway.core)
+    implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation(libs.flyway.database.postgresql)
 
     // Cloud Spanner
@@ -34,8 +30,13 @@ dependencies {
     // Redis
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
 
+    // Spring Retry (for @Retryable on transactional event listeners)
+    implementation(libs.spring.retry)
+    implementation("org.springframework:spring-aspects")
+
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.springframework.security:spring-security-test")
     testImplementation(platform(libs.testcontainers.bom))

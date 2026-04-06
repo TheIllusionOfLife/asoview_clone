@@ -107,12 +107,19 @@ public class SpannerEmulatorConfig {
                       + " created_at TIMESTAMP NOT NULL"
                       + " OPTIONS (allow_commit_timestamp=true))"
                       + " PRIMARY KEY (slot_id)",
+                  // Base inventory_holds CREATE intentionally OMITS
+                  // product_variant_id, mirroring V1__inventory.sql. The
+                  // ALTER TABLE statement below mirrors V5__inventory_holds_add_variant.sql.
+                  // Splitting the schema this way catches any future in-place
+                  // edit to V1 that would otherwise diverge from production.
                   "CREATE TABLE inventory_holds (hold_id STRING(36) NOT NULL,"
-                      + " slot_id STRING(36) NOT NULL, user_id STRING(36) NOT NULL,"
+                      + " slot_id STRING(36) NOT NULL,"
+                      + " user_id STRING(36) NOT NULL,"
                       + " quantity INT64 NOT NULL, expires_at TIMESTAMP NOT NULL,"
                       + " created_at TIMESTAMP NOT NULL"
                       + " OPTIONS (allow_commit_timestamp=true))"
                       + " PRIMARY KEY (hold_id)",
+                  "ALTER TABLE inventory_holds ADD COLUMN product_variant_id STRING(36)",
                   "CREATE INDEX idx_holds_slot ON inventory_holds(slot_id)",
                   "CREATE TABLE orders (order_id STRING(36) NOT NULL,"
                       + " user_id STRING(36) NOT NULL, status STRING(32) NOT NULL,"
@@ -151,7 +158,24 @@ public class SpannerEmulatorConfig {
                       + " OPTIONS (allow_commit_timestamp=true))"
                       + " PRIMARY KEY (ticket_pass_id)",
                   "CREATE INDEX idx_ticket_passes_entitlement ON"
-                      + " ticket_passes(entitlement_id)"))
+                      + " ticket_passes(entitlement_id)",
+                  "CREATE TABLE payment_confirmation_steps (step_id STRING(36) NOT NULL,"
+                      + " payment_id STRING(36) NOT NULL,"
+                      + " order_item_id STRING(36) NOT NULL,"
+                      + " hold_id STRING(36) NOT NULL,"
+                      + " slot_id STRING(36) NOT NULL,"
+                      + " quantity INT64 NOT NULL,"
+                      + " status STRING(16) NOT NULL,"
+                      + " attempted_at TIMESTAMP NOT NULL"
+                      + " OPTIONS (allow_commit_timestamp=true),"
+                      + " updated_at TIMESTAMP NOT NULL"
+                      + " OPTIONS (allow_commit_timestamp=true))"
+                      + " PRIMARY KEY (step_id)",
+                  "CREATE INDEX idx_steps_payment ON payment_confirmation_steps(payment_id)",
+                  "CREATE INDEX idx_steps_status ON"
+                      + " payment_confirmation_steps(status, attempted_at)",
+                  "CREATE UNIQUE INDEX idx_steps_payment_item ON"
+                      + " payment_confirmation_steps(payment_id, order_item_id)"))
           .get();
     } catch (ExecutionException | InterruptedException e) {
       throw new RuntimeException("Failed to initialize Spanner emulator", e);

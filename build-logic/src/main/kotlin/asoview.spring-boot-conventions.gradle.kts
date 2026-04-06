@@ -15,6 +15,10 @@ tasks.withType<JavaCompile> {
     options.compilerArgs.addAll(listOf("-parameters"))
 }
 
+dependencies {
+    "testRuntimeOnly"("org.junit.platform:junit-platform-launcher")
+}
+
 tasks.withType<Test> {
     useJUnitPlatform()
     testLogging {

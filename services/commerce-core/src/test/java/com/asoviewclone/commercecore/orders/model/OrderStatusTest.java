@@ -22,8 +22,28 @@ class OrderStatusTest {
   }
 
   @Test
-  void paymentPendingCanTransitionToPaid() {
-    assertThat(OrderStatus.PAYMENT_PENDING.canTransitionTo(OrderStatus.PAID)).isTrue();
+  void paymentPendingCanTransitionToConfirming() {
+    assertThat(OrderStatus.PAYMENT_PENDING.canTransitionTo(OrderStatus.CONFIRMING)).isTrue();
+  }
+
+  @Test
+  void paymentPendingCannotTransitionDirectlyToPaid() {
+    assertThat(OrderStatus.PAYMENT_PENDING.canTransitionTo(OrderStatus.PAID)).isFalse();
+  }
+
+  @Test
+  void confirmingCanTransitionToPaid() {
+    assertThat(OrderStatus.CONFIRMING.canTransitionTo(OrderStatus.PAID)).isTrue();
+  }
+
+  @Test
+  void confirmingCanRollBackToPaymentPending() {
+    assertThat(OrderStatus.CONFIRMING.canTransitionTo(OrderStatus.PAYMENT_PENDING)).isTrue();
+  }
+
+  @Test
+  void confirmingCannotBeCancelled() {
+    assertThat(OrderStatus.CONFIRMING.canTransitionTo(OrderStatus.CANCELLED)).isFalse();
   }
 
   @Test

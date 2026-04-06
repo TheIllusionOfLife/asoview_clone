@@ -1,16 +1,17 @@
 [versions]
-spring-boot = "3.4.4"
-spring-cloud = "2024.0.1"
+spring-boot = "4.0.5"
+spring-cloud = "2025.1.1"
 spring-dependency-management = "1.1.7"
-spring-cloud-gcp = "5.10.0"
+spring-cloud-gcp = "8.0.1"
 grpc = "1.80.0"
 protobuf = "4.34.1"
-protobuf-plugin = "0.9.4"
-flyway = "11.4.0"
-testcontainers = "1.21.4"
-firebase-admin = "9.4.3"
+protobuf-plugin = "0.9.6"
+flyway = "12.3.0"
+testcontainers = "2.0.4"
+firebase-admin = "9.8.0"
+spring-retry = "2.0.12"
 spotless = "8.4.0"
-checkstyle = "10.23.1"
+checkstyle = "13.4.0"
 
 [libraries]
 # Spring Cloud
@@ -41,11 +42,14 @@ postgresql = { module = "org.postgresql:postgresql" }
 # Firebase
 firebase-admin = { module = "com.google.firebase:firebase-admin", version.ref = "firebase-admin" }
 
+# Spring Retry (used by transactional event listener retries)
+spring-retry = { module = "org.springframework.retry:spring-retry", version.ref = "spring-retry" }
+
 # Testcontainers
 testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }
-testcontainers-junit-jupiter = { module = "org.testcontainers:junit-jupiter" }
-testcontainers-postgresql = { module = "org.testcontainers:postgresql" }
-testcontainers-gcloud = { module = "org.testcontainers:gcloud" }
+testcontainers-junit-jupiter = { module = "org.testcontainers:testcontainers-junit-jupiter" }
+testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql" }
+testcontainers-gcloud = { module = "org.testcontainers:testcontainers-gcloud" }
 
 # javax.annotation (for protobuf generated code)
 javax-annotation-api = { module = "javax.annotation:javax.annotation-api", version = "1.3.2" }

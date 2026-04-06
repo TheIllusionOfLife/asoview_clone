@@ -5,6 +5,7 @@ import java.time.Instant;
 public record InventoryHold(
     String holdId,
     String slotId,
+    String productVariantId,
     String userId,
     long quantity,
     Instant expiresAt,
