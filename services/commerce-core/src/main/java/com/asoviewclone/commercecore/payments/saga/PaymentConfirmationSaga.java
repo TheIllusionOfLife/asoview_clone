@@ -59,8 +59,7 @@ public class PaymentConfirmationSaga {
       // success), leaving partial inventory reserved while the caller marks
       // the order PAID. Refuse the retry — the entire payment must be failed.
       boolean anyCompensated =
-          existing.stream()
-              .anyMatch(s -> s.status() == PaymentConfirmationStepStatus.COMPENSATED);
+          existing.stream().anyMatch(s -> s.status() == PaymentConfirmationStepStatus.COMPENSATED);
       if (anyCompensated) {
         throw new ConflictException(
             "Saga for payment "

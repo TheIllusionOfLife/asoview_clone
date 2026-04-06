@@ -194,11 +194,11 @@ public class PaymentServiceImpl implements PaymentService {
   }
 
   /**
-   * Persists a FAILED payment status in a new transaction so the write survives
-   * the rollback of the calling {@code @Transactional} method. Uses a programmatic
-   * {@link TransactionTemplate} with {@code PROPAGATION_REQUIRES_NEW} because a
-   * self-call to a {@code @Transactional} method would bypass Spring's proxy and
-   * silently run in the existing transaction (which is about to roll back).
+   * Persists a FAILED payment status in a new transaction so the write survives the rollback of the
+   * calling {@code @Transactional} method. Uses a programmatic {@link TransactionTemplate} with
+   * {@code PROPAGATION_REQUIRES_NEW} because a self-call to a {@code @Transactional} method would
+   * bypass Spring's proxy and silently run in the existing transaction (which is about to roll
+   * back).
    */
   private void markPaymentFailedInNewTransaction(String paymentId) {
     requiresNewTxTemplate.executeWithoutResult(
