@@ -247,6 +247,28 @@ public class PaymentServiceImpl implements PaymentService {
   }
 
   @Override
+  public boolean isTerminalConflict(String providerPaymentId) {
+    Optional<Payment> maybe = paymentRepository.findByProviderPaymentId(providerPaymentId);
+    if (maybe.isEmpty()) {
+      return false;
+    }
+    Payment p = maybe.get();
+    if (p.getStatus() == PaymentStatus.SUCCEEDED || p.getStatus() == PaymentStatus.FAILED) {
+      return true;
+    }
+    try {
+      Order order = orderRepository.findById(p.getOrderId());
+      // A cancelled / paid / refunded order can never transition back into
+      // PAYMENT_PENDING, so any retry of the same webhook is doomed.
+      return order.status() == OrderStatus.CANCELLED
+          || order.status() == OrderStatus.PAID
+          || order.status() == OrderStatus.REFUNDED;
+    } catch (NotFoundException e) {
+      return false;
+    }
+  }
+
+  @Override
   @Transactional
   public Payment confirmByProviderPaymentId(String providerPaymentId) {
     // @Transactional is critical here: confirmByProviderPaymentId self-invokes
@@ -330,26 +352,39 @@ public class PaymentServiceImpl implements PaymentService {
       return null;
     }
 
-    // CAS from the currently-observed status to FAILED so a concurrent success
-    // writer does not get overwritten last-writer-wins. If we lose the race
-    // (another writer already moved the row), just return the current payment.
-    PaymentStatus observed = payment.getStatus();
-    Integer updated =
-        requiresNewTxTemplate.execute(
-            status ->
-                paymentRepository.updateStatusIf(
-                    payment.getPaymentId(), observed, PaymentStatus.FAILED));
-    if (updated == null || updated == 0) {
-      return paymentRepository.findById(payment.getPaymentId()).orElse(payment);
-    }
-
-    // Roll the order back to PENDING so the user can retry the funnel.
+    // IMPORTANT: order rollback runs BEFORE the payment FAILED CAS. If the
+    // rollback fails and we have already written payment=FAILED, we end up with
+    // payment=FAILED / order=PAYMENT_PENDING — a TERMINALLY stuck state because
+    // OrderStatus.PAYMENT_PENDING can only transition to CONFIRMING or
+    // CANCELLED, and PaymentReconciliationJob only sweeps PROCESSING rows.
+    //
+    // Doing the order rollback first means: if the rollback fails, the payment
+    // stays PROCESSING on disk and the next reconciliation sweep (or another
+    // webhook delivery) can repair the state. We accept a brief window where
+    // the order is PENDING but the payment is still PROCESSING — the user
+    // simply cannot create a second payment until the partial unique index
+    // releases, which mirrors normal retry behavior.
     try {
       orderRepository.updateStatusIf(
           payment.getOrderId(), OrderStatus.PAYMENT_PENDING, OrderStatus.PENDING);
     } catch (RuntimeException ignored) {
       // benign — order may already be CANCELLED or in another state
     }
+
+    // CAS from PROCESSING -> FAILED. Hardcode the expected status (instead of
+    // observing payment.getStatus() inside the new transaction) so a concurrent
+    // success writer that already flipped the row to SUCCEEDED cannot be
+    // overwritten back to FAILED. If we lose the race, return the current
+    // payment row.
+    Integer updated =
+        requiresNewTxTemplate.execute(
+            status ->
+                paymentRepository.updateStatusIf(
+                    payment.getPaymentId(), PaymentStatus.PROCESSING, PaymentStatus.FAILED));
+    if (updated == null || updated == 0) {
+      return paymentRepository.findById(payment.getPaymentId()).orElse(payment);
+    }
+
     return paymentRepository.findById(payment.getPaymentId()).orElse(payment);
   }
 
@@ -367,11 +402,15 @@ public class PaymentServiceImpl implements PaymentService {
                 .findById(java.util.UUID.fromString(paymentId))
                 .ifPresent(
                     p -> {
-                      // CAS: only mark FAILED from a non-terminal status. Plain
-                      // save() would last-writer-wins over a concurrent
-                      // successful confirmation that already wrote SUCCEEDED.
+                      // Hardcode the expected status to PROCESSING (the only
+                      // pre-terminal state this rollback path is allowed to
+                      // downgrade from). Reading p.getStatus() here is unsafe
+                      // because a concurrent confirmPayment may have already
+                      // flushed SUCCEEDED — using p.getStatus() as the CAS
+                      // expected value would then match and overwrite
+                      // SUCCEEDED -> FAILED, corrupting a legitimate success.
                       paymentRepository.updateStatusIf(
-                          p.getPaymentId(), p.getStatus(), PaymentStatus.FAILED);
+                          p.getPaymentId(), PaymentStatus.PROCESSING, PaymentStatus.FAILED);
                     }));
   }
 }

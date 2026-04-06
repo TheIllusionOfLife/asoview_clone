@@ -128,30 +128,20 @@ public class PaymentWebhookController {
           result.getOrderId());
       return ResponseEntity.ok("failed");
     } catch (ConflictException e) {
-      // Distinguish terminal from transient conflict. If the payment is
-      // already SUCCEEDED or FAILED (or the order is CANCELLED), retrying
-      // the same webhook can never succeed — ACK 200 so Stripe stops
-      // retrying and does not flood the endpoint with a doomed event. Leave
-      // the replay row in place because the next delivery would hit the
-      // same terminal state.
-      //
-      // For any other conflict (transient CAS loss on an in-flight confirm),
-      // return 202 and undo the replay row so Stripe's next delivery can
-      // actually re-enter the handler.
-      Payment current =
-          paymentService.findByProviderPaymentId(event.providerPaymentId()).orElse(null);
-      boolean terminal =
-          current != null
-              && (current.getStatus()
-                      == com.asoviewclone.commercecore.payments.model.PaymentStatus.SUCCEEDED
-                  || current.getStatus()
-                      == com.asoviewclone.commercecore.payments.model.PaymentStatus.FAILED);
+      // Distinguish terminal from transient conflict via the service helper.
+      // Terminal = the payment or its order is in a state that no retry can
+      // recover from (payment SUCCEEDED/FAILED, or order CANCELLED/PAID/
+      // REFUNDED). Terminal conflicts must ACK 200 so the provider stops
+      // retrying; transient conflicts return 202 so the next delivery can
+      // re-enter. The controller does not inspect order state directly — it
+      // defers to paymentService.isTerminalConflict which owns the
+      // classification rules.
+      boolean terminal = paymentService.isTerminalConflict(event.providerPaymentId());
       if (terminal) {
         log.info(
-            "Webhook conflict resolved as terminal stripe_event_id={} provider_payment_id={} payment_status={} action=ack",
+            "Webhook conflict resolved as terminal stripe_event_id={} provider_payment_id={} action=ack",
             event.rawEventId(),
-            event.providerPaymentId(),
-            current.getStatus());
+            event.providerPaymentId());
         return ResponseEntity.ok("terminal");
       }
       log.warn(
