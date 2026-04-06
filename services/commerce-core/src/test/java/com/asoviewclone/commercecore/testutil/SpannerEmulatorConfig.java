@@ -168,7 +168,9 @@ public class SpannerEmulatorConfig {
                       + " PRIMARY KEY (step_id)",
                   "CREATE INDEX idx_steps_payment ON payment_confirmation_steps(payment_id)",
                   "CREATE INDEX idx_steps_status ON"
-                      + " payment_confirmation_steps(status, attempted_at)"))
+                      + " payment_confirmation_steps(status, attempted_at)",
+                  "CREATE UNIQUE INDEX idx_steps_payment_item ON"
+                      + " payment_confirmation_steps(payment_id, order_item_id)"))
           .get();
     } catch (ExecutionException | InterruptedException e) {
       throw new RuntimeException("Failed to initialize Spanner emulator", e);

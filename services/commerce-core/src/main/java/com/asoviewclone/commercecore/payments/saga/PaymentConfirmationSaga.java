@@ -43,38 +43,71 @@ public class PaymentConfirmationSaga {
 
   public void confirm(Payment payment, Order order) {
     Instant now = clockProvider.now();
-    List<PaymentConfirmationStep> steps = new ArrayList<>();
-    for (OrderItem item : order.items()) {
-      if (item.holdId() == null) {
-        continue;
+
+    // Idempotent retry support: if a previous attempt for this payment inserted
+    // step rows, reuse them. The unique index (payment_id, order_item_id) means
+    // we cannot insert duplicates. Skip already-CONFIRMED/COMPENSATED steps and
+    // re-attempt PENDING steps.
+    List<PaymentConfirmationStep> existing =
+        stepRepository.findByPaymentId(payment.getPaymentId().toString());
+    List<PaymentConfirmationStep> steps;
+    if (!existing.isEmpty()) {
+      steps = new ArrayList<>(existing);
+    } else {
+      steps = new ArrayList<>();
+      for (OrderItem item : order.items()) {
+        if (item.holdId() == null) {
+          continue;
+        }
+        steps.add(
+            new PaymentConfirmationStep(
+                UUID.randomUUID().toString(),
+                payment.getPaymentId().toString(),
+                item.orderItemId(),
+                item.holdId(),
+                item.slotId(),
+                item.quantity(),
+                PaymentConfirmationStepStatus.PENDING,
+                now,
+                now));
       }
-      steps.add(
-          new PaymentConfirmationStep(
-              UUID.randomUUID().toString(),
-              payment.getPaymentId().toString(),
-              item.orderItemId(),
-              item.holdId(),
-              item.slotId(),
-              item.quantity(),
-              PaymentConfirmationStepStatus.PENDING,
-              now,
-              now));
-    }
-    if (steps.isEmpty()) {
-      return;
-    }
-    try {
-      stepRepository.insertAll(steps);
-    } catch (Exception e) {
-      throw new ConflictException(
-          "Failed to persist saga steps for payment "
-              + payment.getPaymentId()
-              + ": "
-              + e.getMessage());
+      if (steps.isEmpty()) {
+        return;
+      }
+      try {
+        stepRepository.insertAll(steps);
+      } catch (com.google.cloud.spanner.SpannerException se) {
+        if (se.getErrorCode() == com.google.cloud.spanner.ErrorCode.ALREADY_EXISTS) {
+          // A concurrent attempt inserted steps first. Re-read and resume.
+          steps =
+              new ArrayList<>(
+                  stepRepository.findByPaymentId(payment.getPaymentId().toString()));
+        } else {
+          throw new ConflictException(
+              "Failed to persist saga steps for payment "
+                  + payment.getPaymentId()
+                  + ": "
+                  + se.getMessage());
+        }
+      } catch (Exception e) {
+        throw new ConflictException(
+            "Failed to persist saga steps for payment "
+                + payment.getPaymentId()
+                + ": "
+                + e.getMessage());
+      }
     }
 
     List<PaymentConfirmationStep> confirmed = new ArrayList<>();
     for (PaymentConfirmationStep step : steps) {
+      // Skip steps that have already been processed by a prior attempt.
+      if (step.status() == PaymentConfirmationStepStatus.CONFIRMED) {
+        confirmed.add(step);
+        continue;
+      }
+      if (step.status() == PaymentConfirmationStepStatus.COMPENSATED) {
+        continue;
+      }
       boolean holdConfirmed = false;
       try {
         inventoryService.confirmHold(step.holdId());
