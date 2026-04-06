@@ -47,8 +47,7 @@ class JpaAuditingTest {
 
   @Test
   void persistAndUpdatePopulatesAuditFields() throws Exception {
-    Tenant tenant =
-        tenantRepository.save(new Tenant("Audit Tenant", "audit-" + UUID.randomUUID()));
+    Tenant tenant = tenantRepository.save(new Tenant("Audit Tenant", "audit-" + UUID.randomUUID()));
     tenantRepository.flush();
 
     assertThat(tenant.getAudit().getCreatedAt()).isNotNull();
