@@ -156,7 +156,16 @@ public class InventorySlotRepository {
         .run(
             tx -> {
               InventorySlot slot = readSlotInTransaction(tx, slotId);
-              long newReserved = Math.max(0, slot.reservedCount() - quantity);
+              if (quantity > slot.reservedCount()) {
+                throw new ConflictException(
+                    "Cannot release "
+                        + quantity
+                        + " from slot "
+                        + slotId
+                        + " with reserved_count="
+                        + slot.reservedCount());
+              }
+              long newReserved = slot.reservedCount() - quantity;
               tx.buffer(
                   Mutation.newUpdateBuilder("inventory_slots")
                       .set("slot_id")
