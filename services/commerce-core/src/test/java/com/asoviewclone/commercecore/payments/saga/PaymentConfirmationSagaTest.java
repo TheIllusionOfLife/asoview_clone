@@ -354,4 +354,91 @@ class PaymentConfirmationSagaTest {
     assertThat(status).isEqualTo("CONFIRMED");
     assertThat(readReserved(slotIdA)).isEqualTo(1);
   }
+
+  @Test
+  void recoveryJobSkipsStaleStepWhenSiblingIsCompensated() {
+    // Create an order to get a real hold so confirmHold could in principle run.
+    Order order =
+        orderService.createOrder(
+            userId,
+            UUID.randomUUID().toString(),
+            List.of(
+                new OrderService.CreateOrderItemRequest(variantId, slotIdA, 1),
+                new OrderService.CreateOrderItemRequest(variantId, slotIdB, 2)));
+    OrderItem first = order.items().get(0);
+    OrderItem second = order.items().get(1);
+
+    String paymentId = UUID.randomUUID().toString();
+    Instant stale = clockProvider.now().minusSeconds(600);
+
+    // Seed two sibling steps for the same payment: one already COMPENSATED
+    // (saga compensation already ran), one stale FAILED (the orphan that
+    // recovery used to retry and re-consume inventory for).
+    String compensatedStepId = UUID.randomUUID().toString();
+    String orphanStepId = UUID.randomUUID().toString();
+    spannerClient.write(
+        List.of(
+            Mutation.newInsertBuilder("payment_confirmation_steps")
+                .set("step_id")
+                .to(compensatedStepId)
+                .set("payment_id")
+                .to(paymentId)
+                .set("order_item_id")
+                .to(first.orderItemId())
+                .set("hold_id")
+                .to(first.holdId())
+                .set("slot_id")
+                .to(first.slotId())
+                .set("quantity")
+                .to(first.quantity())
+                .set("status")
+                .to("COMPENSATED")
+                .set("attempted_at")
+                .to(Timestamp.ofTimeSecondsAndNanos(stale.getEpochSecond(), 0))
+                .set("updated_at")
+                .to(Timestamp.ofTimeSecondsAndNanos(stale.getEpochSecond(), 0))
+                .build(),
+            Mutation.newInsertBuilder("payment_confirmation_steps")
+                .set("step_id")
+                .to(orphanStepId)
+                .set("payment_id")
+                .to(paymentId)
+                .set("order_item_id")
+                .to(second.orderItemId())
+                .set("hold_id")
+                .to(second.holdId())
+                .set("slot_id")
+                .to(second.slotId())
+                .set("quantity")
+                .to(second.quantity())
+                .set("status")
+                .to("FAILED")
+                .set("attempted_at")
+                .to(Timestamp.ofTimeSecondsAndNanos(stale.getEpochSecond(), 0))
+                .set("updated_at")
+                .to(Timestamp.ofTimeSecondsAndNanos(stale.getEpochSecond(), 0))
+                .build()));
+
+    long reservedABefore = readReserved(slotIdA);
+    long reservedBBefore = readReserved(slotIdB);
+
+    sagaRecoveryJob.recoverStalePending();
+
+    // Orphan step must now be COMPENSATED (terminal), NOT CONFIRMED.
+    Statement stmt =
+        Statement.newBuilder("SELECT status FROM payment_confirmation_steps WHERE step_id = @id")
+            .bind("id")
+            .to(orphanStepId)
+            .build();
+    String status = null;
+    try (ResultSet rs = spannerClient.singleUse().executeQuery(stmt)) {
+      if (rs.next()) {
+        status = rs.getString("status");
+      }
+    }
+    assertThat(status).isEqualTo("COMPENSATED");
+    // Reserved counts must be unchanged — the guard prevented confirmHold.
+    assertThat(readReserved(slotIdA)).isEqualTo(reservedABefore);
+    assertThat(readReserved(slotIdB)).isEqualTo(reservedBBefore);
+  }
 }
