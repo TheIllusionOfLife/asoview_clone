@@ -75,8 +75,12 @@ public class PaymentConfirmationSaga {
 
     List<PaymentConfirmationStep> confirmed = new ArrayList<>();
     for (PaymentConfirmationStep step : steps) {
+      boolean holdConfirmed = false;
       try {
         inventoryService.confirmHold(step.holdId());
+        // Hold is now confirmed in Spanner. Track this BEFORE attempting the step
+        // status update so a failure of updateStatus does not leak the reservation.
+        holdConfirmed = true;
         stepRepository.updateStatus(step.stepId(), PaymentConfirmationStepStatus.CONFIRMED);
         confirmed.add(step);
       } catch (Exception e) {
@@ -86,6 +90,20 @@ public class PaymentConfirmationSaga {
             step.holdId(),
             confirmed.size(),
             e);
+        // If we already confirmed the hold for the current step but the status
+        // update threw, the reservation was applied. Compensate it before walking
+        // the previously-confirmed list so capacity is fully released.
+        if (holdConfirmed) {
+          try {
+            inventorySlotRepository.releaseConfirmedHold(step.slotId(), step.quantity());
+          } catch (Exception compEx) {
+            log.error(
+                "Compensation failed for current step {} slot {}",
+                step.stepId(),
+                step.slotId(),
+                compEx);
+          }
+        }
         for (PaymentConfirmationStep done : confirmed) {
           try {
             inventorySlotRepository.releaseConfirmedHold(done.slotId(), done.quantity());
