@@ -96,7 +96,7 @@ public class PaymentServiceImpl implements PaymentService {
       throw new ConflictException("Payment gateway rejected the request");
     }
 
-    payment.setProvider("STUB");
+    payment.setProvider(paymentGateway.providerName());
     payment.setProviderPaymentId(result.providerPaymentId());
     payment.setStatus(PaymentStatus.PROCESSING);
 
@@ -227,6 +227,68 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     return payment;
+  }
+
+  @Override
+  public Payment confirmByProviderPaymentId(String providerPaymentId) {
+    Optional<Payment> maybe = paymentRepository.findByProviderPaymentId(providerPaymentId);
+    if (maybe.isEmpty()) {
+      log.warn(
+          "Webhook confirm for unknown providerPaymentId={}; responding for retry",
+          providerPaymentId);
+      return null;
+    }
+    Payment payment = maybe.get();
+
+    // Webhook-vs-AFTER_COMMIT race: Stripe can fire payment_intent.succeeded
+    // before PaymentCreatedEventListener has advanced the order from PENDING
+    // to PAYMENT_PENDING. Roll the order forward synchronously here so the
+    // confirmPayment CAS (PAYMENT_PENDING -> CONFIRMING) does not fail.
+    //
+    // The CAS itself is idempotent: if the event listener already ran, this
+    // is a no-op that returns false. We only care about the terminal state.
+    try {
+      Order order = orderRepository.findById(payment.getOrderId());
+      if (order.status() == OrderStatus.PENDING) {
+        boolean swapped =
+            orderRepository.updateStatusIf(
+                payment.getOrderId(), OrderStatus.PENDING, OrderStatus.PAYMENT_PENDING);
+        if (swapped) {
+          log.info(
+              "Rolled order {} PENDING->PAYMENT_PENDING synchronously for webhook {}",
+              payment.getOrderId(),
+              providerPaymentId);
+        }
+      }
+    } catch (NotFoundException e) {
+      log.warn("Webhook confirm: order {} not found", payment.getOrderId());
+      return null;
+    }
+
+    return confirmPayment(payment.getPaymentId().toString());
+  }
+
+  @Override
+  public Payment failByProviderPaymentId(String providerPaymentId) {
+    Optional<Payment> maybe = paymentRepository.findByProviderPaymentId(providerPaymentId);
+    if (maybe.isEmpty()) {
+      log.warn("Webhook fail for unknown providerPaymentId={}; nothing to do", providerPaymentId);
+      return null;
+    }
+    Payment payment = maybe.get();
+    if (payment.getStatus() == PaymentStatus.FAILED
+        || payment.getStatus() == PaymentStatus.SUCCEEDED) {
+      return payment;
+    }
+    markPaymentFailedInNewTransaction(payment.getPaymentId().toString());
+    // Roll the order back to PENDING so the user can retry the funnel.
+    try {
+      orderRepository.updateStatusIf(
+          payment.getOrderId(), OrderStatus.PAYMENT_PENDING, OrderStatus.PENDING);
+    } catch (RuntimeException ignored) {
+      // benign — order may already be CANCELLED or in another state
+    }
+    return paymentRepository.findById(payment.getPaymentId()).orElse(payment);
   }
 
   /**
