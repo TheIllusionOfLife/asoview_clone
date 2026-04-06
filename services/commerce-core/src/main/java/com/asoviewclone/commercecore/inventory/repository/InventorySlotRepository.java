@@ -67,6 +67,27 @@ public class InventorySlotRepository {
   }
 
   /**
+   * Single-slot lookup by id. Returns {@code null} when no row exists. Used by entitlement
+   * creation to read the slot's date/time so the resulting entitlement carries a validity window.
+   */
+  public InventorySlot findById(String slotId) {
+    Statement stmt =
+        Statement.newBuilder(
+                "SELECT slot_id, product_variant_id, slot_date, start_time, end_time,"
+                    + " total_capacity, reserved_count, created_at"
+                    + " FROM inventory_slots WHERE slot_id = @slotId")
+            .bind("slotId")
+            .to(slotId)
+            .build();
+    try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
+      if (rs.next()) {
+        return mapSlot(rs);
+      }
+    }
+    return null;
+  }
+
+  /**
    * Read-side count of unexpired hold quantity for a slot. Uses a single-use read so it does not
    * require a transaction. Intended for availability queries; hot booking paths should continue to
    * use the transactional counterpart inside {@link #holdInventory}.
