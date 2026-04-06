@@ -71,8 +71,7 @@ public class PaymentReconciliationJob {
       // the batch returns the same untouched rows twice we exit to avoid a
       // tight loop.
       Pageable batch = PageRequest.of(0, BATCH_SIZE, Sort.by("paymentId").ascending());
-      List<Payment> processing =
-          paymentRepository.findByStatus(PaymentStatus.PROCESSING, batch);
+      List<Payment> processing = paymentRepository.findByStatus(PaymentStatus.PROCESSING, batch);
       if (processing.isEmpty()) {
         return;
       }

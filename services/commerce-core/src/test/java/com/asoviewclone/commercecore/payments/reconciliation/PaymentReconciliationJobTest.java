@@ -112,8 +112,7 @@ class PaymentReconciliationJobTest {
 
     // Payment row stays PROCESSING because the order is now PAYMENT_PENDING,
     // which is the harmless "in-flight" state — only the order should advance.
-    assertThat(orderRepository.findById(orderId).status())
-        .isEqualTo(OrderStatus.PAYMENT_PENDING);
+    assertThat(orderRepository.findById(orderId).status()).isEqualTo(OrderStatus.PAYMENT_PENDING);
     Payment reloaded = paymentRepository.findById(payment.getPaymentId()).orElseThrow();
     assertThat(reloaded.getStatus()).isEqualTo(PaymentStatus.PROCESSING);
   }
