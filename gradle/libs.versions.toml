@@ -11,7 +11,7 @@ testcontainers = "2.0.4"
 firebase-admin = "9.8.0"
 spring-retry = "2.0.12"
 spotless = "8.4.0"
-checkstyle = "10.23.1"
+checkstyle = "13.4.0"
 
 [libraries]
 # Spring Cloud
