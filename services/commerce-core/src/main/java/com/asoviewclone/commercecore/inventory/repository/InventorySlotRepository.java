@@ -316,10 +316,14 @@ public class InventorySlotRepository {
   }
 
   private InventoryHold mapHold(ResultSet rs) {
+    // product_variant_id was added by V5 as a nullable column, so holds created
+    // before that migration land here with NULL. Spanner's getString() throws
+    // IllegalStateException on NULL, mirroring the start_time/end_time handling
+    // in mapSlot above.
     return new InventoryHold(
         rs.getString("hold_id"),
         rs.getString("slot_id"),
-        rs.getString("product_variant_id"),
+        rs.isNull("product_variant_id") ? null : rs.getString("product_variant_id"),
         rs.getString("user_id"),
         rs.getLong("quantity"),
         rs.getTimestamp("expires_at").toDate().toInstant(),

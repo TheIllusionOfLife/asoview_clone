@@ -188,24 +188,35 @@ public class PaymentServiceImpl implements PaymentService {
             "Order " + payment.getOrderId() + " status changed concurrently; confirm aborted");
       }
     } catch (RuntimeException e) {
-      // Saga, entitlement creation, or final CAS failed. Roll the order back to
-      // PAYMENT_PENDING so the caller can retry. The post-saga CAS is now
-      // included in this try so a deadline/network failure on it (which would
-      // otherwise leave the order stuck in CONFIRMING with no recovery path)
-      // is also handled here.
+      // Saga, entitlement creation, or final CAS failed. Try to roll the order
+      // back to PAYMENT_PENDING so the caller can retry.
       boolean rolledBack =
           orderRepository.updateStatusIf(
               payment.getOrderId(), OrderStatus.CONFIRMING, OrderStatus.PAYMENT_PENDING);
-      if (!rolledBack) {
+      if (rolledBack) {
+        // Clean failure: the order is back in PAYMENT_PENDING. Persist
+        // the FAILED payment status in a new transaction so the write
+        // survives the outer @Transactional rollback triggered by `throw e`.
+        markPaymentFailedInNewTransaction(payment.getPaymentId().toString());
+      } else {
+        // Rollback CAS lost the race, meaning the order is NOT in CONFIRMING
+        // anymore. The most common cause is a post-saga CONFIRMING -> PAID CAS
+        // that already committed on Spanner but the client saw a network
+        // timeout: the saga has actually succeeded, inventory is confirmed,
+        // and the order is PAID. Marking the payment FAILED here would be
+        // wrong — the money was taken and the user has their reservation.
+        //
+        // Instead, let the outer @Transactional roll back. The in-memory
+        // SUCCEEDED write on `payment` is discarded with the rollback and
+        // the row on disk stays PROCESSING. PaymentReconciliationJob sweeps
+        // PROCESSING payments, walks the order state, and promotes the row
+        // to SUCCEEDED when it sees the order is PAID. For any other
+        // unexpected terminal state (CANCELLED, REFUNDED) the reconciliation
+        // job promotes the payment to FAILED the same way.
         log.error(
-            "Failed to roll back order {} from CONFIRMING to PAYMENT_PENDING after saga failure",
+            "Rollback CAS failed for order {} after saga failure; leaving payment in PROCESSING for PaymentReconciliationJob to repair",
             payment.getOrderId());
       }
-      // The outer @Transactional rolls back on `throw e`, so we cannot
-      // persist the FAILED status here — it would be discarded with the
-      // rest of the JPA transaction. Commit it independently in a new
-      // transaction so the failure is durable across the rollback.
-      markPaymentFailedInNewTransaction(payment.getPaymentId().toString());
       throw e;
     }
 
