@@ -74,8 +74,7 @@ class PaymentConfirmationSagaTest {
   @BeforeEach
   void setUp() {
     reset(inventoryService);
-    Tenant tenant =
-        tenantRepository.save(new Tenant("Saga Op", "saga-op-" + UUID.randomUUID()));
+    Tenant tenant = tenantRepository.save(new Tenant("Saga Op", "saga-op-" + UUID.randomUUID()));
     Venue venue =
         venueRepository.save(new Venue(tenant.getId(), "Saga Venue", "Tokyo", 35.6, 139.7));
     Category category =
@@ -141,7 +140,8 @@ class PaymentConfirmationSagaTest {
   }
 
   private Payment makeFakePayment() {
-    Payment p = new Payment("order-x", userId, new BigDecimal("1000"), "JPY", "idem-" + UUID.randomUUID());
+    Payment p =
+        new Payment("order-x", userId, new BigDecimal("1000"), "JPY", "idem-" + UUID.randomUUID());
     try {
       Field f = Payment.class.getDeclaredField("paymentId");
       f.setAccessible(true);
@@ -168,8 +168,7 @@ class PaymentConfirmationSagaTest {
     List<PaymentConfirmationStep> steps =
         stepRepository.findByPaymentId(payment.getPaymentId().toString());
     assertThat(steps).hasSize(2);
-    assertThat(steps)
-        .allMatch(s -> s.status() == PaymentConfirmationStepStatus.CONFIRMED);
+    assertThat(steps).allMatch(s -> s.status() == PaymentConfirmationStepStatus.CONFIRMED);
     assertThat(readReserved(slotIdA)).isEqualTo(1);
     assertThat(readReserved(slotIdB)).isEqualTo(2);
   }
@@ -201,8 +200,7 @@ class PaymentConfirmationSagaTest {
     List<PaymentConfirmationStep> steps =
         stepRepository.findByPaymentId(payment.getPaymentId().toString());
     assertThat(steps).hasSize(2);
-    assertThat(steps)
-        .allMatch(s -> s.status() == PaymentConfirmationStepStatus.COMPENSATED);
+    assertThat(steps).allMatch(s -> s.status() == PaymentConfirmationStepStatus.COMPENSATED);
   }
 
   @Test
@@ -245,8 +243,7 @@ class PaymentConfirmationSagaTest {
 
     // Step must now be CONFIRMED.
     Statement stmt =
-        Statement.newBuilder(
-                "SELECT status FROM payment_confirmation_steps WHERE step_id = @id")
+        Statement.newBuilder("SELECT status FROM payment_confirmation_steps WHERE step_id = @id")
             .bind("id")
             .to(stepId)
             .build();

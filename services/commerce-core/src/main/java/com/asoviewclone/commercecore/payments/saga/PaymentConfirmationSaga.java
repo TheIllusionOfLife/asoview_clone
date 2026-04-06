@@ -81,14 +81,10 @@ public class PaymentConfirmationSaga {
         for (PaymentConfirmationStep done : confirmed) {
           try {
             inventorySlotRepository.releaseConfirmedHold(done.slotId(), done.quantity());
-            stepRepository.updateStatus(
-                done.stepId(), PaymentConfirmationStepStatus.COMPENSATED);
+            stepRepository.updateStatus(done.stepId(), PaymentConfirmationStepStatus.COMPENSATED);
           } catch (Exception compEx) {
             log.error(
-                "Compensation failed for step {} slot {}",
-                done.stepId(),
-                done.slotId(),
-                compEx);
+                "Compensation failed for step {} slot {}", done.stepId(), done.slotId(), compEx);
           }
         }
         stepRepository.updateStatus(step.stepId(), PaymentConfirmationStepStatus.COMPENSATED);
