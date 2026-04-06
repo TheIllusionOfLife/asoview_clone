@@ -150,6 +150,13 @@ public class InventorySlotRepository {
             });
   }
 
+  /**
+   * Decrements {@code reserved_count} on a slot whose hold has already been confirmed (i.e. the
+   * hold row was deleted and the count incremented). Used by saga compensation to roll back a
+   * previously-confirmed step. Throws {@link ConflictException} if {@code quantity} exceeds the
+   * current {@code reserved_count}, surfacing duplicate or out-of-order compensation rather than
+   * silently clamping to zero (which would erase an unrelated reservation).
+   */
   public void releaseConfirmedHold(String slotId, long quantity) {
     databaseClient
         .readWriteTransaction()
