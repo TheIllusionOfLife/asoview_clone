@@ -6,6 +6,7 @@ import com.google.cloud.spring.autoconfigure.spanner.SpannerRepositoriesAutoConf
 import com.google.cloud.spring.autoconfigure.spanner.SpannerTransactionManagerAutoConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.retry.annotation.EnableRetry;
 
 // Exclude GCP auto-configs that fail without credentials or are incompatible:
 // - Spanner: Spring Cloud GCP 5.10.0 / Boot 3.4.4 TransactionManagerCustomizers issue
@@ -19,6 +20,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
       SpannerTransactionManagerAutoConfiguration.class,
       GcpFirestoreAutoConfiguration.class
     })
+@EnableRetry
 public class Application {
 
   public static void main(String[] args) {

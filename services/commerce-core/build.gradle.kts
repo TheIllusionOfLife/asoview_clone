@@ -34,6 +34,10 @@ dependencies {
     // Redis
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
 
+    // Spring Retry (for @Retryable on transactional event listeners)
+    implementation(libs.spring.retry)
+    implementation("org.springframework:spring-aspects")
+
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")

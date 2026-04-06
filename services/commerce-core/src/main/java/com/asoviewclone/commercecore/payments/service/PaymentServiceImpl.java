@@ -5,6 +5,7 @@ import com.asoviewclone.commercecore.orders.model.Order;
 import com.asoviewclone.commercecore.orders.model.OrderItem;
 import com.asoviewclone.commercecore.orders.model.OrderStatus;
 import com.asoviewclone.commercecore.orders.repository.OrderRepository;
+import com.asoviewclone.commercecore.payments.event.PaymentCreatedEvent;
 import com.asoviewclone.commercecore.payments.model.Payment;
 import com.asoviewclone.commercecore.payments.model.PaymentStatus;
 import com.asoviewclone.commercecore.payments.repository.PaymentRepository;
@@ -15,6 +16,7 @@ import java.math.BigDecimal;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,18 +30,21 @@ public class PaymentServiceImpl implements PaymentService {
   private final InventoryService inventoryService;
   private final PaymentGateway paymentGateway;
   private final EntitlementCreator entitlementCreator;
+  private final ApplicationEventPublisher eventPublisher;
 
   public PaymentServiceImpl(
       PaymentRepository paymentRepository,
       OrderRepository orderRepository,
       InventoryService inventoryService,
       PaymentGateway paymentGateway,
-      EntitlementCreator entitlementCreator) {
+      EntitlementCreator entitlementCreator,
+      ApplicationEventPublisher eventPublisher) {
     this.paymentRepository = paymentRepository;
     this.orderRepository = orderRepository;
     this.inventoryService = inventoryService;
     this.paymentGateway = paymentGateway;
     this.entitlementCreator = entitlementCreator;
+    this.eventPublisher = eventPublisher;
   }
 
   @Override
@@ -84,14 +89,11 @@ public class PaymentServiceImpl implements PaymentService {
     payment.setProviderPaymentId(result.providerPaymentId());
     payment.setStatus(PaymentStatus.PROCESSING);
 
-    // Save payment to JPA (Cloud SQL) first, then update order in Spanner.
-    // Cross-store tradeoff: if Spanner update fails after JPA commit, order stays
-    // PENDING with a PROCESSING payment. The idempotency check will return the
-    // existing payment on retry, but the order won't advance to PAYMENT_PENDING.
-    // confirmPayment will still work (it reads order by ID, not by status).
-    // Phase 2 should introduce @TransactionalEventListener or outbox pattern.
+    // Save payment in the JPA transaction; the order status is advanced by an
+    // AFTER_COMMIT transactional event listener with retry. This keeps the
+    // cross-store write off the critical path and recoverable on transient failure.
     Payment saved = paymentRepository.save(payment);
-    orderRepository.updateStatus(orderId, OrderStatus.PAYMENT_PENDING);
+    eventPublisher.publishEvent(new PaymentCreatedEvent(orderId));
 
     return saved;
   }

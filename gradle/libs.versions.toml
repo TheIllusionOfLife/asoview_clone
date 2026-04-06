@@ -9,6 +9,7 @@ protobuf-plugin = "0.9.4"
 flyway = "11.4.0"
 testcontainers = "1.21.4"
 firebase-admin = "9.4.3"
+spring-retry = "2.0.11"
 spotless = "8.4.0"
 checkstyle = "10.23.1"
 
@@ -40,6 +41,9 @@ postgresql = { module = "org.postgresql:postgresql" }
 
 # Firebase
 firebase-admin = { module = "com.google.firebase:firebase-admin", version.ref = "firebase-admin" }
+
+# Spring Retry (used by transactional event listener retries)
+spring-retry = { module = "org.springframework.retry:spring-retry", version.ref = "spring-retry" }
 
 # Testcontainers
 testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }
