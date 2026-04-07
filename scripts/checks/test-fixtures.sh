@@ -46,16 +46,34 @@ for check in "${CHECKS[@]}"; do
     EXIT=1
   fi
 
-  printf '== %-30s ' "$check (broken)"
-  set +e
-  broken_out="$(FIXTURES="$fixture_root/broken" "$script" --fixtures 2>&1)"
-  broken_rc=$?
-  set -e
-  if [[ $broken_rc -ne 0 ]]; then
-    printf 'PASS\n'
-  else
-    printf 'FAIL (broken fixture should fail)\n'
-    printf '%s\n' "$broken_out" | sed 's/^/    /'
+  # Run the check against each broken fixture file INDIVIDUALLY so that
+  # a gap covered by one fixture cannot mask a regression in another.
+  # (Devin PR #23 finding: a negative-lookbehind silently disabled the
+  # variable-form pass but the meta-test still reported PASS because a
+  # separate inline fixture in the same dir kept the exit code
+  # non-zero.)
+  any_broken_pass=0
+  for bf in "$fixture_root/broken/"*; do
+    [[ -e "$bf" ]] || continue
+    solo_dir="$(mktemp -d)"
+    cp "$bf" "$solo_dir/"
+    printf '== %-30s ' "$check (broken:$(basename "$bf"))"
+    set +e
+    out="$(FIXTURES="$solo_dir" "$script" --fixtures 2>&1)"
+    rc=$?
+    set -e
+    rm -rf "$solo_dir"
+    if [[ $rc -ne 0 ]]; then
+      printf 'PASS\n'
+    else
+      printf 'FAIL (this specific broken fixture did not trigger)\n'
+      printf '%s\n' "$out" | sed 's/^/    /'
+      EXIT=1
+      any_broken_pass=1
+    fi
+  done
+  if [[ $any_broken_pass -eq 0 && -z "$(ls -A "$fixture_root/broken" 2>/dev/null)" ]]; then
+    printf '== %-30s FAIL (no broken fixtures)\n' "$check (broken)"
     EXIT=1
   fi
 done

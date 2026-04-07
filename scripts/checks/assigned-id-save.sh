@@ -111,11 +111,19 @@ for root in "${SCAN_ROOTS[@]}"; do
     fi
     for v in "${local_vars[@]}"; do
       # Deny-list: .save(v)  — but allow .saveAndFlush(v).
+      # Ripgrep 13.x (shipped by Ubuntu 22.04 apt) does not support the
+      # negative-lookbehind syntax `(?<!saveAndFlush)` without PCRE2, and
+      # the regex error is silently swallowed by `|| true`, disabling the
+      # entire variable-form pass (Devin PR #23 finding). Instead match
+      # the simpler pattern and post-filter out saveAndFlush lines.
       while IFS= read -r line; do
         [[ -z "$line" ]] && continue
+        if echo "$line" | rg -q '\.saveAndFlush\('; then
+          continue
+        fi
         VIOLATIONS+="$line"$'\n'
       done < <(
-        rg -n --no-heading --no-ignore "(?<!saveAndFlush)\\.save\\(\\s*${v}\\s*\\)" "$f" 2>/dev/null || true
+        rg -n --no-heading --no-ignore "\\.save\\(\\s*${v}\\s*\\)" "$f" 2>/dev/null || true
       )
     done
   done < <(
