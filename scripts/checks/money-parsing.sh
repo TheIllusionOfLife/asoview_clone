@@ -38,7 +38,15 @@ while IFS= read -r line; do
   fi
   VIOLATIONS+="$line"$'\n'
 done < <(
-  rg -n --no-heading -g '*{cart,price,payment,order,points,wallet,subtotal,amount}*.{ts,tsx}' \
+  rg -n --no-heading \
+    -g '*cart*.ts' -g '*cart*.tsx' \
+    -g '*price*.ts' -g '*price*.tsx' \
+    -g '*payment*.ts' -g '*payment*.tsx' \
+    -g '*order*.ts' -g '*order*.tsx' \
+    -g '*points*.ts' -g '*points*.tsx' \
+    -g '*wallet*.ts' -g '*wallet*.tsx' \
+    -g '*subtotal*.ts' -g '*subtotal*.tsx' \
+    -g '*amount*.ts' -g '*amount*.tsx' \
     '(parseFloat\(|Number\()' "$SCAN_ROOT" 2>/dev/null || true
 )
 

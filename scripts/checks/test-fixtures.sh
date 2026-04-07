@@ -34,19 +34,29 @@ for check in "${CHECKS[@]}"; do
   fi
 
   printf '== %-30s ' "$check (clean)"
-  if FIXTURES="$fixture_root/clean" "$script" --fixtures >/dev/null 2>&1; then
+  set +e
+  clean_out="$(FIXTURES="$fixture_root/clean" "$script" --fixtures 2>&1)"
+  clean_rc=$?
+  set -e
+  if [[ $clean_rc -eq 0 ]]; then
     printf 'PASS\n'
   else
     printf 'FAIL (clean fixture should pass)\n'
+    printf '%s\n' "$clean_out" | sed 's/^/    /'
     EXIT=1
   fi
 
   printf '== %-30s ' "$check (broken)"
-  if FIXTURES="$fixture_root/broken" "$script" --fixtures >/dev/null 2>&1; then
-    printf 'FAIL (broken fixture should fail)\n'
-    EXIT=1
-  else
+  set +e
+  broken_out="$(FIXTURES="$fixture_root/broken" "$script" --fixtures 2>&1)"
+  broken_rc=$?
+  set -e
+  if [[ $broken_rc -ne 0 ]]; then
     printf 'PASS\n'
+  else
+    printf 'FAIL (broken fixture should fail)\n'
+    printf '%s\n' "$broken_out" | sed 's/^/    /'
+    EXIT=1
   fi
 done
 
