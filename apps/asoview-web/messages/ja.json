@@ -59,5 +59,18 @@
     "submit": "投稿",
     "helpful": "参考になった",
     "empty": "まだレビューはありません。"
+  },
+  "wallet": {
+    "apple": {
+      "add": "Apple Wallet に追加",
+      "downloading": "ダウンロード中..."
+    },
+    "google": {
+      "add": "Google ウォレットに追加",
+      "loading": "読み込み中..."
+    },
+    "unavailableFrom": "{date} から利用可能",
+    "expired": "期限切れ",
+    "error": "ウォレットに追加できませんでした。"
   }
 }

@@ -67,6 +67,16 @@ export function setIdTokenGetter(getter: IdTokenGetter): void {
   idTokenGetter = getter;
 }
 
+/**
+ * Returns the current id token (or null) using the same getter the JSON
+ * api uses. Exposed so helpers that must call `fetch` directly (e.g. the
+ * binary .pkpass download in `wallet.ts`) attach `Authorization` without
+ * registering a second token getter.
+ */
+export function getCurrentIdToken(forceRefresh?: boolean): Promise<string | null> {
+  return idTokenGetter(forceRefresh).catch(() => null);
+}
+
 function baseUrl(): string {
   const u = process.env.NEXT_PUBLIC_API_BASE_URL;
   if (!u) {

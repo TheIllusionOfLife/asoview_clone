@@ -1,5 +1,8 @@
 "use client";
 
+import { AppleWalletButton } from "@/components/wallet/AppleWalletButton";
+import { GoogleWalletButton } from "@/components/wallet/GoogleWalletButton";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 type TicketView = {
@@ -41,6 +44,7 @@ function classifyValidity(now: number, validFrom: string | null, validUntil: str
 }
 
 export function TicketCard({ ticket }: { ticket: TicketView }) {
+  const t = useTranslations("wallet");
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>(() =>
     classifyValidity(Date.now(), ticket.validFrom, ticket.validUntil),
@@ -114,6 +118,32 @@ export function TicketCard({ ticket }: { ticket: TicketView }) {
           )}
         </div>
       </div>
+      {phase !== "expired" && (
+        <div className="mt-4 flex flex-wrap gap-3">
+          <AppleWalletButton
+            ticketId={ticket.ticketPassId}
+            phase={phase}
+            validFromLabel={formatTokyo(ticket.validFrom)}
+            labels={{
+              add: t("apple.add"),
+              unavailableFrom: t("unavailableFrom"),
+              downloading: t("apple.downloading"),
+              error: t("error"),
+            }}
+          />
+          <GoogleWalletButton
+            ticketId={ticket.ticketPassId}
+            phase={phase}
+            validFromLabel={formatTokyo(ticket.validFrom)}
+            labels={{
+              add: t("google.add"),
+              unavailableFrom: t("unavailableFrom"),
+              loading: t("google.loading"),
+              error: t("error"),
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

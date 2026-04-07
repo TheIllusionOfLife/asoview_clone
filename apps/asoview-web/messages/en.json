@@ -59,5 +59,18 @@
     "submit": "Submit",
     "helpful": "Helpful",
     "empty": "No reviews yet."
+  },
+  "wallet": {
+    "apple": {
+      "add": "Add to Apple Wallet",
+      "downloading": "Downloading..."
+    },
+    "google": {
+      "add": "Add to Google Wallet",
+      "loading": "Loading..."
+    },
+    "unavailableFrom": "Available from {date}",
+    "expired": "Expired",
+    "error": "Could not add to wallet. Please try again."
   }
 }
