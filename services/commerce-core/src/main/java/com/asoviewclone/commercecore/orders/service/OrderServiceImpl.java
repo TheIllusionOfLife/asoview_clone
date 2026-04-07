@@ -4,10 +4,12 @@ import com.asoviewclone.commercecore.catalog.model.ProductVariant;
 import com.asoviewclone.commercecore.catalog.repository.ProductVariantRepository;
 import com.asoviewclone.commercecore.inventory.model.InventoryHold;
 import com.asoviewclone.commercecore.inventory.service.InventoryService;
+import com.asoviewclone.commercecore.orders.event.OrderCancelledEvent;
 import com.asoviewclone.commercecore.orders.model.Order;
 import com.asoviewclone.commercecore.orders.model.OrderItem;
 import com.asoviewclone.commercecore.orders.model.OrderStatus;
 import com.asoviewclone.commercecore.orders.repository.OrderRepository;
+import com.asoviewclone.commercecore.points.discount.OrderDiscountService;
 import com.asoviewclone.common.error.ConflictException;
 import com.asoviewclone.common.error.NotFoundException;
 import com.asoviewclone.common.error.ValidationException;
@@ -17,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -25,19 +28,25 @@ public class OrderServiceImpl implements OrderService {
   private final OrderRepository orderRepository;
   private final InventoryService inventoryService;
   private final ProductVariantRepository productVariantRepository;
+  private final OrderDiscountService orderDiscountService;
+  private final ApplicationEventPublisher eventPublisher;
 
   public OrderServiceImpl(
       OrderRepository orderRepository,
       InventoryService inventoryService,
-      ProductVariantRepository productVariantRepository) {
+      ProductVariantRepository productVariantRepository,
+      OrderDiscountService orderDiscountService,
+      ApplicationEventPublisher eventPublisher) {
     this.orderRepository = orderRepository;
     this.inventoryService = inventoryService;
     this.productVariantRepository = productVariantRepository;
+    this.orderDiscountService = orderDiscountService;
+    this.eventPublisher = eventPublisher;
   }
 
   @Override
   public Order createOrder(
-      String userId, String idempotencyKey, List<CreateOrderItemRequest> items) {
+      String userId, String idempotencyKey, List<CreateOrderItemRequest> items, long pointsToUse) {
     if (items == null || items.isEmpty()) {
       throw new ValidationException("Order must have at least one item");
     }
@@ -108,8 +117,23 @@ public class OrderServiceImpl implements OrderService {
                 null));
       }
 
-      return orderRepository.save(
-          userId, total.toPlainString(), currency, idempotencyKey, orderItems);
+      Order saved =
+          orderRepository.save(userId, total.toPlainString(), currency, idempotencyKey, orderItems);
+      if (pointsToUse > 0) {
+        try {
+          orderDiscountService.applyPointsBurnDiscount(
+              saved.orderId(), UUID.fromString(userId), pointsToUse, total);
+        } catch (RuntimeException ex) {
+          for (InventoryHold hold : holds) {
+            try {
+              inventoryService.releaseHold(hold.holdId());
+            } catch (Exception ignored) {
+            }
+          }
+          throw ex;
+        }
+      }
+      return saved;
     } catch (SpannerException e) {
       // Handle idempotency race: concurrent insert with same idempotency key
       if (e.getErrorCode() == com.google.cloud.spanner.ErrorCode.ALREADY_EXISTS) {
@@ -185,5 +209,10 @@ public class OrderServiceImpl implements OrderService {
         }
       }
     }
+
+    // Publish OrderCancelledEvent so points-refund and other side effects can run
+    // AFTER_COMMIT. Spanner CAS is already durable, so listeners do not need the
+    // local transaction; they subscribe via @TransactionalEventListener(AFTER_COMMIT).
+    eventPublisher.publishEvent(new OrderCancelledEvent(orderId, order.userId()));
   }
 }

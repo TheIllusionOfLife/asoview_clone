@@ -51,7 +51,9 @@ public class OrderController {
         request.items().stream()
             .map(i -> new CreateOrderItemRequest(i.productVariantId(), i.slotId(), i.quantity()))
             .toList();
-    Order order = orderService.createOrder(user.userId().toString(), idempotencyKey, items);
+    long pointsToUse = request.pointsToUse() != null ? Math.max(0, request.pointsToUse()) : 0L;
+    Order order =
+        orderService.createOrder(user.userId().toString(), idempotencyKey, items, pointsToUse);
     return OrderResponse.from(order);
   }
 
