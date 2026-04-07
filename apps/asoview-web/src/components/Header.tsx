@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CartBadge } from "./CartBadge";
 
 export function Header() {
   return (
@@ -11,8 +12,9 @@ export function Header() {
           <Link href="/" className="hover:text-[var(--color-primary)]">
             ホーム
           </Link>
-          <Link href="/cart" className="hover:text-[var(--color-primary)]">
+          <Link href="/cart" className="hover:text-[var(--color-primary)] inline-flex items-center">
             カート
+            <CartBadge />
           </Link>
           <Link href="/me/orders" className="hover:text-[var(--color-primary)]">
             予約履歴

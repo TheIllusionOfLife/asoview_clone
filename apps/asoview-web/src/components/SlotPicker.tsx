@@ -22,6 +22,7 @@ import type {
   OrderResponse,
   ProductResponse,
 } from "@/lib/types";
+import { useCart } from "@/lib/useCart";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -57,6 +58,8 @@ function shortTime(t: string): string {
 export function SlotPicker({ product }: { product: ProductResponse }) {
   const router = useRouter();
   const { user, ready } = useAuth();
+  const { add: addToCart } = useCart();
+  const [addedToCart, setAddedToCart] = useState(false);
   const [windowStart, setWindowStart] = useState<Date>(() => {
     const d = new Date();
     d.setUTCHours(0, 0, 0, 0);
@@ -179,6 +182,23 @@ export function SlotPicker({ product }: { product: ProductResponse }) {
     }
   }, [product.id, quantity, ready, user, router, selected]);
 
+  const onAddToCart = useCallback(() => {
+    if (!selected) return;
+    const variant = product.variants.find((v) => v.id === selected.productVariantId);
+    addToCart({
+      productId: product.id,
+      productVariantId: selected.productVariantId,
+      slotId: selected.slotId,
+      slotStartAt: `${selected.date}T${selected.startTime}`,
+      slotEndAt: `${selected.date}T${selected.endTime}`,
+      quantity,
+      unitPrice: variant?.unitPrice ?? "0",
+      productSnapshot: { name: product.name },
+    });
+    setAddedToCart(true);
+    window.setTimeout(() => setAddedToCart(false), 2000);
+  }, [addToCart, product, quantity, selected]);
+
   return (
     <section
       aria-labelledby="slot-picker-heading"
@@ -298,11 +318,19 @@ export function SlotPicker({ product }: { product: ProductResponse }) {
         </label>
         <button
           type="button"
+          onClick={onAddToCart}
+          disabled={!selected}
+          className="rounded-[var(--radius-md)] border border-[var(--color-primary)] px-5 py-2.5 text-sm font-semibold text-[var(--color-primary)] hover:bg-[var(--color-primary)]/10 focus-visible:outline-2 focus-visible:outline-[var(--color-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {addedToCart ? "追加しました" : "カートに追加"}
+        </button>
+        <button
+          type="button"
           onClick={onBook}
           disabled={!selected || submitting || !ready}
           className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-5 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] focus-visible:outline-2 focus-visible:outline-[var(--color-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {submitting ? "予約中…" : "予約する"}
+          {submitting ? "予約中…" : "今すぐ予約"}
         </button>
       </div>
 
