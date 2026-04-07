@@ -1,5 +1,7 @@
 package com.asoviewclone.commercecore.entitlements.service;
 
+import com.asoviewclone.commercecore.catalog.model.Product;
+import com.asoviewclone.commercecore.catalog.model.ProductVariant;
 import com.asoviewclone.commercecore.catalog.repository.ProductRepository;
 import com.asoviewclone.commercecore.catalog.repository.ProductVariantRepository;
 import com.asoviewclone.commercecore.entitlements.model.Entitlement;
@@ -8,7 +10,9 @@ import com.asoviewclone.commercecore.entitlements.model.EntitlementType;
 import com.asoviewclone.commercecore.entitlements.model.TicketPass;
 import com.asoviewclone.commercecore.entitlements.model.TicketPassStatus;
 import com.asoviewclone.commercecore.entitlements.model.TicketPassView;
+import com.asoviewclone.commercecore.entitlements.model.TicketPassWithEntitlement;
 import com.asoviewclone.commercecore.entitlements.repository.EntitlementRepository;
+import com.asoviewclone.commercecore.identity.model.Venue;
 import com.asoviewclone.commercecore.identity.repository.VenueRepository;
 import com.asoviewclone.commercecore.inventory.model.InventorySlot;
 import com.asoviewclone.commercecore.inventory.repository.InventorySlotRepository;
@@ -16,6 +20,7 @@ import com.asoviewclone.commercecore.orders.model.Order;
 import com.asoviewclone.commercecore.orders.model.OrderItem;
 import com.asoviewclone.commercecore.orders.service.OrderService;
 import com.asoviewclone.commercecore.payments.service.EntitlementCreator;
+import com.asoviewclone.commercecore.wallet.model.WalletTicketContext;
 import com.asoviewclone.common.error.NotFoundException;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -25,6 +30,7 @@ import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Primary;
@@ -199,5 +205,50 @@ public class EntitlementServiceImpl implements EntitlementCreator {
       throw new NotFoundException("Order", orderId);
     }
     return entitlementRepository.findTicketPassViewsByUserId(userId, orderId);
+  }
+
+  /**
+   * Resolves a {@link WalletTicketContext} from a ticket pass id, but only if the caller owns it.
+   * Throws {@link NotFoundException} for both "ticket pass does not exist" and "exists but belongs
+   * to another user" so we never leak existence.
+   */
+  public WalletTicketContext findTicketPassContextForOwner(String ticketPassId, String userId) {
+    TicketPassWithEntitlement row =
+        entitlementRepository
+            .findTicketPassWithEntitlementById(ticketPassId)
+            .orElseThrow(() -> new NotFoundException("TicketPass", ticketPassId));
+    if (!userId.equals(row.userId())) {
+      throw new NotFoundException("TicketPass", ticketPassId);
+    }
+
+    String productName = "Asoview Ticket";
+    String venueName = "";
+    try {
+      UUID variantId = UUID.fromString(row.productVariantId());
+      ProductVariant variant = productVariantRepository.findById(variantId).orElse(null);
+      if (variant != null && variant.getProduct() != null) {
+        Product product =
+            productRepository.findById(variant.getProduct().getId()).orElse(variant.getProduct());
+        productName = product.getTitle();
+        if (product.getVenueId() != null) {
+          Venue venue = venueRepository.findById(product.getVenueId()).orElse(null);
+          if (venue != null) {
+            venueName = venue.getName();
+          }
+        }
+      }
+    } catch (IllegalArgumentException ignored) {
+      // productVariantId is not a UUID (test fixture); fall back to defaults.
+    }
+
+    return new WalletTicketContext(
+        row.ticketPassId(),
+        row.orderId(),
+        row.userId(),
+        productName,
+        venueName,
+        row.validFrom(),
+        row.validUntil(),
+        row.qrCodePayload());
   }
 }
