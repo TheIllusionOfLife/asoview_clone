@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.asoviewclone.commercecore.catalog.model.Product;
 import com.asoviewclone.commercecore.catalog.model.ProductStatus;
+import com.asoviewclone.commercecore.catalog.repository.ProductReviewAggregateRepository;
 import com.asoviewclone.commercecore.catalog.service.CatalogService;
 import com.asoviewclone.commercecore.identity.repository.TenantUserRepository;
 import com.asoviewclone.commercecore.identity.repository.UserRepository;
@@ -41,6 +42,7 @@ class ProductControllerAuthTest {
   @MockitoBean private FirebaseAuth firebaseAuth;
   @MockitoBean private UserRepository userRepository;
   @MockitoBean private TenantUserRepository tenantUserRepository;
+  @MockitoBean private ProductReviewAggregateRepository productReviewAggregateRepository;
 
   @Test
   void listProductsIsPublic() throws Exception {

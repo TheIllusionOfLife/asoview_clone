@@ -15,9 +15,17 @@ public record ProductResponse(
     String description,
     String imageUrl,
     String status,
-    List<VariantResponse> variants) {
+    List<VariantResponse> variants,
+    BigDecimal averageRating,
+    int reviewCount,
+    boolean isFavorited) {
 
   public static ProductResponse from(Product product) {
+    return from(product, null, 0, false);
+  }
+
+  public static ProductResponse from(
+      Product product, BigDecimal averageRating, int reviewCount, boolean isFavorited) {
     List<VariantResponse> variants =
         product.getVariants().stream().map(VariantResponse::from).toList();
     return new ProductResponse(
@@ -29,7 +37,10 @@ public record ProductResponse(
         product.getDescription(),
         product.getImageUrl(),
         product.getStatus().name(),
-        variants);
+        variants,
+        averageRating,
+        reviewCount,
+        isFavorited);
   }
 
   public record VariantResponse(
