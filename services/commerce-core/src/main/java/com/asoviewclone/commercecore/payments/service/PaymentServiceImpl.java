@@ -243,6 +243,26 @@ public class PaymentServiceImpl implements PaymentService {
           e);
     }
 
+    // Publish OrderPaidEvent so AFTER_COMMIT listeners (e.g. points earn-on-PAID) can
+    // run after the JPA transaction commits. The event is decoupled from the saga +
+    // entitlement creation: any listener exception will not roll back PAID state.
+    long subtotalJpy = 0L;
+    for (com.asoviewclone.commercecore.orders.model.OrderItem item : order.items()) {
+      try {
+        long unit = Long.parseLong(item.unitPrice());
+        subtotalJpy += unit * item.quantity();
+      } catch (NumberFormatException nfe) {
+        log.warn(
+            "Order {} item {} unit_price '{}' is not parseable as long; treating as 0 for points calc",
+            order.orderId(),
+            item.orderItemId(),
+            item.unitPrice());
+      }
+    }
+    eventPublisher.publishEvent(
+        new com.asoviewclone.commercecore.orders.event.OrderPaidEvent(
+            order.orderId(), order.userId(), subtotalJpy));
+
     return payment;
   }
 

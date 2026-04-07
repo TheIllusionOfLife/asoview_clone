@@ -40,6 +40,15 @@ dependencies {
     // Bucket4j (webhook rate limiting)
     implementation(libs.bucket4j.core)
 
+    // BouncyCastle (PKCS#7 detached signature for Apple Wallet .pkpass)
+    implementation(libs.bouncycastle.bcpkix)
+    implementation(libs.bouncycastle.bcprov)
+
+    // JJWT (Google Wallet RS256 JWT signing)
+    implementation(libs.jjwt.api)
+    runtimeOnly(libs.jjwt.impl)
+    runtimeOnly(libs.jjwt.jackson)
+
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")

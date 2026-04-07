@@ -1,5 +1,7 @@
 package com.asoviewclone.commercecore.entitlements.service;
 
+import com.asoviewclone.commercecore.catalog.repository.ProductRepository;
+import com.asoviewclone.commercecore.catalog.repository.ProductVariantRepository;
 import com.asoviewclone.commercecore.entitlements.model.Entitlement;
 import com.asoviewclone.commercecore.entitlements.model.EntitlementStatus;
 import com.asoviewclone.commercecore.entitlements.model.EntitlementType;
@@ -7,6 +9,7 @@ import com.asoviewclone.commercecore.entitlements.model.TicketPass;
 import com.asoviewclone.commercecore.entitlements.model.TicketPassStatus;
 import com.asoviewclone.commercecore.entitlements.model.TicketPassView;
 import com.asoviewclone.commercecore.entitlements.repository.EntitlementRepository;
+import com.asoviewclone.commercecore.identity.repository.VenueRepository;
 import com.asoviewclone.commercecore.inventory.model.InventorySlot;
 import com.asoviewclone.commercecore.inventory.repository.InventorySlotRepository;
 import com.asoviewclone.commercecore.orders.model.Order;
@@ -44,16 +47,25 @@ public class EntitlementServiceImpl implements EntitlementCreator {
   private final InventorySlotRepository inventorySlotRepository;
   private final QrCodeGenerator qrCodeGenerator;
   private final OrderService orderService;
+  private final ProductVariantRepository productVariantRepository;
+  private final ProductRepository productRepository;
+  private final VenueRepository venueRepository;
 
   public EntitlementServiceImpl(
       EntitlementRepository entitlementRepository,
       InventorySlotRepository inventorySlotRepository,
       QrCodeGenerator qrCodeGenerator,
-      OrderService orderService) {
+      OrderService orderService,
+      ProductVariantRepository productVariantRepository,
+      ProductRepository productRepository,
+      VenueRepository venueRepository) {
     this.entitlementRepository = entitlementRepository;
     this.inventorySlotRepository = inventorySlotRepository;
     this.qrCodeGenerator = qrCodeGenerator;
     this.orderService = orderService;
+    this.productVariantRepository = productVariantRepository;
+    this.productRepository = productRepository;
+    this.venueRepository = venueRepository;
   }
 
   @Override
