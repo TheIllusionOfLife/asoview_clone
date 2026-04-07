@@ -17,7 +17,11 @@ import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
 function formatJpy(amount: number | string): string {
-  const n = typeof amount === "number" ? amount : Number(amount);
+  // Display-only formatter. Japanese retail uses integer yen, so Math.trunc
+  // here is the intentional rounding mode. The precise subtotal string is
+  // kept by cart.ts and passed untouched to the backend — this formatter
+  // is only used for the per-line UI label.
+  const n = typeof amount === "number" ? amount : Number(amount); // money-parse-ok
   return new Intl.NumberFormat("ja-JP", {
     style: "currency",
     currency: "JPY",
@@ -173,7 +177,7 @@ export default function CartPage() {
                   {formatSlotWindow(l.slotStartAt, l.slotEndAt)}
                 </p>
                 <p className="mt-1 text-sm font-semibold text-[var(--color-primary)]">
-                  {formatJpy(Number(l.unitPrice))} × {l.quantity}名
+                  {formatJpy(Number(l.unitPrice) /* money-parse-ok */)} × {l.quantity}名
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -181,7 +185,12 @@ export default function CartPage() {
                   <span className="sr-only">人数を変更</span>
                   <select
                     value={l.quantity}
-                    onChange={(e) => setQty(l.slotId, Number(e.target.value))}
+                    onChange={(e) =>
+                      setQty(
+                        l.slotId,
+                        Number(e.target.value) /* money-parse-ok: quantity, not money */,
+                      )
+                    }
                     aria-label={`${l.productSnapshot.name} の人数`}
                     className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]"
                   >

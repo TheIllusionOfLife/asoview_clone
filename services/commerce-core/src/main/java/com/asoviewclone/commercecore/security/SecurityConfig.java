@@ -67,4 +67,19 @@ public class SecurityConfig {
     registration.setEnabled(false);
     return registration;
   }
+
+  /**
+   * Same rationale as {@link #disableWebhookRateLimitAutoRegistration}: {@link FirebaseTokenFilter}
+   * is a {@code @Component} so Spring Boot would auto-register it into the global servlet pipeline,
+   * making it run twice for every request (once via this security chain's {@code addFilterBefore},
+   * once via the auto-registered servlet filter). Disable the auto-registration. (PR 3d.5 pitfall
+   * enforcement.)
+   */
+  @Bean
+  public FilterRegistrationBean<FirebaseTokenFilter> disableFirebaseTokenFilterAutoRegistration(
+      FirebaseTokenFilter filter) {
+    FilterRegistrationBean<FirebaseTokenFilter> registration = new FilterRegistrationBean<>(filter);
+    registration.setEnabled(false);
+    return registration;
+  }
 }

@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface OrderDiscountRepository extends JpaRepository<OrderDiscount, UUID> {
 
@@ -29,6 +30,7 @@ public interface OrderDiscountRepository extends JpaRepository<OrderDiscount, UU
    * findByOrderId-then-save TOCTOU pattern in {@code OrderDiscountService.applyPointsBurnDiscount}.
    * The {@code id} column is generated; the {@code order_id} is the unique key.
    */
+  @Transactional
   @Modifying(clearAutomatically = true, flushAutomatically = true)
   @Query(
       value =

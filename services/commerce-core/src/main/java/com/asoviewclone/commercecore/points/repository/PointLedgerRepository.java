@@ -7,10 +7,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface PointLedgerRepository extends JpaRepository<PointLedgerEntry, UUID> {
 
   boolean existsByReasonAndOrderId(PointReason reason, String orderId);
+
+  long countByReasonAndOrderId(PointReason reason, String orderId);
 
   /**
    * Finds the user_id of the {@code BURN_PURCHASE} ledger entry pinned to {@code orderId}, used by
@@ -34,6 +37,7 @@ public interface PointLedgerRepository extends JpaRepository<PointLedgerEntry, U
    * row, so a concurrent duplicate cannot land mid-transaction and force a doomed-tx compensation
    * path. (PR #21 review C6 follow-up.)
    */
+  @Transactional
   @Modifying(clearAutomatically = true, flushAutomatically = true)
   @Query(
       value =

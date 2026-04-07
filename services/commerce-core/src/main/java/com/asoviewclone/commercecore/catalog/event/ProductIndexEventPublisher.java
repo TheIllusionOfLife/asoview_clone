@@ -2,6 +2,7 @@ package com.asoviewclone.commercecore.catalog.event;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Thin wrapper around Spring's {@link ApplicationEventPublisher} that fires {@link
@@ -20,6 +21,10 @@ public class ProductIndexEventPublisher {
     this.publisher = publisher;
   }
 
+  // PR #21 rule: AFTER_COMMIT listeners need an enclosing transaction. Joins
+  // an existing tx (callers in CatalogServiceImpl are @Transactional) or
+  // opens an empty one if invoked standalone.
+  @Transactional
   public void publishUpsert(String productId) {
     publisher.publishEvent(new ProductUpsertedEvent(productId));
   }

@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface PaymentRepository extends JpaRepository<Payment, UUID> {
 
@@ -35,7 +36,8 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
    * reconciliation job to atomically promote PROCESSING payments to SUCCEEDED/FAILED without racing
    * with concurrent {@code confirmPayment} writes.
    */
-  @Modifying
+  @Transactional
+  @Modifying(clearAutomatically = true, flushAutomatically = true)
   @Query(
       "UPDATE Payment p SET p.status = :newStatus "
           + "WHERE p.paymentId = :paymentId AND p.status = :expected")

@@ -1,0 +1,6 @@
+# Routes that SSR-fetch from the gateway in Node (not the browser).
+# Playwright `page.route(...)` cannot intercept these — see Pitfall 15.
+# Format: one route pattern per line. Comments start with `#`.
+/
+/areas/[area]
+/products/[id]
