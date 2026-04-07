@@ -1,3 +1,5 @@
+import { AuthProvider } from "@/lib/auth";
+
 export const metadata = {
   title: "Asoview",
 };
@@ -9,7 +11,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ja">
-      <body>{children}</body>
+      <body>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }
