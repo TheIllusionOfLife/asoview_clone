@@ -3,9 +3,6 @@ package com.asoviewclone.searchservice.query.service;
 import com.asoviewclone.searchservice.query.dto.AutosuggestResponse;
 import com.asoviewclone.searchservice.query.dto.ProductSearchResponse;
 import com.asoviewclone.searchservice.query.model.SearchHit;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.json.JsonMapper;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,11 +13,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Builds an OpenSearch query DSL using the low-level REST client (the high-level client is in
- * maintenance mode and the request builder API is unstable across the 2.x line). We hand-build
- * the JSON via Jackson so the test fixtures are easy to read.
+ * maintenance mode and the request builder API is unstable across the 2.x line). We hand-build the
+ * JSON via Jackson so the test fixtures are easy to read.
  */
 @Service
 public class SearchQueryService {
@@ -97,8 +97,7 @@ public class SearchQueryService {
 
     var sortNode = mapper.createArrayNode();
     switch (sort == null ? "" : sort) {
-      case "price_asc" ->
-          sortNode.add(mapper.createObjectNode().set("minPrice", orderNode("asc")));
+      case "price_asc" -> sortNode.add(mapper.createObjectNode().set("minPrice", orderNode("asc")));
       case "price_desc" ->
           sortNode.add(mapper.createObjectNode().set("minPrice", orderNode("desc")));
       case "name_asc" ->
