@@ -34,7 +34,10 @@
         "status": { "type": "keyword" },
         "name": {
           "type": "text",
-          "analyzer": "ja_kuromoji_search"
+          "analyzer": "ja_kuromoji_search",
+          "fields": {
+            "keyword": { "type": "keyword", "ignore_above": 256 }
+          }
         },
         "description": {
           "type": "text",

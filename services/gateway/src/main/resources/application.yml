@@ -22,6 +22,10 @@ spring:
               - Idempotency-Key
             max-age: 3600
       routes:
+        - id: search-service
+          uri: ${SEARCH_SERVICE_URL:http://localhost:8082}
+          predicates:
+            - Path=/v1/search/**
         - id: commerce-core-public
           uri: ${COMMERCE_CORE_URI:http://localhost:8081}
           predicates:
