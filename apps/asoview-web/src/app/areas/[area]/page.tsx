@@ -86,7 +86,7 @@ export default async function AreaPage({ params, searchParams }: Props) {
         <nav aria-label="ページネーション" className="mt-10 flex items-center justify-center gap-3">
           {hasPrev ? (
             <Link
-              href={`/areas/${slug}?page=${pageNum - 1}`}
+              href={`/areas/${encodeURIComponent(slug)}?page=${pageNum - 1}`}
               className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-sm hover:border-[var(--color-primary)]"
             >
               ← 前へ
@@ -101,7 +101,7 @@ export default async function AreaPage({ params, searchParams }: Props) {
           </span>
           {hasNext ? (
             <Link
-              href={`/areas/${slug}?page=${pageNum + 1}`}
+              href={`/areas/${encodeURIComponent(slug)}?page=${pageNum + 1}`}
               className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-sm hover:border-[var(--color-primary)]"
             >
               次へ →

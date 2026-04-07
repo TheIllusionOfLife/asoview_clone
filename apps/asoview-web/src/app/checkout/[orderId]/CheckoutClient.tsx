@@ -367,6 +367,15 @@ function StripeFormLoader({
     onError: (msg: string) => void;
   }> | null>(null);
 
+  // Stabilize the onError callback reference so the lazy-load effect
+  // below does NOT re-run on every parent render. Without this, a
+  // stale-closure-avoidance keeps re-downloading Stripe SDK bundles
+  // across re-renders even though clientSecret hasn't changed.
+  const onErrorRef = useRef(onError);
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+
   useEffect(() => {
     let cancelled = false;
     if (!clientSecret) return;
@@ -380,7 +389,7 @@ function StripeFormLoader({
         if (cancelled) return;
         const pk = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
         if (!pk) {
-          onError("Stripe publishable key is not configured");
+          onErrorRef.current("Stripe publishable key is not configured");
           return;
         }
         const stripePromise = loadStripe(pk);
@@ -439,13 +448,13 @@ function StripeFormLoader({
         );
         setLazyForm(() => Wrapper);
       } catch (e) {
-        onError(e instanceof Error ? e.message : "Stripe SDK failed to load");
+        onErrorRef.current(e instanceof Error ? e.message : "Stripe SDK failed to load");
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [clientSecret, onError]);
+  }, [clientSecret]);
 
   if (!clientSecret) {
     return <p className="text-sm text-[var(--color-danger)]">決済情報を取得できませんでした。</p>;
@@ -490,7 +499,7 @@ function PayPayRedirectButton({
         // Persist a flag so a return to this page (post-PayPay) resumes
         // polling instead of re-rendering the redirect button.
         if (typeof sessionStorage !== "undefined") {
-          sessionStorage.setItem(`asoview:payment-pending:${orderId}`, "1");
+          sessionStorage.setItem(paymentPendingKey(orderId), "1");
         }
         onRedirect();
         window.location.assign(url);

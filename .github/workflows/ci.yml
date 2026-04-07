@@ -82,12 +82,17 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Install Playwright browsers
         run: cd apps/asoview-web && bunx playwright install --with-deps chromium
-      - name: Start backend stack (commerce-core + spanner + postgres + redis + auth emulator)
-        # docker-compose stack provides the funnel-happy backend. Specs that
-        # require it gate on ASOVIEW_E2E_BACKEND=1; the rest run via route
-        # interception. If the orchestrator wants the funnel-happy spec to
-        # run, set that env var here and add `firebase-auth-emulator` +
-        # `payments.gateway=fake` overrides to docker-compose.yml.
+      - name: Start infra containers (postgres + redis + spanner emulator + firebase auth emulator + opensearch)
+        # This step brings up ONLY the infra services defined in
+        # docker-compose.yml. The `commerce-core` Spring Boot app is NOT
+        # started here, so nothing listens on :8080 and the default
+        # NEXT_PUBLIC_API_BASE_URL=http://localhost:8080 is unreachable.
+        # That is intentional: every Playwright spec in this job uses
+        # `page.route` interception and never contacts a real backend.
+        # Backend-driven specs (funnel-happy.spec.ts, the charged part
+        # of idempotency.spec.ts) are gated on ASOVIEW_E2E_BACKEND=1 and
+        # will only run once a follow-up PR promotes FakePaymentGateway
+        # to main scope and wires commerce-core into this job.
         run: docker compose up -d
       - name: Build asoview-web
         run: cd apps/asoview-web && bun run build

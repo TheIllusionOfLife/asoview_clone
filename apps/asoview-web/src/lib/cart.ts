@@ -53,14 +53,39 @@ function defaultStorage(): Storage | null {
   return localStorage;
 }
 
+function isValidCartLine(value: unknown): value is CartLine {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.productId === "string" &&
+    typeof v.productVariantId === "string" &&
+    typeof v.slotId === "string" &&
+    typeof v.slotStartAt === "string" &&
+    typeof v.slotEndAt === "string" &&
+    typeof v.quantity === "number" &&
+    Number.isFinite(v.quantity) &&
+    v.quantity >= 1 &&
+    typeof v.unitPrice === "string" &&
+    !!v.productSnapshot &&
+    typeof (v.productSnapshot as Record<string, unknown>).name === "string"
+  );
+}
+
 export function readCart(uid: string | null, storage: Storage | null = defaultStorage()): Cart {
   if (!storage) return emptyCart();
   try {
     const raw = storage.getItem(cartKey(uid));
     if (!raw) return emptyCart();
-    const parsed = JSON.parse(raw) as Cart;
-    if (!parsed || !Array.isArray(parsed.lines)) return emptyCart();
-    return parsed;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") return emptyCart();
+    const lines = (parsed as { lines?: unknown }).lines;
+    if (!Array.isArray(lines)) return emptyCart();
+    // Filter out malformed lines rather than discarding the whole cart
+    // on first corruption. Malformed entries can appear after a manual
+    // localStorage edit, a cross-origin tampered copy, or a schema
+    // drift from a previous version.
+    const valid = lines.filter(isValidCartLine);
+    return { lines: valid };
   } catch {
     return emptyCart();
   }
@@ -193,11 +218,14 @@ export function subscribeCart(listener: () => void): () => void {
       // this, React's useSyncExternalStore sees the same cached object
       // reference, skips re-rendering, and cross-tab updates are
       // silently dropped. (Devin PR #22 finding.)
-      const uid = e.key.slice(STORAGE_PREFIX.length) || null;
+      //
+      // The snapshot cache keys the guest cart on the literal `null`,
+      // but the storage key is `asoview:cart:guest`. Strip the prefix
+      // and map "guest" (or empty) back to null so the cache entry we
+      // invalidate matches the one snapshotCart read from.
+      const suffix = e.key.slice(STORAGE_PREFIX.length);
+      const uid = suffix && suffix !== "guest" ? suffix : null;
       invalidateSnapshotCache(uid);
-      // Also invalidate the guest entry in case the event is for a
-      // user-keyed change but a guest view is still mounted.
-      invalidateSnapshotCache(null);
       listener();
     };
     window.addEventListener("storage", onStorage);
