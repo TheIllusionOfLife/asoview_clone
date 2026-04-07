@@ -7,8 +7,8 @@ export const revalidate = 60;
 
 async function loadAreas(): Promise<AreaResponse[]> {
   try {
-    const page = await serverGet<Page<AreaResponse>>("/v1/areas?size=24");
-    return page.content ?? [];
+    // /v1/areas returns a plain List<AreaResponse>, NOT a Page<T> envelope.
+    return await serverGet<AreaResponse[]>("/v1/areas");
   } catch {
     return [];
   }
@@ -47,7 +47,7 @@ export default async function HomePage() {
           </p>
         ) : (
           <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {areas.map((a) => (
+            {areas.slice(0, 24).map((a) => (
               <AreaCard key={a.id} area={a} />
             ))}
           </div>

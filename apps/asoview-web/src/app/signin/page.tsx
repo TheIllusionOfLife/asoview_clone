@@ -3,9 +3,9 @@
 import { useAuth } from "@/lib/auth";
 import { sanitizeNext } from "@/lib/redirect";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
-export default function SignInPage() {
+function SignInInner() {
   const router = useRouter();
   const params = useSearchParams();
   const next = sanitizeNext(params.get("next"));
@@ -40,5 +40,13 @@ export default function SignInPage() {
       </button>
       {error ? <p role="alert">{error}</p> : null}
     </main>
+  );
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={<main>Loading…</main>}>
+      <SignInInner />
+    </Suspense>
   );
 }
