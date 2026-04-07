@@ -40,6 +40,11 @@
       "priceDesc": "価格が高い順"
     }
   },
+  "favorites": {
+    "title": "お気に入り",
+    "empty": "お気に入りはまだありません。",
+    "remove": "削除"
+  },
   "reviews": {
     "title": "レビュー",
     "formTitle": "レビューを書く",

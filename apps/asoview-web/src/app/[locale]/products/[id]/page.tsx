@@ -1,4 +1,5 @@
 import { SlotPicker } from "@/components/SlotPicker";
+import { FavoriteToggle } from "@/components/favorites/FavoriteToggle";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
 import { ReviewList } from "@/components/reviews/ReviewList";
 import { Link } from "@/i18n/navigation";
@@ -63,7 +64,10 @@ export default async function ProductPage({ params }: Props) {
       <div className="mt-4 grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-8">
         <div>
           <div className="aspect-[4/3] rounded-[var(--radius-lg)] bg-gradient-to-br from-[var(--color-primary)]/20 to-[var(--color-accent)]/10" />
-          <h1 className="mt-5 font-display text-3xl font-bold">{product.name}</h1>
+          <div className="mt-5 flex items-start justify-between gap-3">
+            <h1 className="font-display text-3xl font-bold">{product.name}</h1>
+            <FavoriteToggle productId={product.id} />
+          </div>
           <p className="mt-2 text-base font-semibold text-[var(--color-primary)]">
             {formatJpy(minPrice)}
             <span className="text-sm text-[var(--color-ink-muted)] font-normal"> 〜 / 名</span>

@@ -1,5 +1,6 @@
 import { Link } from "@/i18n/navigation";
 import type { ProductResponse } from "@/lib/types";
+import { FavoriteToggle } from "./favorites/FavoriteToggle";
 
 function formatJpy(amount: string | undefined): string {
   if (!amount) return "—";
@@ -19,9 +20,12 @@ export function ProductCard({ product }: { product: ProductResponse }) {
   return (
     <Link
       href={`/products/${product.id}`}
-      className="group block rounded-[var(--radius-lg)] bg-[var(--color-surface)] border border-[var(--color-border)] overflow-hidden shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-shadow"
+      className="group relative block rounded-[var(--radius-lg)] bg-[var(--color-surface)] border border-[var(--color-border)] overflow-hidden shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-shadow"
     >
       <div className="aspect-[4/3] bg-gradient-to-br from-[var(--color-primary)]/15 to-[var(--color-accent)]/10" />
+      <div className="absolute top-2 right-2">
+        <FavoriteToggle productId={product.id} />
+      </div>
       <div className="p-4">
         <h3 className="font-display text-lg font-semibold line-clamp-2 group-hover:text-[var(--color-primary)]">
           {product.name}

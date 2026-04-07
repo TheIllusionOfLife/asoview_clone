@@ -40,6 +40,11 @@
       "priceDesc": "Price: high to low"
     }
   },
+  "favorites": {
+    "title": "Favorites",
+    "empty": "You have no favorites yet.",
+    "remove": "Remove"
+  },
   "reviews": {
     "title": "Reviews",
     "formTitle": "Write a review",

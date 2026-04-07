@@ -4,5 +4,6 @@
 # Paths carry the next-intl `[locale]` prefix since phase 3e commit 2.
 /[locale]
 /[locale]/areas/[area]
+/[locale]/me/favorites
 /[locale]/products/[id]
 /[locale]/search

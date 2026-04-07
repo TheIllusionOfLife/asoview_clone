@@ -19,6 +19,9 @@ export function Header() {
             カート
             <CartBadge />
           </Link>
+          <Link href="/me/favorites" className="hover:text-[var(--color-primary)]">
+            お気に入り
+          </Link>
           <Link href="/me/orders" className="hover:text-[var(--color-primary)]">
             予約履歴
           </Link>
