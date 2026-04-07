@@ -105,13 +105,22 @@ export function removeLine(cart: Cart, slotId: string): Cart {
   return { lines: cart.lines.filter((l) => l.slotId !== slotId) };
 }
 
-export function subtotal(cart: Cart): number {
-  let sum = 0;
+export function parseMinorUnits(s: string): number {
+  const m = /^(\d+)(?:\.(\d{1,2}))?$/.exec(s);
+  if (!m) return 0;
+  const yen = Number.parseInt(m[1], 10);
+  const sen = m[2] ? Number.parseInt(m[2].padEnd(2, "0"), 10) : 0;
+  return yen * 100 + sen;
+}
+
+export function subtotal(cart: Cart): string {
+  let totalMinor = 0;
   for (const l of cart.lines) {
-    const n = Number(l.unitPrice);
-    if (Number.isFinite(n)) sum += Math.trunc(n) * l.quantity;
+    totalMinor += parseMinorUnits(l.unitPrice) * l.quantity;
   }
-  return sum;
+  const yen = Math.trunc(totalMinor / 100);
+  const sen = totalMinor % 100;
+  return sen === 0 ? `${yen}.00` : `${yen}.${sen.toString().padStart(2, "0")}`;
 }
 
 /**

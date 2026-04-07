@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { clearIdempotencyKey, fingerprintKey, getOrCreateIdempotencyKey } from "../idempotency";
+import {
+  clearIdempotencyKey,
+  clearOrderFingerprint,
+  fingerprintKey,
+  getOrCreateIdempotencyKey,
+  getOrderFingerprint,
+  setOrderFingerprint,
+} from "../idempotency";
 
 function memoryStorage() {
   const data = new Map<string, string>();
@@ -56,5 +63,41 @@ describe("idempotency", () => {
     const a = getOrCreateIdempotencyKey(fp, null);
     const b = getOrCreateIdempotencyKey(fp, null);
     expect(a).not.toBe(b);
+  });
+});
+
+describe("order fingerprint mapping", () => {
+  let store: ReturnType<typeof memoryStorage>;
+  const fp = { productId: "p1", slotId: "s1", quantity: 2 };
+
+  beforeEach(() => {
+    store = memoryStorage();
+  });
+
+  it("round-trips a fingerprint by orderId", () => {
+    setOrderFingerprint("ord-1", fp, store);
+    expect(getOrderFingerprint("ord-1", store)).toEqual(fp);
+  });
+
+  it("returns null when no mapping exists", () => {
+    expect(getOrderFingerprint("missing", store)).toBeNull();
+  });
+
+  it("clears the mapping", () => {
+    setOrderFingerprint("ord-1", fp, store);
+    clearOrderFingerprint("ord-1", store);
+    expect(getOrderFingerprint("ord-1", store)).toBeNull();
+  });
+
+  it("returns null on malformed JSON", () => {
+    store.setItem("asoview:order-fp:ord-bad", "{nope");
+    expect(getOrderFingerprint("ord-bad", store)).toBeNull();
+  });
+
+  it("isolates by orderId", () => {
+    setOrderFingerprint("ord-1", fp, store);
+    setOrderFingerprint("ord-2", { ...fp, quantity: 5 }, store);
+    expect(getOrderFingerprint("ord-1", store)?.quantity).toBe(2);
+    expect(getOrderFingerprint("ord-2", store)?.quantity).toBe(5);
   });
 });

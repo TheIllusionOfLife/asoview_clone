@@ -9,19 +9,20 @@
 
 import { ApiError, NetworkError, SignInRedirect, SlotTakenError, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { clearIdempotencyKey, getOrCreateIdempotencyKey } from "@/lib/idempotency";
+import { clearIdempotencyKey, setOrderFingerprint } from "@/lib/idempotency";
 import type { CreateOrderRequest, OrderResponse } from "@/lib/types";
 import { useCart } from "@/lib/useCart";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
-function formatJpy(amount: number): string {
+function formatJpy(amount: number | string): string {
+  const n = typeof amount === "number" ? amount : Number(amount);
   return new Intl.NumberFormat("ja-JP", {
     style: "currency",
     currency: "JPY",
     maximumFractionDigits: 0,
-  }).format(Math.trunc(amount));
+  }).format(Number.isFinite(n) ? Math.trunc(n) : 0);
 }
 
 function formatSlotWindow(start: string, end: string): string {
@@ -76,12 +77,12 @@ export default function CartPage() {
     setSubmitting(true);
     try {
       const order = await api.post<OrderResponse>("/v1/orders", body, { idempotency: fp });
-      // Cart is "consumed" — reset key for the next checkout attempt and
-      // route to the per-order checkout page. We intentionally do NOT
-      // clear the cart locally yet: the order can still fail at payment
-      // time (Session D) and we want the lines to remain for a retry
-      // until the order reaches a terminal state.
-      clearIdempotencyKey(fp);
+      // Persist the (orderId → fingerprint) mapping so that CheckoutClient
+      // can clear the Idempotency-Key only when the order reaches a
+      // terminal state (PAID / CANCELLED / FAILED). Clearing here would
+      // let a back-navigation mint a fresh key on the same draft and
+      // create a duplicate order on the backend.
+      setOrderFingerprint(order.orderId, fp);
       router.push(`/checkout/${order.orderId}`);
     } catch (e: unknown) {
       setSubmitting(false);

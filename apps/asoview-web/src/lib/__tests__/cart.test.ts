@@ -76,11 +76,37 @@ describe("cart pure helpers", () => {
     expect(removeLine(c, "s1").lines[0]?.slotId).toBe("s2");
   });
 
-  it("subtotal sums quantity*unitPrice (truncated)", () => {
+  it("subtotal preserves fractional yen via minor-units accumulation", () => {
     let c = emptyCart();
     c = addLine(c, makeLine("s1", 2, "1500.00"));
     c = addLine(c, makeLine("s2", 1, "800.50"));
-    expect(subtotal(c)).toBe(2 * 1500 + 1 * 800);
+    // 1500*2 + 800.50 = 3800.50
+    expect(subtotal(c)).toBe("3800.50");
+  });
+
+  it("subtotal handles single-digit fractional yen", () => {
+    let c = emptyCart();
+    c = addLine(c, makeLine("s1", 1, "1.99"));
+    c = addLine(c, makeLine("s2", 1, "0.01"));
+    expect(subtotal(c)).toBe("2.00");
+  });
+
+  it("subtotal handles integer-only price strings", () => {
+    let c = emptyCart();
+    c = addLine(c, makeLine("s1", 3, "100"));
+    expect(subtotal(c)).toBe("300.00");
+  });
+
+  it("subtotal of empty cart is zero string", () => {
+    expect(subtotal(emptyCart())).toBe("0.00");
+  });
+
+  it("subtotal accumulates mixed line items", () => {
+    let c = emptyCart();
+    c = addLine(c, makeLine("s1", 2, "1500.50"));
+    c = addLine(c, makeLine("s2", 3, "999.99"));
+    // 1500.50*2 + 999.99*3 = 3001.00 + 2999.97 = 6000.97
+    expect(subtotal(c)).toBe("6000.97");
   });
 });
 
