@@ -3,8 +3,11 @@ import { expect, test } from "@playwright/test";
 /**
  * Envelope assertions: verify the frontend correctly consumes the
  * Spring `Page<T>` shape on /v1/products and the flat List shape on
- * /v1/me/orders. Also verifies that POST /v1/orders carries the
- * Idempotency-Key header (sourced from sessionStorage) on creation.
+ * /v1/areas. The Idempotency-Key contract is exercised at the unit
+ * level in src/lib/__tests__/api.test.ts (asserting that the API
+ * client attaches the header from sessionStorage on POST /v1/orders),
+ * not via Playwright route interception which would bypass the app
+ * code under test.
  *
  * No real backend needed: the route interceptor returns canned shapes.
  */
@@ -35,47 +38,28 @@ test.describe("envelope", () => {
         }),
       });
     });
-    await page.route("**/v1/areas**", (route) =>
-      route.fulfill({
+    // /v1/areas returns List<AreaResponse>, NOT Spring Page<T>. Returning
+    // the Page envelope here would mask a real client-side bug where the
+    // landing page tried to read `.content` on an array.
+    let areasCalled = false;
+    await page.route("**/v1/areas**", (route) => {
+      areasCalled = true;
+      return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ content: [], totalElements: 0, number: 0, size: 8 }),
-      }),
-    );
+        body: JSON.stringify([
+          { id: "a1", slug: "tokyo", name: "東京" },
+          { id: "a2", slug: "osaka", name: "大阪" },
+        ]),
+      });
+    });
     await page.goto("/");
     expect(called).toBe(true);
-  });
-
-  test("Idempotency-Key header propagates on POST /v1/orders", async ({ page }) => {
-    let seenKey: string | null = null;
-    await page.route("**/v1/orders", (route) => {
-      const headers = route.request().headers();
-      seenKey = headers["idempotency-key"] ?? null;
-      return route.fulfill({
-        status: 201,
-        contentType: "application/json",
-        body: JSON.stringify({
-          orderId: "ord-1",
-          userId: "u",
-          status: "PENDING",
-          totalAmount: "1500.00",
-          currency: "JPY",
-          items: [],
-        }),
-      });
-    });
-
-    // Drive a POST from the cart page via the in-page fetch by directly
-    // invoking the API client; the simpler route is to do the assertion
-    // inside the test via page.evaluate calling fetch.
-    await page.goto("/cart");
-    await page.evaluate(async () => {
-      await fetch("/v1/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": "test-key-001" },
-        body: "{}",
-      });
-    });
-    expect(seenKey).toBe("test-key-001");
+    expect(areasCalled).toBe(true);
+    // The List<AreaResponse> shape should reach the rendered DOM. If the
+    // client tried to call `.content` on the array, the page would crash
+    // before either link rendered.
+    await expect(page.locator('a[href="/areas/tokyo"]')).toBeVisible();
+    await expect(page.locator('a[href="/areas/osaka"]')).toBeVisible();
   });
 });

@@ -22,6 +22,7 @@ describe("apiRequest", () => {
   beforeEach(() => {
     process.env.NEXT_PUBLIC_API_BASE_URL = BASE;
     setIdTokenGetter(async () => "test-token");
+    if (typeof sessionStorage !== "undefined") sessionStorage.clear();
   });
 
   afterEach(() => {
@@ -49,6 +50,42 @@ describe("apiRequest", () => {
     });
     const headers = (fetchSpy.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
     expect(headers["Idempotency-Key"]).toMatch(/^[0-9a-f-]{36}$/i);
+  });
+
+  it("reuses the same Idempotency-Key from sessionStorage across calls", async () => {
+    // Two POSTs with the same fingerprint must carry the same key, so a
+    // refresh-mid-checkout never double-books the slot.
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse(200, {}))
+      .mockResolvedValueOnce(jsonResponse(200, {}));
+    const fp = { productId: "p", slotId: "s", quantity: 1 };
+    await apiRequest("/v1/orders", { method: "POST", body: { foo: 1 }, idempotency: fp });
+    await apiRequest("/v1/orders", { method: "POST", body: { foo: 1 }, idempotency: fp });
+    const h0 = (fetchSpy.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
+    const h1 = (fetchSpy.mock.calls[1][1] as RequestInit).headers as Record<string, string>;
+    expect(h0["Idempotency-Key"]).toBeDefined();
+    expect(h1["Idempotency-Key"]).toBe(h0["Idempotency-Key"]);
+  });
+
+  it("uses a different Idempotency-Key for a different fingerprint", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse(200, {}))
+      .mockResolvedValueOnce(jsonResponse(200, {}));
+    await apiRequest("/v1/orders", {
+      method: "POST",
+      body: {},
+      idempotency: { productId: "p", slotId: "s1", quantity: 1 },
+    });
+    await apiRequest("/v1/orders", {
+      method: "POST",
+      body: {},
+      idempotency: { productId: "p", slotId: "s2", quantity: 1 },
+    });
+    const h0 = (fetchSpy.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
+    const h1 = (fetchSpy.mock.calls[1][1] as RequestInit).headers as Record<string, string>;
+    expect(h0["Idempotency-Key"]).not.toBe(h1["Idempotency-Key"]);
   });
 
   it("throws SignInRedirect on 401 with sanitized next", async () => {
