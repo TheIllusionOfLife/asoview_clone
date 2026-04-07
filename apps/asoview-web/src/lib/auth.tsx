@@ -38,18 +38,18 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [idToken, setIdToken] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
+  // Start `ready=true` so route-protected client components render
+  // immediately as signed-out (null user). Firebase's in-memory
+  // persistence has no stored state to restore, so waiting for
+  // `onIdTokenChanged` only produces a loading spinner; the real sign-in
+  // flow still updates `user` + `idToken` when the user completes
+  // Google OAuth via signInWithPopup. Real persistence-backed session
+  // restore lives on the server via ID-token cookies in a later PR.
+  const [ready, setReady] = useState(true);
 
   useEffect(() => {
     let unsub: (() => void) | undefined;
     let cancelled = false;
-    // Safety net: if Firebase never fires its first onIdTokenChanged
-    // within 2 seconds (unreachable emulator, stalled REST call, etc),
-    // unblock the app as signed-out so route protection can redirect.
-    // A later successful auth restore will still update the state.
-    const readyTimer = setTimeout(() => {
-      if (!cancelled) setReady(true);
-    }, 2000);
     (async () => {
       try {
         const { auth } = await ensureFirebaseReady();
@@ -90,7 +90,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
     return () => {
       cancelled = true;
-      clearTimeout(readyTimer);
       if (unsub) unsub();
     };
   }, []);
