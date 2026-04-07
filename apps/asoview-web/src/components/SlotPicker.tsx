@@ -16,6 +16,7 @@
 import { ApiError, NetworkError, SignInRedirect, SlotTakenError, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { clearIdempotencyKey, setOrderFingerprint } from "@/lib/idempotency";
+import { addDaysIso, todayIsoJst } from "@/lib/slot-date";
 import type {
   AvailabilityEntry,
   CreateOrderRequest,
@@ -27,32 +28,6 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 const WINDOW_DAYS = 14;
-const JST_TIMEZONE = "Asia/Tokyo";
-
-/**
- * Asoview is JP-only and the backend stores slot_date as a JST local
- * date string (STRING(10) in Spanner). Every date computed on the
- * client — "today", window boundaries, display labels — MUST be in JST
- * regardless of the user's browser timezone. Using UTC would shift the
- * visible availability window by up to 15 hours.
- */
-function todayIsoJst(): string {
-  // sv-SE produces "YYYY-MM-DD" directly.
-  return new Intl.DateTimeFormat("sv-SE", { timeZone: JST_TIMEZONE }).format(new Date());
-}
-
-function addDaysIso(iso: string, days: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  // Use UTC arithmetic purely as a calendar library — we're treating
-  // the ISO string as an abstract date, not a moment in time, so
-  // daylight-saving and tz drift do not apply (JST has no DST).
-  const base = new Date(Date.UTC(y, m - 1, d));
-  base.setUTCDate(base.getUTCDate() + days);
-  const yy = base.getUTCFullYear();
-  const mm = String(base.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(base.getUTCDate()).padStart(2, "0");
-  return `${yy}-${mm}-${dd}`;
-}
 
 function formatJpDate(iso: string): string {
   // YYYY-MM-DD → "M月D日 (曜)"
