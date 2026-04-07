@@ -1,0 +1,122 @@
+# OpenSearch 3-node statefulset for asoview-clone search.
+#
+# Single-cluster topology, 3 master-eligible data nodes, plugin
+# analysis-kuromoji baked in via initContainer. Persistent volumes
+# come from the GKE default storage class. KMS encryption at rest
+# is provided by the GCE PD CMEK configured in the
+# infra/terraform/modules/opensearch module.
+#
+# Snapshot uploads use the snapshot-bucket + workload-identity SA
+# also provisioned by the Terraform module.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: search
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opensearch
+  namespace: search
+  annotations:
+    iam.gke.io/gcp-service-account: opensearch-snapshots@asoview-clone.iam.gserviceaccount.com
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opensearch
+  namespace: search
+spec:
+  clusterIP: None
+  selector:
+    app: opensearch
+  ports:
+    - name: rest
+      port: 9200
+      targetPort: 9200
+    - name: transport
+      port: 9300
+      targetPort: 9300
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: opensearch
+  namespace: search
+spec:
+  serviceName: opensearch
+  replicas: 3
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: opensearch
+  template:
+    metadata:
+      labels:
+        app: opensearch
+    spec:
+      serviceAccountName: opensearch
+      securityContext:
+        fsGroup: 1000
+      initContainers:
+        - name: install-kuromoji
+          image: opensearchproject/opensearch:2.18.0
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              if ! /usr/share/opensearch/bin/opensearch-plugin list | grep -q analysis-kuromoji; then
+                /usr/share/opensearch/bin/opensearch-plugin install --batch analysis-kuromoji
+              fi
+          volumeMounts:
+            - name: data
+              mountPath: /usr/share/opensearch/data
+      containers:
+        - name: opensearch
+          image: opensearchproject/opensearch:2.18.0
+          env:
+            - name: cluster.name
+              value: asoview-search
+            - name: node.name
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: discovery.seed_hosts
+              value: opensearch-0.opensearch,opensearch-1.opensearch,opensearch-2.opensearch
+            - name: cluster.initial_cluster_manager_nodes
+              value: opensearch-0,opensearch-1,opensearch-2
+            - name: bootstrap.memory_lock
+              value: "true"
+            - name: OPENSEARCH_JAVA_OPTS
+              value: "-Xms2g -Xmx2g"
+            - name: plugins.security.disabled
+              value: "true"
+          ports:
+            - name: rest
+              containerPort: 9200
+            - name: transport
+              containerPort: 9300
+          resources:
+            requests:
+              cpu: "1"
+              memory: "4Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+          volumeMounts:
+            - name: data
+              mountPath: /usr/share/opensearch/data
+          readinessProbe:
+            httpGet:
+              path: /_cluster/health?local=true
+              port: 9200
+            initialDelaySeconds: 30
+            periodSeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: standard-rwo
+        resources:
+          requests:
+            storage: 50Gi
