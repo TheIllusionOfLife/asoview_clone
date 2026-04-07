@@ -73,6 +73,11 @@ public class SearchQueryService {
     bool.set("must", must);
 
     var filter = mapper.createArrayNode();
+    // Hard filter on status=ACTIVE so inactive/draft products that ended up in
+    // the index (orphaned documents from a stale reindex, or rows that got
+    // soft-deleted post-publication) are never publicly searchable.
+    // (PR #21 Codex finding: search exposed inactive products.)
+    filter.add(termFilter("status", "ACTIVE"));
     if (areaId != null && !areaId.isBlank()) {
       filter.add(termFilter("areaId", areaId));
     }
@@ -120,11 +125,19 @@ public class SearchQueryService {
     }
     var root = mapper.createObjectNode();
     root.put("size", 5);
+    // Same status=ACTIVE hard filter as the main search query.
+    var bool = mapper.createObjectNode();
+    var must = mapper.createArrayNode();
     var match = mapper.createObjectNode();
     var inner = mapper.createObjectNode();
     inner.put("query", q);
     match.set("name", inner);
-    root.set("query", mapper.createObjectNode().set("match_phrase_prefix", match));
+    must.add(mapper.createObjectNode().set("match_phrase_prefix", match));
+    bool.set("must", must);
+    var sFilter = mapper.createArrayNode();
+    sFilter.add(termFilter("status", "ACTIVE"));
+    bool.set("filter", sFilter);
+    root.set("query", mapper.createObjectNode().set("bool", bool));
 
     JsonNode response = executeSearch(root.toString());
     List<AutosuggestResponse.Suggestion> suggestions = new ArrayList<>();

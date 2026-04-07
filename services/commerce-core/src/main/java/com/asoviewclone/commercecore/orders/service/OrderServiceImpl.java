@@ -117,21 +117,42 @@ public class OrderServiceImpl implements OrderService {
                 null));
       }
 
-      Order saved =
-          orderRepository.save(userId, total.toPlainString(), currency, idempotencyKey, orderItems);
+      // Burn points (and validate balance) BEFORE writing the Spanner order. If
+      // burn fails after the Spanner write, the order row stays as PENDING with
+      // released holds and poisons idempotency on retry — the next request with
+      // the same key would findByIdempotencyKey, hit the orphan, and proceed to
+      // payment with non-existent holds. (PR #21 review C4 from Devin.)
+      //
+      // Pre-generate the order id so the points-burn ledger row can pin to a
+      // stable order id; OrderRepository.save accepts the pre-generated id.
+      String preGeneratedOrderId = UUID.randomUUID().toString();
       if (pointsToUse > 0) {
-        try {
-          orderDiscountService.applyPointsBurnDiscount(
-              saved.orderId(), UUID.fromString(userId), pointsToUse, total);
-        } catch (RuntimeException ex) {
-          for (InventoryHold hold : holds) {
-            try {
-              inventoryService.releaseHold(hold.holdId());
-            } catch (Exception ignored) {
-            }
+        orderDiscountService.applyPointsBurnDiscount(
+            preGeneratedOrderId, UUID.fromString(userId), pointsToUse, total);
+      }
+
+      Order saved;
+      try {
+        saved =
+            orderRepository.saveWithId(
+                preGeneratedOrderId,
+                userId,
+                total.toPlainString(),
+                currency,
+                idempotencyKey,
+                orderItems);
+      } catch (RuntimeException ex) {
+        // Spanner write failed after the burn committed; roll the burn back so
+        // we don't trap the user's points behind a non-existent order.
+        if (pointsToUse > 0) {
+          try {
+            orderDiscountService.refundForCancelledOrder(
+                preGeneratedOrderId, UUID.fromString(userId));
+          } catch (Exception refundEx) {
+            // Best-effort: a recovery sweep job picks up orphaned discount rows.
           }
-          throw ex;
         }
+        throw ex;
       }
       return saved;
     } catch (SpannerException e) {
@@ -182,7 +203,13 @@ public class OrderServiceImpl implements OrderService {
   }
 
   @Override
+  @org.springframework.transaction.annotation.Transactional
   public void cancelOrder(String orderId) {
+    // @Transactional is required even though every persistent write here is a
+    // Spanner CAS (Spanner runs its own tx). The empty JPA transaction is the
+    // hook @TransactionalEventListener(AFTER_COMMIT) needs — without it,
+    // PointRefundListener silently never fires and burned points are never
+    // refunded on cancel. (PR #21 review C1 from Devin.)
     Order order = orderRepository.findById(orderId);
     OrderStatus currentStatus = order.status();
     if (!currentStatus.canTransitionTo(OrderStatus.CANCELLED)) {

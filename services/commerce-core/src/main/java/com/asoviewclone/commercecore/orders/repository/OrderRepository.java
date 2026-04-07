@@ -66,7 +66,22 @@ public class OrderRepository {
       String currency,
       String idempotencyKey,
       List<OrderItem> items) {
-    String orderId = UUID.randomUUID().toString();
+    return saveWithId(
+        UUID.randomUUID().toString(), userId, totalAmount, currency, idempotencyKey, items);
+  }
+
+  /**
+   * Save an order with a caller-supplied id. Used by {@code OrderServiceImpl} when it needs to
+   * pre-generate the order id (e.g. so a points-burn ledger row can pin to a stable id BEFORE the
+   * Spanner write happens — see PR #21 review C4).
+   */
+  public Order saveWithId(
+      String orderId,
+      String userId,
+      String totalAmount,
+      String currency,
+      String idempotencyKey,
+      List<OrderItem> items) {
     Instant now = clockProvider.now();
     Timestamp ts = Timestamp.ofTimeSecondsAndNanos(now.getEpochSecond(), 0);
 
@@ -213,6 +228,29 @@ public class OrderRepository {
    * writes the new status if the current status matches {@code expected}. Returns true on success,
    * false if the status did not match.
    */
+  /**
+   * Returns the set of {@code product_variant_id}s referenced by PAID orders for the given user.
+   * Pushes both the user filter and the {@code status='PAID'} filter into Spanner so we don't fetch
+   * every order in memory just to filter it. (PR #21 review M1 from Gemini.)
+   */
+  public java.util.Set<String> findPaidVariantIdsByUserId(String userId) {
+    Statement stmt =
+        Statement.newBuilder(
+                "SELECT DISTINCT oi.product_variant_id"
+                    + " FROM orders o JOIN order_items oi ON o.order_id = oi.order_id"
+                    + " WHERE o.user_id = @uid AND o.status = 'PAID'")
+            .bind("uid")
+            .to(userId)
+            .build();
+    java.util.Set<String> result = new java.util.HashSet<>();
+    try (com.google.cloud.spanner.ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
+      while (rs.next()) {
+        result.add(rs.getString("product_variant_id"));
+      }
+    }
+    return result;
+  }
+
   public boolean updateStatusIf(String orderId, OrderStatus expected, OrderStatus newStatus) {
     Boolean result =
         databaseClient

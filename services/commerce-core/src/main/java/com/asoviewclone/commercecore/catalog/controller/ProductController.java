@@ -11,7 +11,6 @@ import com.asoviewclone.commercecore.inventory.service.InventoryQueryService;
 import com.asoviewclone.commercecore.inventory.service.InventoryQueryService.AvailabilityEntry;
 import com.asoviewclone.commercecore.security.AuthenticatedUser;
 import java.math.BigDecimal;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -87,12 +86,9 @@ public class ProductController {
     if (products.isEmpty()) {
       return Map.of();
     }
-    List<UUID> ids = products.stream().map(Product::getId).collect(Collectors.toList());
-    Map<UUID, ProductReviewAggregate> result = new HashMap<>();
-    for (ProductReviewAggregate a : aggregateRepository.findByProductIdIn(ids)) {
-      result.put(a.getProductId(), a);
-    }
-    return result;
+    List<UUID> ids = products.stream().map(Product::getId).toList();
+    return aggregateRepository.findByProductIdIn(ids).stream()
+        .collect(Collectors.toMap(ProductReviewAggregate::getProductId, a -> a, (a, b) -> a));
   }
 
   private ProductResponse toResponse(

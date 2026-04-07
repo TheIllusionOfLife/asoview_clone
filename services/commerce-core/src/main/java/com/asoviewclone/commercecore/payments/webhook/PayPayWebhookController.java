@@ -11,7 +11,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -24,9 +23,13 @@ import org.springframework.web.bind.annotation.RestController;
  * protection, terminal-vs-transient conflict classification, and out-of-order guards follow the
  * same rules as the Stripe handler. See CLAUDE.md "Review Pitfalls (PR #19)" for the rationale.
  *
- * <p>The controller method is {@code @Transactional} so the Spring proxy opens a transaction around
- * calls into {@link PaymentService}; a self-call inside the service bean would otherwise bypass its
- * own {@code @Transactional} annotation (PR #18 / PR #19 lesson).
+ * <p>The controller method is intentionally NOT {@code @Transactional}: marking it transactional
+ * caused {@code ConflictException} to flip the outer JPA tx to rollback-only, which then rolled
+ * back the {@code processedEvents.deleteById} cleanup in the catch block — Spring throws {@code
+ * UnexpectedRollbackException} returning 500, PayPay retries forever. The downstream {@link
+ * PaymentService#confirmByProviderPaymentId} method already opens its own transaction; the proxy
+ * self-call concern is handled inside that service method, not at the controller boundary. (PR #21
+ * review C3 from Devin.)
  */
 @RestController
 @RequestMapping("/v1/payments/webhooks")
@@ -48,7 +51,6 @@ public class PayPayWebhookController {
   }
 
   @PostMapping("/paypay")
-  @Transactional
   public ResponseEntity<String> handlePayPay(
       @RequestHeader(value = "X-PAYPAY-Signature", required = false) String signature,
       @RequestBody byte[] rawBody) {

@@ -114,15 +114,14 @@ class ReviewServiceImplTest {
 
   @Test
   void voteHelpful_idempotent() {
-    Review existing = new Review(otherUserId, productId, (short) 3, "t", "b");
-    when(reviewRepository.findById(reviewId)).thenReturn(Optional.of(existing));
+    when(reviewRepository.existsById(reviewId)).thenReturn(true);
     when(voteRepository.existsByReviewIdAndUserId(reviewId, userId)).thenReturn(false, true);
-    when(reviewRepository.save(any(Review.class))).thenAnswer(inv -> inv.getArgument(0));
+    when(reviewRepository.incrementHelpfulCount(reviewId)).thenReturn(1);
 
     service.voteHelpful(userId, reviewId);
     service.voteHelpful(userId, reviewId);
 
-    assertThat(existing.getHelpfulCount()).isEqualTo(1);
     verify(voteRepository, times(1)).save(any(ReviewHelpfulVote.class));
+    verify(reviewRepository, times(1)).incrementHelpfulCount(reviewId);
   }
 }

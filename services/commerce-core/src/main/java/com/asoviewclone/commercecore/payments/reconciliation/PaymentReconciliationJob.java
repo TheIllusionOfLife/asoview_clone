@@ -10,6 +10,7 @@ import com.asoviewclone.common.error.NotFoundException;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -39,14 +40,17 @@ public class PaymentReconciliationJob {
 
   private final PaymentRepository paymentRepository;
   private final OrderRepository orderRepository;
+  private final ApplicationEventPublisher eventPublisher;
   private final TransactionTemplate requiresNewTxTemplate;
 
   public PaymentReconciliationJob(
       PaymentRepository paymentRepository,
       OrderRepository orderRepository,
+      ApplicationEventPublisher eventPublisher,
       PlatformTransactionManager transactionManager) {
     this.paymentRepository = paymentRepository;
     this.orderRepository = orderRepository;
+    this.eventPublisher = eventPublisher;
     this.requiresNewTxTemplate = new TransactionTemplate(transactionManager);
     this.requiresNewTxTemplate.setPropagationBehavior(
         TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -94,6 +98,19 @@ public class PaymentReconciliationJob {
     }
   }
 
+  private static long computeSubtotalJpy(Order order) {
+    long subtotal = 0L;
+    for (com.asoviewclone.commercecore.orders.model.OrderItem item : order.items()) {
+      try {
+        long unit = new java.math.BigDecimal(item.unitPrice()).longValueExact();
+        subtotal += unit * item.quantity();
+      } catch (NumberFormatException | ArithmeticException ignored) {
+        // Treat unparseable as 0 — matches PaymentServiceImpl behavior.
+      }
+    }
+    return subtotal;
+  }
+
   private static boolean sameIds(List<Payment> a, List<Payment> b) {
     if (a.size() != b.size()) {
       return false;
@@ -122,6 +139,15 @@ public class PaymentReconciliationJob {
                 "Reconciled divergent payment {}: order {} is PAID, promoted PROCESSING→SUCCEEDED",
                 payment.getPaymentId(),
                 payment.getOrderId());
+            // Re-publish OrderPaidEvent so AFTER_COMMIT side effects (points
+            // earn-on-PAID, future analytics) catch up on orders that were
+            // recovered through this divergence-repair path. PaymentServiceImpl's
+            // happy-path publish was skipped because the JPA tx rolled back.
+            // (PR #21 Codex finding: recovered orders never earned points.)
+            long subtotalJpy = computeSubtotalJpy(order);
+            eventPublisher.publishEvent(
+                new com.asoviewclone.commercecore.orders.event.OrderPaidEvent(
+                    order.orderId(), order.userId(), subtotalJpy));
           }
         } else if (order.status() == OrderStatus.CANCELLED) {
           int updated =

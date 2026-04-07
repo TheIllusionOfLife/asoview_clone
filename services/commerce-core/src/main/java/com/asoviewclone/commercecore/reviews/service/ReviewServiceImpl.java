@@ -104,15 +104,20 @@ public class ReviewServiceImpl implements ReviewService {
 
   @Override
   public void voteHelpful(UUID userId, UUID reviewId) {
-    Review review =
-        reviewRepository
-            .findById(reviewId)
-            .orElseThrow(() -> new NotFoundException("Review", reviewId.toString()));
+    if (!reviewRepository.existsById(reviewId)) {
+      throw new NotFoundException("Review", reviewId.toString());
+    }
     if (voteRepository.existsByReviewIdAndUserId(reviewId, userId)) {
       return; // idempotent
     }
-    voteRepository.save(new ReviewHelpfulVote(reviewId, userId));
-    review.setHelpfulCount(review.getHelpfulCount() + 1);
-    reviewRepository.save(review);
+    try {
+      voteRepository.save(new ReviewHelpfulVote(reviewId, userId));
+    } catch (org.springframework.dao.DataIntegrityViolationException dup) {
+      // Concurrent vote winner; idempotent no-op.
+      return;
+    }
+    // Atomic increment via @Modifying query so concurrent voters don't lose
+    // updates from JPA's read-modify-write. (PR #21 review H3 from Gemini.)
+    reviewRepository.incrementHelpfulCount(reviewId);
   }
 }

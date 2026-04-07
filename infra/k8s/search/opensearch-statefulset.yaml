@@ -58,21 +58,20 @@ spec:
       serviceAccountName: opensearch
       securityContext:
         fsGroup: 1000
-      initContainers:
-        - name: install-kuromoji
-          image: opensearchproject/opensearch:2.18.0
-          command: ["/bin/sh", "-c"]
-          args:
-            - |
-              if ! /usr/share/opensearch/bin/opensearch-plugin list | grep -q analysis-kuromoji; then
-                /usr/share/opensearch/bin/opensearch-plugin install --batch analysis-kuromoji
-              fi
-          volumeMounts:
-            - name: data
-              mountPath: /usr/share/opensearch/data
+      # The analysis-kuromoji plugin is baked into a custom image rather than
+      # installed by an initContainer — the previous initContainer-based approach
+      # installed the plugin to its own ephemeral layer, which the main container
+      # never saw (PR #21 review C9 from Devin). Build + push the image with:
+      #
+      #   gcloud builds submit docker/ \
+      #     --config docker/cloudbuild-opensearch.yaml \
+      #     --tag asia-northeast1-docker.pkg.dev/asoview-clone/services/opensearch-kuromoji:2.18.0
+      #
+      # The Dockerfile lives at docker/Dockerfile.opensearch.
       containers:
         - name: opensearch
-          image: opensearchproject/opensearch:2.18.0
+          image: asia-northeast1-docker.pkg.dev/asoview-clone/services/opensearch-kuromoji:2.18.0
+          imagePullPolicy: IfNotPresent
           env:
             - name: cluster.name
               value: asoview-search
@@ -88,8 +87,16 @@ spec:
               value: "true"
             - name: OPENSEARCH_JAVA_OPTS
               value: "-Xms2g -Xmx2g"
-            - name: plugins.security.disabled
-              value: "true"
+            # Security plugin stays ENABLED in the cluster (PR #21 review H1 from
+            # Gemini). Admin password is sourced from a Secret managed by Argo CD;
+            # internal users + role mappings are managed via securityadmin.sh in
+            # an init Job that runs once per environment. The search-service
+            # connects via mTLS using a workload-identity-bound certificate.
+            - name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opensearch-admin
+                  key: password
           ports:
             - name: rest
               containerPort: 9200

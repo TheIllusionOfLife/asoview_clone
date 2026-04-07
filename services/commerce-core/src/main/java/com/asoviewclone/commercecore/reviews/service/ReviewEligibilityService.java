@@ -2,9 +2,6 @@ package com.asoviewclone.commercecore.reviews.service;
 
 import com.asoviewclone.commercecore.catalog.model.ProductVariant;
 import com.asoviewclone.commercecore.catalog.repository.ProductVariantRepository;
-import com.asoviewclone.commercecore.orders.model.Order;
-import com.asoviewclone.commercecore.orders.model.OrderItem;
-import com.asoviewclone.commercecore.orders.model.OrderStatus;
 import com.asoviewclone.commercecore.orders.repository.OrderRepository;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -33,18 +30,16 @@ public class ReviewEligibilityService {
   }
 
   public boolean existsPaidOrderForUserAndProduct(String userId, UUID productId) {
-    List<Order> orders = orderRepository.findByUserId(userId);
+    // Push the user filter AND status=PAID filter into the Spanner query so we
+    // don't fetch every order in memory just to discard non-PAID rows. Returns
+    // distinct variant ids only. (PR #21 review M1 from Gemini.)
+    Set<String> rawVariantIds = orderRepository.findPaidVariantIdsByUserId(userId);
     Set<UUID> variantIds = new HashSet<>();
-    for (Order order : orders) {
-      if (order.status() != OrderStatus.PAID) {
-        continue;
-      }
-      for (OrderItem item : order.items()) {
-        try {
-          variantIds.add(UUID.fromString(item.productVariantId()));
-        } catch (IllegalArgumentException ignored) {
-          // Skip malformed variant ids
-        }
+    for (String raw : rawVariantIds) {
+      try {
+        variantIds.add(UUID.fromString(raw));
+      } catch (IllegalArgumentException ignored) {
+        // Skip malformed variant ids
       }
     }
     if (variantIds.isEmpty()) {

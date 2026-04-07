@@ -246,14 +246,18 @@ public class PaymentServiceImpl implements PaymentService {
     // Publish OrderPaidEvent so AFTER_COMMIT listeners (e.g. points earn-on-PAID) can
     // run after the JPA transaction commits. The event is decoupled from the saga +
     // entitlement creation: any listener exception will not roll back PAID state.
+    //
+    // unit_price is stored as a NUMERIC(12,2) string ("1500.00"), so it MUST be parsed
+    // via BigDecimal — Long.parseLong throws NumberFormatException on the trailing
+    // ".00" and silently zeroes the subtotal (PR #21 review C2 from Devin).
     long subtotalJpy = 0L;
     for (com.asoviewclone.commercecore.orders.model.OrderItem item : order.items()) {
       try {
-        long unit = Long.parseLong(item.unitPrice());
+        long unit = new java.math.BigDecimal(item.unitPrice()).longValueExact();
         subtotalJpy += unit * item.quantity();
-      } catch (NumberFormatException nfe) {
+      } catch (NumberFormatException | ArithmeticException nfe) {
         log.warn(
-            "Order {} item {} unit_price '{}' is not parseable as long; treating as 0 for points calc",
+            "Order {} item {} unit_price '{}' is not parseable as integer JPY; treating as 0 for points calc",
             order.orderId(),
             item.orderItemId(),
             item.unitPrice());

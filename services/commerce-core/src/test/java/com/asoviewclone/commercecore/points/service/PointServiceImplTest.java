@@ -3,6 +3,8 @@ package com.asoviewclone.commercecore.points.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -39,12 +41,13 @@ class PointServiceImplTest {
   void earn_creditsAndWritesLedger() {
     when(balanceRepo.findById(userId)).thenReturn(Optional.empty());
     when(ledgerRepo.existsByReasonAndOrderId(PointReason.EARN_PURCHASE, orderId)).thenReturn(false);
-    when(balanceRepo.save(any(PointBalance.class))).thenAnswer(inv -> inv.getArgument(0));
+    when(balanceRepo.casBalance(eq(userId), anyLong(), anyLong())).thenReturn(1);
 
     service.earn(userId, 100, orderId);
 
+    verify(balanceRepo).insertIfMissing(eq(userId), eq(0L));
+    verify(balanceRepo).casBalance(eq(userId), eq(0L), eq(100L));
     verify(ledgerRepo).save(any(PointLedgerEntry.class));
-    verify(balanceRepo).save(any(PointBalance.class));
   }
 
   @Test
@@ -54,7 +57,7 @@ class PointServiceImplTest {
     service.earn(userId, 100, orderId);
 
     verify(ledgerRepo, never()).save(any());
-    verify(balanceRepo, never()).save(any());
+    verify(balanceRepo, never()).casBalance(any(), anyLong(), anyLong());
   }
 
   @Test
@@ -74,11 +77,12 @@ class PointServiceImplTest {
     b.setBalance(0);
     when(balanceRepo.findById(userId)).thenReturn(Optional.of(b));
     when(ledgerRepo.existsByReasonAndOrderId(PointReason.REFUND_CANCEL, orderId)).thenReturn(false);
-    when(balanceRepo.save(any(PointBalance.class))).thenAnswer(inv -> inv.getArgument(0));
+    when(balanceRepo.casBalance(eq(userId), eq(0L), eq(100L))).thenReturn(1);
 
     service.refund(userId, 100, orderId);
 
-    assertThat(b.getBalance()).isEqualTo(100);
+    verify(balanceRepo).casBalance(eq(userId), eq(0L), eq(100L));
+    verify(ledgerRepo).save(any(PointLedgerEntry.class));
   }
 
   @Test
