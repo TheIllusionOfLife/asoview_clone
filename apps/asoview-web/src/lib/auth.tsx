@@ -44,29 +44,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let unsub: (() => void) | undefined;
     let cancelled = false;
     (async () => {
-      const { auth } = await ensureFirebaseReady();
-      if (cancelled) return;
-      unsub = onIdTokenChanged(auth, async (u) => {
-        setUser(u);
-        try {
-          if (u) {
-            const token = await u.getIdToken();
-            setIdToken(token);
-          } else {
+      try {
+        const { auth } = await ensureFirebaseReady();
+        if (cancelled) return;
+        unsub = onIdTokenChanged(auth, async (u) => {
+          setUser(u);
+          try {
+            if (u) {
+              const token = await u.getIdToken();
+              setIdToken(token);
+            } else {
+              setIdToken(null);
+            }
+          } catch (err) {
+            // A token-fetch failure (network blip, revoked session, clock
+            // skew) must NOT leave the auth provider hung in `ready=false`,
+            // because every page that gates on `ready` would spin forever.
+            // Drop the token and proceed as if signed-out for this paint;
+            // a subsequent onIdTokenChanged tick will recover.
+            console.warn("Failed to fetch Firebase ID token", err);
             setIdToken(null);
+          } finally {
+            setReady(true);
           }
-        } catch (err) {
-          // A token-fetch failure (network blip, revoked session, clock
-          // skew) must NOT leave the auth provider hung in `ready=false`,
-          // because every page that gates on `ready` would spin forever.
-          // Drop the token and proceed as if signed-out for this paint;
-          // a subsequent onIdTokenChanged tick will recover.
-          console.warn("Failed to fetch Firebase ID token", err);
+        });
+      } catch (initErr) {
+        // Same failure mode, one level up: if Firebase init itself
+        // throws (missing config, unreachable emulator, SDK error), every
+        // page that gates on `ready` hangs forever. Mark ready with a
+        // null user so route-protection logic can redirect to /signin.
+        if (!cancelled) {
+          console.warn("Firebase init failed; proceeding as signed-out", initErr);
+          setUser(null);
           setIdToken(null);
-        } finally {
           setReady(true);
         }
-      });
+      }
     })();
     return () => {
       cancelled = true;
