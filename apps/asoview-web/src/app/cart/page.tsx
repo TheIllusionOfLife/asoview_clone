@@ -7,9 +7,14 @@
  * without losing the rest of the cart.
  */
 
+import { ApiError, NetworkError, SignInRedirect, SlotTakenError, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { clearIdempotencyKey, getOrCreateIdempotencyKey } from "@/lib/idempotency";
+import type { CreateOrderRequest, OrderResponse } from "@/lib/types";
 import { useCart } from "@/lib/useCart";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useCallback, useState } from "react";
 
 function formatJpy(amount: number): string {
   return new Intl.NumberFormat("ja-JP", {
@@ -30,9 +35,84 @@ function formatSlotWindow(start: string, end: string): string {
   )}:${pad(s.getMinutes())}–${pad(e.getHours())}:${pad(e.getMinutes())}`;
 }
 
+/**
+ * Synthesise an Idempotency-Key fingerprint for a multi-line cart by
+ * concatenating the (slotId, quantity) pairs in sorted order. Same cart
+ * → same key, so a refresh mid-checkout does not double-book the cart.
+ * Different cart contents → different key.
+ */
+function cartFingerprint(lines: { slotId: string; quantity: number }[]) {
+  const key = [...lines]
+    .sort((a, b) => a.slotId.localeCompare(b.slotId))
+    .map((l) => `${l.slotId}:${l.quantity}`)
+    .join(",");
+  return { productId: "cart", slotId: key, quantity: lines.length };
+}
+
 export default function CartPage() {
+  const router = useRouter();
   const { cart, hydrated, subtotal, setQty, remove } = useCart();
   const { user, ready } = useAuth();
+  const [submitting, setSubmitting] = useState(false);
+  const [generalError, setGeneralError] = useState<string | null>(null);
+  const [lineErrors, setLineErrors] = useState<Record<string, string>>({});
+
+  const onCheckout = useCallback(async () => {
+    if (cart.lines.length === 0) return;
+    setGeneralError(null);
+    setLineErrors({});
+    if (!user) {
+      router.push("/signin?next=/cart");
+      return;
+    }
+    const fp = cartFingerprint(cart.lines);
+    const body: CreateOrderRequest = {
+      items: cart.lines.map((l) => ({
+        productVariantId: l.productVariantId,
+        slotId: l.slotId,
+        quantity: l.quantity,
+      })),
+    };
+    setSubmitting(true);
+    try {
+      const order = await api.post<OrderResponse>("/v1/orders", body, { idempotency: fp });
+      // Cart is "consumed" — reset key for the next checkout attempt and
+      // route to the per-order checkout page. We intentionally do NOT
+      // clear the cart locally yet: the order can still fail at payment
+      // time (Session D) and we want the lines to remain for a retry
+      // until the order reaches a terminal state.
+      clearIdempotencyKey(fp);
+      router.push(`/checkout/${order.orderId}`);
+    } catch (e: unknown) {
+      setSubmitting(false);
+      if (e instanceof SignInRedirect) {
+        router.push(`/signin?next=${encodeURIComponent(e.next)}`);
+        return;
+      }
+      if (e instanceof SlotTakenError) {
+        // The backend's 409 message format is opaque from the contract;
+        // try to extract a slotId substring so we can pin the error to
+        // the right line. Fallback: blanket banner above the cart.
+        clearIdempotencyKey(fp);
+        const matched = cart.lines.find((l) => e.message.includes(l.slotId));
+        if (matched) {
+          setLineErrors({
+            [matched.slotId]: "この時間帯は満席になりました。別の時間帯を選んでください。",
+          });
+        } else {
+          setGeneralError(
+            "カート内の一部の時間帯が満席になりました。該当する枠を選び直してください。",
+          );
+        }
+        return;
+      }
+      setGeneralError(
+        e instanceof ApiError || e instanceof NetworkError
+          ? e.message
+          : "予約処理中にエラーが発生しました",
+      );
+    }
+  }, [cart.lines, router, user]);
 
   if (!hydrated || !ready) {
     return (
@@ -61,6 +141,15 @@ export default function CartPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
       <h1 className="font-display text-3xl font-bold">カート</h1>
+
+      {generalError && (
+        <p
+          role="alert"
+          className="mt-4 rounded-[var(--radius-md)] border border-[var(--color-danger)] bg-[var(--color-danger)]/10 p-3 text-sm text-[var(--color-danger)]"
+        >
+          {generalError}
+        </p>
+      )}
 
       <ul className="mt-6 space-y-3">
         {cart.lines.map((l) => (
@@ -112,6 +201,14 @@ export default function CartPage() {
                 </button>
               </div>
             </div>
+            {lineErrors[l.slotId] && (
+              <p
+                role="alert"
+                className="mt-2 rounded-[var(--radius-sm)] bg-[var(--color-danger)]/10 px-2 py-1 text-xs text-[var(--color-danger)]"
+              >
+                {lineErrors[l.slotId]}
+              </p>
+            )}
           </li>
         ))}
       </ul>
@@ -127,11 +224,11 @@ export default function CartPage() {
         {user ? (
           <button
             type="button"
-            disabled
-            aria-disabled
-            className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-5 py-2.5 text-sm font-semibold text-white opacity-60"
+            onClick={onCheckout}
+            disabled={submitting}
+            className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-5 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] focus-visible:outline-2 focus-visible:outline-[var(--color-primary)] disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            購入手続きへ
+            {submitting ? "処理中…" : "購入手続きへ"}
           </button>
         ) : (
           <Link
