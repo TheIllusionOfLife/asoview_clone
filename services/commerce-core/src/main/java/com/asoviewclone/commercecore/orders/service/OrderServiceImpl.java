@@ -147,13 +147,22 @@ public class OrderServiceImpl implements OrderService {
             preGeneratedOrderId, UUID.fromString(userId), pointsToUse, total);
       }
 
+      // CRITICAL: subtract burned points from the order's payable total so the
+      // payment intent is created for the discounted amount, not the gross total.
+      // Without this the user loses points AND is charged the full amount —
+      // a silent overcharge bug. (PR #21 Codex finding.)
+      BigDecimal payableTotal = total;
+      if (pointsToUse > 0) {
+        payableTotal = total.subtract(BigDecimal.valueOf(pointsToUse)).max(BigDecimal.ZERO);
+      }
+
       Order saved;
       try {
         saved =
             orderRepository.saveWithId(
                 preGeneratedOrderId,
                 userId,
-                total.toPlainString(),
+                payableTotal.toPlainString(),
                 currency,
                 idempotencyKey,
                 orderItems);

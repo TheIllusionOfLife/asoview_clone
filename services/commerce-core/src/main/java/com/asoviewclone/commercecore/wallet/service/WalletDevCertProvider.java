@@ -27,17 +27,26 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 /**
- * Loads (or, in non-prod profiles, generates) a self-signed PKCS12 keystore used for the Apple
- * .pkpass PKCS#7 detached signature. The generated cert is NOT acceptable to Apple Wallet without
- * being chained to a real Apple-issued Pass Type ID cert (which requires an Apple Developer
- * account). The production install path is documented in the PR runbook.
+ * Loads (or, when no keystore exists at the configured path, generates) a PKCS12 keystore used for
+ * the Apple .pkpass PKCS#7 detached signature.
+ *
+ * <p>In production, point {@code app.wallet.apple.cert-path} at the real Apple-issued Pass Type ID
+ * PKCS12 (uploaded out-of-band via Secret Manager + a CSI mount on the GKE pod). The generated
+ * fall-back cert is self-signed and is NOT acceptable to Apple Wallet without being chained to a
+ * real Apple-issued cert + the WWDR intermediate. Production install is documented in the PR
+ * runbook.
+ *
+ * <p>Bean loads in every profile (no {@code @Profile} restriction): if the configured path is
+ * absent the dev fall-back generates a self-signed PKCS12 in {@code java.io.tmpdir} so the
+ * application context bootstraps cleanly even when wallet support isn't actively used in that
+ * environment. (PR #21 Codex finding: previous {@code @Profile({"local","test","default"})} caused
+ * {@code SPRING_PROFILES_ACTIVE=gke} startup to fail because {@code AppleWalletPassBuilder}
+ * unconditionally depends on this bean.)
  */
 @Component
-@Profile({"local", "test", "default"})
 public class WalletDevCertProvider {
 
   private static final Logger log = LoggerFactory.getLogger(WalletDevCertProvider.class);
