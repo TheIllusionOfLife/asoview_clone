@@ -13,7 +13,6 @@ import {
   type CartLine,
   addLine,
   emptyCart,
-  invalidateSnapshotCache,
   mergeGuestIntoUser,
   readCart,
   removeLine,

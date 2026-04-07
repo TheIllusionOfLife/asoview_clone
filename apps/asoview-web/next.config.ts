@@ -12,9 +12,35 @@ import type { NextConfig } from "next";
  * documented Tailwind v4 posture; revisit if Tailwind ships nonced
  * inline styles.
  */
+/**
+ * Parse a raw env string into a valid CSP source (URL origin only). Returns
+ * null for missing/blank/unparseable values so callers can decide whether to
+ * fail or skip. This avoids injecting path components or malformed strings
+ * into the CSP, which browsers either reject or silently truncate.
+ */
+function toOrigin(raw: string | undefined | null): string | null {
+  if (!raw) return null;
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return null;
+  }
+}
+
 function buildCsp(): string {
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
-  const emulator = process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL;
+  const rawApiBase = process.env.NEXT_PUBLIC_API_BASE_URL;
+  const apiBase = toOrigin(rawApiBase) ?? toOrigin("http://localhost:8080");
+  if (!apiBase) {
+    throw new Error("Unable to derive API origin for CSP (unreachable fallback)");
+  }
+  // Fail fast in production if NEXT_PUBLIC_API_BASE_URL is missing or
+  // unparseable — shipping with the localhost fallback would produce a
+  // broken CSP that either blocks all API calls or, worse, allows
+  // localhost in a deployed environment.
+  if (process.env.NODE_ENV === "production" && !toOrigin(rawApiBase)) {
+    throw new Error("NEXT_PUBLIC_API_BASE_URL must be set to a valid URL in production builds");
+  }
+  const emulator = toOrigin(process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL);
   // Firebase Auth's `signInWithPopup` flow loads the auth domain in an
   // iframe (frame-src) and posts messages back to identitytoolkit
   // (connect-src). Both must be allowed in the CSP or the popup is
@@ -22,7 +48,7 @@ function buildCsp(): string {
   // production CSP only opens up the actual deployed auth domain.
   const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
   const authDomainOrigin =
-    authDomain && authDomain !== "localhost" ? `https://${authDomain}` : null;
+    authDomain && authDomain !== "localhost" ? toOrigin(`https://${authDomain}`) : null;
   const connect = [
     "'self'",
     apiBase,

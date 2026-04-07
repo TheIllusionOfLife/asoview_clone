@@ -62,5 +62,18 @@ export async function serverGet<T>(path: string, revalidateSeconds = 60): Promis
   if (!res.ok) {
     throw new ServerFetchError(res.status, `${res.status} ${res.statusText} for ${path}`);
   }
-  return (await res.json()) as T;
+  try {
+    return (await res.json()) as T;
+  } catch (parseErr) {
+    // Wrap SyntaxError (or any body-read error) in ServerFetchError so
+    // callers catching ServerFetchError receive a consistent error type
+    // instead of a raw parse exception. Status 502 signals upstream
+    // returned a malformed body.
+    throw new ServerFetchError(
+      502,
+      `Malformed JSON from upstream for ${path}: ${
+        parseErr instanceof Error ? parseErr.message : String(parseErr)
+      }`,
+    );
+  }
 }

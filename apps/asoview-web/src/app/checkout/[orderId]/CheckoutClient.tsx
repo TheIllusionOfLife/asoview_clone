@@ -35,8 +35,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-type Provider = "stripe" | "paypay";
-
 const POLL_INTERVAL_MS = 1500;
 const POLL_TIMEOUT_MS = 30_000;
 const PAYMENT_PENDING_FLAG_PREFIX = "asoview:payment-pending:";
@@ -80,11 +78,9 @@ function clearOrderLinesFromCart(uid: string | null, order: OrderResponse): void
 
 export function CheckoutClient({
   orderId,
-  provider,
   fakeMode,
 }: {
   orderId: string;
-  provider: Provider;
   fakeMode: boolean;
 }) {
   const router = useRouter();
@@ -486,7 +482,11 @@ function PayPayRedirectButton({
   return (
     <a
       href={url}
-      onClick={() => {
+      onClick={(e) => {
+        // Take over navigation: preventDefault so the browser doesn't
+        // also follow the href, which would race window.location.assign
+        // and produce a double-navigation flash on slow networks.
+        e.preventDefault();
         // Persist a flag so a return to this page (post-PayPay) resumes
         // polling instead of re-rendering the redirect button.
         if (typeof sessionStorage !== "undefined") {

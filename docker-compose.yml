@@ -51,7 +51,10 @@ services:
     restart: "no"
 
   firebase-auth-emulator:
-    image: ghcr.io/spectoolco/firebase-tools:13.29.1
+    # andreysenov/firebase-tools is on Docker Hub (public, no auth needed). The
+    # spectoolco/firebase-tools image on ghcr.io requires authentication and is
+    # denied in CI runners — see PR #22 build failure 24075280357.
+    image: andreysenov/firebase-tools:13.29.1
     # The auth emulator defaults to binding 127.0.0.1 inside the container,
     # which makes the published port unreachable from the docker host or
     # sibling services. We mount a firebase.json that pins host=0.0.0.0.

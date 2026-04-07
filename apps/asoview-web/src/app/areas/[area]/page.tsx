@@ -2,7 +2,7 @@ import { ProductCard } from "@/components/ProductCard";
 import { serverGet } from "@/lib/server-api";
 import type { AreaResponse, Page, ProductResponse } from "@/lib/types";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 export const revalidate = 60;
 
@@ -43,6 +43,15 @@ export default async function AreaPage({ params, searchParams }: Props) {
   const result = await loadProducts(area.id, pageNum);
   const products = result.content ?? [];
   const totalPages = Math.max(1, Math.ceil(result.totalElements / PAGE_SIZE));
+  // Canonicalize out-of-range page numbers: if the request asked for a
+  // page past the last valid one (e.g., bookmarked deep link after
+  // inventory shrinks), redirect to the last real page instead of
+  // rendering an empty "N / totalPages" counter. pageNum is already
+  // floor-clamped to 0 above.
+  if (pageNum > 0 && pageNum >= totalPages) {
+    const lastPage = Math.max(0, totalPages - 1);
+    redirect(`/areas/${encodeURIComponent(slug)}?page=${lastPage}`);
+  }
   const hasPrev = pageNum > 0;
   const hasNext = pageNum + 1 < totalPages;
 

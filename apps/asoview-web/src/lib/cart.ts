@@ -186,7 +186,19 @@ export function subscribeCart(listener: () => void): () => void {
   listeners.add(listener);
   if (typeof window !== "undefined") {
     const onStorage = (e: StorageEvent) => {
-      if (e.key?.startsWith(STORAGE_PREFIX)) listener();
+      if (!e.key?.startsWith(STORAGE_PREFIX)) return;
+      // Cross-tab write: invalidate the snapshot cache BEFORE notifying
+      // the listener so the subsequent `snapshotCart(uid)` re-reads
+      // localStorage and returns a fresh (stable) reference. Without
+      // this, React's useSyncExternalStore sees the same cached object
+      // reference, skips re-rendering, and cross-tab updates are
+      // silently dropped. (Devin PR #22 finding.)
+      const uid = e.key.slice(STORAGE_PREFIX.length) || null;
+      invalidateSnapshotCache(uid);
+      // Also invalidate the guest entry in case the event is for a
+      // user-keyed change but a guest view is still mounted.
+      invalidateSnapshotCache(null);
+      listener();
     };
     window.addEventListener("storage", onStorage);
     return () => {
