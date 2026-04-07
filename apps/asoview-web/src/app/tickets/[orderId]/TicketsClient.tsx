@@ -27,6 +27,11 @@ export function TicketsClient({ orderId }: { orderId: string }) {
 
   useEffect(() => {
     if (!ready) return;
+    // Reset transient UI state so a re-fetch (e.g. orderId change or
+    // auth-tick) doesn't render stale notFound/error from a previous
+    // fetch while the new one is in flight.
+    setNotFound(false);
+    setError(null);
     let cancelled = false;
     const ctrl = new AbortController();
     (async () => {

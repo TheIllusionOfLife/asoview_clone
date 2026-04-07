@@ -85,15 +85,17 @@ export function MyOrdersClient() {
 
   const totalPages = orders ? Math.max(1, Math.ceil(orders.length / PAGE_SIZE)) : 1;
 
-  if (!ready || orders === null) {
-    return <p className="mt-6 text-sm text-[var(--color-ink-muted)]">読み込み中…</p>;
-  }
+  // Check error BEFORE the loading branch — otherwise a fetch failure
+  // leaves `orders === null` forever and the user sees an infinite spinner.
   if (error) {
     return (
       <p role="alert" className="mt-6 text-sm text-[var(--color-danger)]">
         {error}
       </p>
     );
+  }
+  if (!ready || orders === null) {
+    return <p className="mt-6 text-sm text-[var(--color-ink-muted)]">読み込み中…</p>;
   }
   if (orders.length === 0) {
     return <p className="mt-6 text-sm text-[var(--color-ink-muted)]">まだ予約はありません。</p>;

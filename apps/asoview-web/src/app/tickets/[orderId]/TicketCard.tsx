@@ -46,9 +46,12 @@ export function TicketCard({ ticket }: { ticket: TicketView }) {
     classifyValidity(Date.now(), ticket.validFrom, ticket.validUntil),
   );
 
-  // Re-evaluate every minute so a ticket transitions from before → active
-  // → expired without a manual refresh.
+  // Re-evaluate immediately when the ticket props change (prevents a
+  // stale phase from a previous ticket leaking through React reconciliation)
+  // and every minute so a ticket transitions from before → active →
+  // expired without a manual refresh.
   useEffect(() => {
+    setPhase(classifyValidity(Date.now(), ticket.validFrom, ticket.validUntil));
     const id = setInterval(() => {
       setPhase(classifyValidity(Date.now(), ticket.validFrom, ticket.validUntil));
     }, 60_000);

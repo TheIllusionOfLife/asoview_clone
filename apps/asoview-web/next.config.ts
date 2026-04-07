@@ -15,6 +15,14 @@ import type { NextConfig } from "next";
 function buildCsp(): string {
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
   const emulator = process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL;
+  // Firebase Auth's `signInWithPopup` flow loads the auth domain in an
+  // iframe (frame-src) and posts messages back to identitytoolkit
+  // (connect-src). Both must be allowed in the CSP or the popup is
+  // silently blocked. The carve-out is gated on the env var so the
+  // production CSP only opens up the actual deployed auth domain.
+  const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
+  const authDomainOrigin =
+    authDomain && authDomain !== "localhost" ? `https://${authDomain}` : null;
   const connect = [
     "'self'",
     apiBase,
@@ -23,6 +31,9 @@ function buildCsp(): string {
     "https://securetoken.googleapis.com",
   ];
   if (emulator) connect.push(emulator);
+  if (authDomainOrigin) connect.push(authDomainOrigin);
+  const frame = ["'self'", "https://js.stripe.com", "https://hooks.stripe.com"];
+  if (authDomainOrigin) frame.push(authDomainOrigin);
   return [
     "default-src 'self'",
     "script-src 'self' https://js.stripe.com",
@@ -30,7 +41,7 @@ function buildCsp(): string {
     "font-src 'self' data:",
     "img-src 'self' data: https://*.googleusercontent.com",
     `connect-src ${connect.join(" ")}`,
-    "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
+    `frame-src ${frame.join(" ")}`,
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

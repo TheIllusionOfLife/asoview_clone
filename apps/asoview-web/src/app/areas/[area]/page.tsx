@@ -13,26 +13,21 @@ type Props = {
   searchParams: Promise<{ page?: string }>;
 };
 
+/**
+ * Resolve an area slug. Only swallows the "successful list, slug not
+ * present" case as a 404. Upstream errors (timeout, 5xx, network) are
+ * rethrown so Next renders error.tsx instead of pretending the area
+ * doesn't exist.
+ */
 async function resolveArea(slug: string): Promise<AreaResponse | null> {
-  try {
-    const all = await serverGet<AreaResponse[]>("/v1/areas");
-    return all.find((a) => a.slug === slug) ?? null;
-  } catch {
-    return null;
-  }
+  const all = await serverGet<AreaResponse[]>("/v1/areas");
+  return all.find((a) => a.slug === slug) ?? null;
 }
 
-async function loadProducts(
-  areaId: string,
-  pageNum: number,
-): Promise<Page<ProductResponse> | null> {
-  try {
-    return await serverGet<Page<ProductResponse>>(
-      `/v1/products?area=${encodeURIComponent(areaId)}&page=${pageNum}&size=${PAGE_SIZE}`,
-    );
-  } catch {
-    return null;
-  }
+async function loadProducts(areaId: string, pageNum: number): Promise<Page<ProductResponse>> {
+  return await serverGet<Page<ProductResponse>>(
+    `/v1/products?area=${encodeURIComponent(areaId)}&page=${pageNum}&size=${PAGE_SIZE}`,
+  );
 }
 
 export default async function AreaPage({ params, searchParams }: Props) {
@@ -46,8 +41,8 @@ export default async function AreaPage({ params, searchParams }: Props) {
   }
 
   const result = await loadProducts(area.id, pageNum);
-  const products = result?.content ?? [];
-  const totalPages = result ? Math.max(1, Math.ceil(result.totalElements / PAGE_SIZE)) : 1;
+  const products = result.content ?? [];
+  const totalPages = Math.max(1, Math.ceil(result.totalElements / PAGE_SIZE));
   const hasPrev = pageNum > 0;
   const hasNext = pageNum + 1 < totalPages;
 
@@ -63,7 +58,7 @@ export default async function AreaPage({ params, searchParams }: Props) {
 
       <h1 className="font-display text-3xl font-bold mt-3">{area.name}の体験</h1>
       <p className="mt-1 text-sm text-[var(--color-ink-muted)]">
-        {result?.totalElements ?? 0}件の体験が見つかりました
+        {result.totalElements}件の体験が見つかりました
       </p>
 
       {products.length === 0 ? (
