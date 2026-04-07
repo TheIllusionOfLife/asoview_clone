@@ -155,6 +155,27 @@ public class PaymentWebhookController {
       // Undo the replay guard so a genuine retry can proceed.
       processedEvents.deleteById(new ProcessedWebhookEventId(event.provider(), event.rawEventId()));
       return ResponseEntity.status(HttpStatus.ACCEPTED).body("conflict");
+    } catch (RuntimeException unexpected) {
+      // Any uncaught exception below would otherwise leave the replay marker
+      // in place forever, causing every Stripe retry to be silently dropped
+      // as a duplicate. Delete the marker so the provider can retry, then
+      // re-throw so the 5xx propagates and the failure is observable.
+      // Mirrors the equivalent block in PayPayWebhookController.
+      log.error(
+          "Stripe webhook unexpected error stripe_event_id={} provider_payment_id={}; releasing replay marker",
+          event.rawEventId(),
+          event.providerPaymentId(),
+          unexpected);
+      try {
+        processedEvents.deleteById(
+            new ProcessedWebhookEventId(event.provider(), event.rawEventId()));
+      } catch (Exception cleanup) {
+        log.warn(
+            "Stripe webhook replay marker cleanup also failed stripe_event_id={}; manual repair needed",
+            event.rawEventId(),
+            cleanup);
+      }
+      throw unexpected;
     }
   }
 }

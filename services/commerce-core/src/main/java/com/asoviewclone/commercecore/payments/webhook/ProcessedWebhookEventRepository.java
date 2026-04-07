@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface ProcessedWebhookEventRepository
     extends JpaRepository<ProcessedWebhookEvent, ProcessedWebhookEventId> {
@@ -24,6 +25,7 @@ public interface ProcessedWebhookEventRepository
    * the row count, mirroring the {@code FavoriteRepository.insertIfMissing} / {@code
    * PointLedgerRepository.insertIfMissing} pattern from PR #21.
    */
+  @Transactional
   @Modifying(clearAutomatically = true, flushAutomatically = true)
   @Query(
       value =
