@@ -35,7 +35,12 @@ test.describe("idempotency", () => {
       (window as unknown as { _result: unknown })._result = { a, b };
     });
     const result = await page.evaluate(
-      () => (window as unknown as { _result: { a: { clientSecret: string }; b: { clientSecret: string } } })._result,
+      () =>
+        (
+          window as unknown as {
+            _result: { a: { clientSecret: string }; b: { clientSecret: string } };
+          }
+        )._result,
     );
     expect(result.a.clientSecret).toBe(result.b.clientSecret);
     expect(calls).toBe(2);

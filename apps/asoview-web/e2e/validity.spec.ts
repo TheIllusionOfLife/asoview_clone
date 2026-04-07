@@ -12,7 +12,11 @@ import { expect, test } from "@playwright/test";
 
 const ORDER_ID = "ord-validity";
 
-async function stubTickets(page: import("@playwright/test").Page, validFrom: string, validUntil: string) {
+async function stubTickets(
+  page: import("@playwright/test").Page,
+  validFrom: string,
+  validUntil: string,
+) {
   await page.route(`**/v1/me/tickets?orderId=${ORDER_ID}`, (route) =>
     route.fulfill({
       status: 200,
