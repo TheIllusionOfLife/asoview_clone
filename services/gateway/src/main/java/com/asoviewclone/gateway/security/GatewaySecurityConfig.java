@@ -26,7 +26,12 @@ public class GatewaySecurityConfig {
                 exchanges
                     .pathMatchers("/healthz", "/actuator/**")
                     .permitAll()
-                    .pathMatchers(HttpMethod.GET, "/v1/categories/**", "/v1/products/**")
+                    .pathMatchers(
+                        HttpMethod.GET,
+                        "/v1/categories/**",
+                        "/v1/products/**",
+                        "/v1/areas/**",
+                        "/v1/search/**")
                     .permitAll()
                     .anyExchange()
                     .authenticated())
