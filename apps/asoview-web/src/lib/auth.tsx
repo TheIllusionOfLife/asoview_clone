@@ -16,6 +16,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { setIdTokenGetter } from "./api";
 import { ensureFirebaseReady, getFirebase } from "./firebase";
 
 export type AuthState = {
@@ -82,6 +83,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [user],
   );
+
+  // Wire the API client's token getter to this provider so that authed
+  // requests pick up `idToken` (and refreshes) without an import-time cycle.
+  useEffect(() => {
+    setIdTokenGetter(getIdToken);
+    return () => {
+      setIdTokenGetter(async () => null);
+    };
+  }, [getIdToken]);
 
   const value = useMemo<AuthState>(
     () => ({ user, idToken, ready, signIn, signOut, getIdToken }),
