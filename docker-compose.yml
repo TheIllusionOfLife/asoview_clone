@@ -52,7 +52,23 @@ services:
 
   firebase-auth-emulator:
     image: ghcr.io/spectoolco/firebase-tools:13.29.1
-    command: ["firebase", "emulators:start", "--only", "auth", "--project", "asoview-clone"]
+    # The auth emulator defaults to binding 127.0.0.1 inside the container,
+    # which makes the published port unreachable from the docker host or
+    # sibling services. We mount a firebase.json that pins host=0.0.0.0.
+    working_dir: /firebase
+    volumes:
+      - ./db/seeds/firebase:/firebase:ro
+    command:
+      [
+        "firebase",
+        "emulators:start",
+        "--only",
+        "auth",
+        "--project",
+        "asoview-clone",
+        "--config",
+        "/firebase/firebase.json",
+      ]
     ports:
       - "9099:9099"
     healthcheck:

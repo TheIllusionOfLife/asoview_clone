@@ -85,7 +85,21 @@ jobs:
       - name: Build asoview-web
         run: cd apps/asoview-web && bun run build
       - name: Start asoview-web
-        run: cd apps/asoview-web && (bun run start &) && sleep 5
+        # Background the server, then poll readiness for up to 30s. The
+        # previous `sleep 5` raced server startup on slower runners and
+        # produced flaky 502s in the headers smoke step.
+        run: |
+          cd apps/asoview-web
+          (bun run start &)
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000 > /dev/null; then
+              echo "asoview-web is up after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "asoview-web did not become ready within 30s" >&2
+          exit 1
       - name: Smoke security headers
         run: cd apps/asoview-web && ./scripts/check-headers.sh http://localhost:3000
       - name: Run Playwright matrix
