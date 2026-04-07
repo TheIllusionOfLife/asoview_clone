@@ -18,20 +18,6 @@ cd "$REPO_ROOT"
 
 if [[ "${1:-}" == "--fixtures" ]]; then
   SCAN_ROOTS=("${FIXTURES:?FIXTURES env var required with --fixtures}")
-  if [[ "${PITFALL_DEBUG:-}" == "1" ]]; then
-    {
-      echo "=== PITFALL_DEBUG assigned-id-save ==="
-      echo "PWD=$PWD"
-      echo "FIXTURES=$FIXTURES"
-      echo "ls -la \$FIXTURES:"
-      ls -la "$FIXTURES" || echo "(ls failed)"
-      echo "rg --version:"
-      rg --version | head -1
-      echo "rg -l '@(IdClass|Entity)' \$FIXTURES:"
-      rg -l --no-messages --no-ignore '@(IdClass|Entity)' "$FIXTURES" || echo "(rg found nothing)"
-      echo "=== END PITFALL_DEBUG ==="
-    } >&2
-  fi
 else
   SCAN_ROOTS=("services/commerce-core/src/main/java" "services/commerce-core/src/test/java")
 fi
