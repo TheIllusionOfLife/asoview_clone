@@ -34,7 +34,7 @@ while IFS= read -r line; do
     continue
   fi
   VIOLATIONS+="$line"$'\n'
-done < <(rg -n --no-heading '^\s*@Modifying' "$SCAN_ROOT" 2>/dev/null || true)
+done < <(rg -n --no-heading --no-ignore '^\s*@Modifying' "$SCAN_ROOT" 2>/dev/null || true)
 
 if [[ -n "$VIOLATIONS" ]]; then
   echo "FAIL modifying-flush-clear: @Modifying JPA queries must set both"

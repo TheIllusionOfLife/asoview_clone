@@ -35,7 +35,7 @@ while IFS= read -r f; do
 done < <(
   for root in "${SCAN_ROOTS[@]}"; do
     [[ -d "$root" ]] || continue
-    rg -l --no-messages '@(IdClass|Entity)' "$root" 2>/dev/null
+    rg -l --no-messages --no-ignore '@(IdClass|Entity)' "$root" 2>/dev/null
   done | sort -u | while read -r f; do
     if rg -q '@IdClass' "$f" 2>/dev/null; then
       echo "$f"
@@ -65,7 +65,7 @@ for root in "${SCAN_ROOTS[@]}"; do
       continue
     fi
     VIOLATIONS+="$line"$'\n'
-  done < <(rg -n --no-heading "$PATTERN" "$root" 2>/dev/null || true)
+  done < <(rg -n --no-heading --no-ignore "$PATTERN" "$root" 2>/dev/null || true)
 done
 
 if [[ -n "$VIOLATIONS" ]]; then

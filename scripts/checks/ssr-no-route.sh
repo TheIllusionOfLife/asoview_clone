@@ -22,7 +22,7 @@ fi
 
 [[ -d "$SCAN_ROOT" ]] || exit 0
 
-MATCHES="$(rg -n --no-heading 'page\.route\(' "$SCAN_ROOT" 2>/dev/null || true)"
+MATCHES="$(rg -n --no-heading --no-ignore 'page\.route\(' "$SCAN_ROOT" 2>/dev/null || true)"
 
 if [[ -n "$MATCHES" ]]; then
   echo "FAIL ssr-no-route: Playwright page.route() cannot intercept Next.js SSR fetches —"

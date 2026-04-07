@@ -38,7 +38,7 @@ while IFS= read -r line; do
   fi
   VIOLATIONS+="$line"$'\n'
 done < <(
-  rg -n --no-heading \
+  rg -n --no-heading --no-ignore \
     -g '*cart*.ts' -g '*cart*.tsx' \
     -g '*price*.ts' -g '*price*.tsx' \
     -g '*payment*.ts' -g '*payment*.tsx' \
