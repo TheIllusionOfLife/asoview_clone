@@ -218,6 +218,171 @@ External event sources (Stripe, Pub/Sub, Kafka) can and will deliver events out 
 - **Filter-priority dispatch shadows existing criteria when a new dimension is added.** `CatalogServiceImpl.listProducts` dispatched between repository methods with an if-else cascade; adding a `venueId` parameter silently dropped the `categoryId` filter when both were set with null status, because the `venueId && !status` branch fired first. Rule: when adding a new filter parameter to a dispatching method, enumerate all combinations of `(oldParam × newParam × status)` in a truth table and confirm each one has a distinct branch, or replace the cascade with a Specification / JPA Criteria query.
 - **Fan-out read loops are N+1 until proven otherwise.** `InventoryQueryService.getProductAvailability` called `countActiveHoldQuantity(slotId)` inside a per-slot loop, running one Spanner read per slot per variant. Rule: any loop that calls a repository inside the loop body is an N+1 in review. Structure fan-out reads as "collect all ids → batch-fetch → project in memory". New repository methods for batch reads (`countActiveHoldQuantities(Collection<String>)`) should use `IN UNNEST(@ids)` (Spanner) or `IN (:ids)` (JPA) — not a loop of single-id calls.
 
+## Review Pitfalls (learned the hard way on PR #21)
+
+**4 review rounds, ~30 findings.** Backend domain expansion (PayPay, reviews, favorites, points, search-service, wallet, OpenSearch infra). Most findings clustered on 5 themes. Each is reformulated below as a generalizable rule, NOT a one-off concrete case, because most of these were second-instance bugs that the existing rules already covered in spirit but not in letter.
+
+### `@TransactionalEventListener(AFTER_COMMIT)` requires the publisher's method to be `@Transactional` — even if every persistent write is on a different store
+
+PR #18 documented "self-call bypass": calling a `@Transactional` method on the same bean via `this.x(...)` skips the proxy. PR #21 hit the **inverse**: a method that publishes a domain event consumed by `@TransactionalEventListener(AFTER_COMMIT)` must itself be `@Transactional` so the listener has a transaction to hang AFTER_COMMIT off of. Without it, the listener is **silently dropped** — no error, no log, just nothing happens.
+
+Concrete case: `OrderServiceImpl.cancelOrder` published `OrderCancelledEvent` consumed by `PointRefundListener @TransactionalEventListener(AFTER_COMMIT)`. The method had no `@Transactional` (every persistent write is a Spanner CAS, so it "didn't need a JPA transaction"). Result: burned points were never refunded on cancel and the bug was undetectable from logs.
+
+Rule: **any method that publishes a domain event consumed by an AFTER_COMMIT listener MUST be `@Transactional`**, even if it has zero JPA writes. The empty JPA tx is the AFTER_COMMIT hook. Test: the unit/integration test for the publisher must verify the listener fires (mock `ApplicationEventPublisher` or use a Spring test that injects a real listener and asserts the side effect).
+
+### Plain `save()` is not just a status-column problem. The same race kills any read-modify-write on a multi-writer column
+
+PR #18 + #19 documented "plain `save()` on a status column with multiple writers is always a bug." PR #21 hit the **same root cause** on a balance column (`PointBalance.balance`) and a counter (`Review.helpfulCount`). I read the rule, internalized it for status enums only, and missed the generalization.
+
+The actual rule: **read-modify-write via `save()` is broken whenever the column has multiple concurrent writers, regardless of column type.** Status enums, integer counters, money balances, JSON merge fields — all the same race. Last writer wins, intermediate updates are silently lost.
+
+Patterns that ARE safe:
+- `@Modifying @Query("UPDATE Foo SET col = :new WHERE id = :id AND col = :expected")` returning row count → CAS retry loop on the caller side.
+- `@Modifying @Query("UPDATE Foo SET counter = counter + 1 WHERE id = :id")` → atomic increment, no read needed.
+- `INSERT ... ON CONFLICT (key) DO NOTHING` returning row count → idempotency gate when the goal is "exactly once for this key."
+
+Patterns that ARE NOT safe even though they look like they are:
+- `findById` → mutate → `save()` (the canonical race; what we keep regressing on).
+- `existsBy` → if not present → `save()` (TOCTOU; the second writer hits the unique constraint at flush time, often inside a doomed transaction).
+
+Rule: **never read-modify-write a column that more than one code path can write to.** Use `@Modifying` CAS or atomic increment. The "more than one code path" includes "the same code path running twice concurrently."
+
+### Idempotency goes INSERT-FIRST, not exists-then-insert
+
+The corollary to the above: when you want "exactly once for this `(reason, order_id)` tuple," structure the operation as `INSERT ... ON CONFLICT DO NOTHING` returning row count. **If the row count is 0, return idempotent no-op. If 1, you hold the lock and can proceed.**
+
+PR #21 first attempted "balance CAS first, ledger save second, catch DataIntegrityViolationException as compensation." The compensation ran inside a transaction Spring had already flipped to rollback-only by the very exception it was reacting to. The compensation never persisted. Codex caught it. The fix is to flip the order: ledger insert FIRST as the gate, balance CAS only if the gate said we won.
+
+Rule: **when the goal is "exactly once per key," the uniqueness check and the side-effect MUST be in that order, atomically.** Insert (with `ON CONFLICT DO NOTHING`) is the gate. Anything you do after is fine because you already hold the lock. Anything you do BEFORE risks running in a doomed transaction the moment the duplicate insert lands.
+
+### `@Profile`-restricted beans with unconditional injection crash the excluded profiles
+
+PR #21 wallet module: `WalletDevCertProvider` was `@Profile({"local","test","default"})`. `AppleWalletPassBuilder` injected it via constructor (unconditionally — no `@Autowired(required=false)`, no `Optional<>`). Result: `SPRING_PROFILES_ACTIVE=gke` failed bean wiring at context init and the entire app refused to start.
+
+Rule: **a `@Profile`-restricted bean is acceptable ONLY if every consumer is also `@Profile`-restricted to the same set, OR the consumer takes it as `Optional<X>` / `@Autowired(required=false)`.** Otherwise: drop the `@Profile` annotation, give the bean a sensible fallback for the missing-config case, and let the production deployment override the config.
+
+Apply at code review: search for `@Profile` annotations on every bean and verify the consumer graph.
+
+### `getContentLengthLong()` returns -1 for chunked transfer
+
+Any HTTP filter enforcing a body-size cap that uses `request.getContentLengthLong() > maxBodyBytes` is bypassable by chunked transfer encoding (`Content-Length` absent → returns -1 → -1 > cap is false → request passes through).
+
+Fix options:
+1. **Reject `< 0`** if the upstream provider always sends `Content-Length` (Stripe and PayPay do).
+2. **Wrap the input stream** with a size-counter that aborts at the cap.
+
+Rule: **any size-cap that reads `getContentLengthLong()` must explicitly handle the `< 0` case.**
+
+### Spring Security `addFilterBefore` + `@Component` filter = double registration
+
+A custom `Filter` annotated `@Component` gets registered TWICE in a Spring Boot servlet stack: once via Spring Security's `addFilterBefore(filterBean, ...)` and once via Spring Boot's automatic servlet-filter registration of every `Filter` `@Component`. The filter runs for every request twice, halving any rate limit and doubling any logging.
+
+Fix: either drop `@Component` and `@Bean` it from the security config, OR keep `@Component` and add a `FilterRegistrationBean<X>` that calls `setEnabled(false)` to suppress the auto-registration.
+
+Rule: **a `Filter` `@Component` that is also passed to `addFilterBefore`/`addFilterAfter` MUST have its servlet auto-registration suppressed via `FilterRegistrationBean.setEnabled(false)`.**
+
+### `EntityManager.save()` with assigned `@Id` defers SQL to commit time — a try-catch around it CAN'T catch the constraint violation
+
+For an entity with `@Id` (no `@GeneratedValue`) — for example a join-table row with `@IdClass` or composite key — `JpaRepository.save(...)` calls `EntityManager.persist(...)` which **defers the actual INSERT to the next flush**. Hibernate's auto-flush in AUTO mode only flushes if a subsequent query touches the same dirty entity's table. So this code does NOT work:
+
+```java
+try {
+  voteRepository.save(new ReviewHelpfulVote(reviewId, userId)); // persist queued, no SQL
+  reviewRepository.incrementHelpfulCount(reviewId); // @Modifying UPDATE on a DIFFERENT table — no auto-flush
+} catch (DataIntegrityViolationException dup) {
+  // never fires here; the unique-constraint violation throws at commit time, OUTSIDE the try
+}
+```
+
+Fix: `voteRepository.saveAndFlush(...)` (or explicit `entityManager.flush()`) so the INSERT hits the database INSIDE the try.
+
+Rule: **when expecting `DataIntegrityViolationException` from a save of an entity with assigned `@Id`, you MUST use `saveAndFlush` (or explicitly flush) — `save` alone defers the SQL past your catch block.**
+
+### Cross-store reconciliation jobs MUST re-publish AFTER_COMMIT events
+
+PR #21 had `PaymentReconciliationJob` repairing `Spanner order PAID ↔ Postgres payment SUCCEEDED` divergence. The repair correctly CAS'd the payment row to `SUCCEEDED` but did NOT re-publish `OrderPaidEvent`. Consequence: any order recovered through this path never earned points, never sent the confirmation email, never fired analytics — silent functional regression of the recovery path.
+
+Rule: **any reconciliation job that fixes a divergent state must re-publish the same domain events the happy path emits.** Otherwise recovered orders are functionally second-class. Test: the integration test for the reconciliation job must verify the AFTER_COMMIT listeners fire on a recovered row.
+
+### Public search/list endpoints must hard-filter on visibility status
+
+PR #19 caught this for `GET /products/{id}/availability`. PR #21 caught it again for the new `GET /v1/search` (OpenSearch indexed inactive products and the query had no `status=ACTIVE` filter). Same rule, new code path.
+
+Rule: **any public list/search endpoint that returns a domain entity must hard-filter on visibility (`status='ACTIVE'`, `published=true`, `deleted_at IS NULL`, etc.) inside the query, not in the application layer.** Index documents are equally vulnerable: if you index "all products," your search endpoint is a leak waiting to happen.
+
+### Defense in depth: gateway `permitAll`/`denyAll` only protects external traffic
+
+PR #21 added a `denyAll` matcher on `/v1/search/admin/**` at the gateway. Any in-cluster pod could still reach `search-service:8082/v1/search/admin/reindex` directly via the ClusterIP. Gateway filters protect the external edge; in-cluster traffic needs its own protection.
+
+Rule: **gateway authz is necessary but not sufficient.** Pair every gateway-level access rule with EITHER an in-process auth check on the downstream service OR a NetworkPolicy that restricts ingress to the expected upstream pod label. Default to NetworkPolicy because it's stateless and works for unauthenticated services.
+
+### `NetworkPolicy` on a clustered StatefulSet must allow node-to-node traffic on the transport port
+
+OpenSearch transport port 9300 (Elasticsearch same; Cassandra 7000; Kafka inter-broker 9093). Without an explicit ingress rule allowing pods of the same statefulset to reach EACH OTHER on that port, the cluster never forms — but the failure mode is a slow timeout and a confusing log line, not an obvious error.
+
+Rule: **any NetworkPolicy on a clustered service must include a self-selector ingress rule for the cluster transport port.**
+
+### NUMERIC string columns require BigDecimal, not `Long.parseLong`
+
+PR #21 stored `OrderItem.unitPrice` as `String` (`NUMERIC(12,2).toPlainString()`), so the on-the-wire value is always something like `"1500.00"` — never bare `"1500"`. The new points-earn subtotal calc used `Long.parseLong(item.unitPrice())` which **always** throws `NumberFormatException` on the trailing `.00`. The catch swallowed it, treated the line as 0, and the user never earned any points. Devin caught it. The fix is `new BigDecimal(s).longValueExact()`.
+
+Rule: **`NUMERIC(N,M)` columns serialized as Strings are not parseable as Long.** Use `BigDecimal`. Better: don't serialize money as `String`; use a typed money DTO. Best: avoid silent zero — log loudly if a parse fails so the bug doesn't sit silently in production.
+
+### Recovery / sweep jobs must log errors loudly
+
+A `catch (Exception ignored)` in a recovery sweep job means a permanent stuck row with no operator visibility. PR #21 had this in `OrderServiceImpl.createOrder`'s burn-refund path AND in `PaymentReconciliationJob.computeSubtotalJpy`. Both were caught in review.
+
+Rule: **`catch (...) { /* ignored */ }` is forbidden in any sweep/repair/reconciliation/recovery code path.** Use `log.error(... , ex)` with enough context (id, user, amount) for ops to find the affected row and repair it manually if the sweep can't.
+
+### Other PR #21 review pitfalls
+
+- **`@Profile`-restricted beans crashing the excluded profiles** — covered above.
+- **`@ConditionalOnProperty` for provider-specific controllers**: `PayPayWebhookController` was unconditionally registered even when `payments.gateway != paypay`, so a Stripe-only deploy got a controller bound to the wrong gateway bean. Rule: provider-specific controllers must be `@ConditionalOnProperty` on the same property that selects the provider implementation.
+- **Bounded vs unbounded in-memory caches**: `WebhookRateLimitFilter` used a plain `ConcurrentHashMap<String, Bucket>` keyed on remote IP. A long tail of unique callers (botnet scan) grows the map without bound. Rule: any in-memory cache keyed on a high-cardinality external attribute (IP, user-agent, header value) must use Caffeine (or equivalent) with `maximumSize` AND `expireAfterAccess`.
+- **`@Modifying` JPA queries need `clearAutomatically=true` (and usually `flushAutomatically=true`)**: otherwise the persistence context retains the stale entity and a subsequent `findById` returns the pre-update value, breaking CAS retry loops. Rule: every `@Modifying` query should be `@Modifying(clearAutomatically=true, flushAutomatically=true)` unless you can prove the persistence context is empty.
+- **Pre-generate cross-store ids when burning before writing**: the `OrderServiceImpl.createOrder` flow now pre-generates the order id BEFORE the points-burn so the burn ledger row can pin to a stable id, and the Spanner write accepts the pre-generated id. Rule: any write that spans two stores must pre-allocate the foreign-key value before the first write so recovery jobs can join the two sides.
+- **Postgres PR-specific metadata in javadoc**: comments like `(PR #21 review N4 from CodeRabbit)` rot. Document the WHY of the rule, not the WHEN of the discovery. References in commit messages and PR descriptions are fine.
+- **Always-running k8s `Filter`s on a clustered StatefulSet need a `PodDisruptionBudget`**: otherwise rolling node upgrades drain quorum.
+- **`bootstrap.memory_lock=true` requires `IPC_LOCK` capability**: dropping `ALL` capabilities for security and leaving `bootstrap.memory_lock=true` causes a startup warning. Fix: set `memory_lock=false` (cgroup memory limit + JVM Xms==Xmx is sufficient) or add `capabilities.add: ["IPC_LOCK"]`.
+
+## Process Lessons (workflow patterns from PR #21)
+
+PR #21 took 4 review rounds. Each round caught a NEW class of bug that the previous round missed AND a regression of a rule from an earlier PR. The escalation is itself the signal: I need stronger pre-review verification, not just more review rounds.
+
+### After a subagent commits, run the full test suite for the affected module
+
+PR #21 spawned 4 subagents in parallel for new domains (payments, reviews/favorites/points, search-service, wallet). At least one subagent (reviews/favorites/points) added new constructor parameters to `PointBalanceRepository` / `ReviewServiceImpl` that broke the existing service tests. The orchestrator declared the subagent done, moved on, and the broken tests only surfaced in the next test run several commits later.
+
+Rule: **every subagent commit MUST be followed by `./gradlew :services:<module>:test` from the orchestrator before moving on.** Subagents own their scope; the orchestrator owns integration. Do not declare a subagent done without verifying the existing test suite still passes.
+
+### Never `git add -A` while subagents are running
+
+PR #21 had two incidents where the orchestrator's `git add -A && git commit` swept in-flight files from a parallel subagent into the wrong commit, forcing the subagent to soft-reset and re-commit. One of those commits ended up with a misleading message (claimed to be "wallet" but contained search-service indexer files).
+
+Rule: **while subagents are running, the orchestrator only `git add` specific paths it owns.** Subagents stage and commit atomically when they finish. `git add -A` is allowed only when the working tree is provably free of subagent work (either no agents are running, or all running agents are in observation/research mode).
+
+### A recovery/sweep job without a test is fiction
+
+PR #21 added `OrphanedDiscountReconciliationJob` and `PaymentReconciliationJob` re-publish behavior. Neither has an integration test. There is no proof that a stranded orphaned discount is actually recovered. "We'll write a test for the recovery path in a follow-up" is the same lie that produced the original bug — the recovery path runs once per process per problem and reading the code is not the same as exercising it.
+
+Rule: **every new `@Scheduled` repair/sweep/reconciliation job lands with at least one integration test that creates the broken state and verifies the sweep recovers it.** Without that test, the job is a comment-shaped wish.
+
+### When implementing a feature with a user-visible end state, write the integration test for the end state FIRST
+
+PR #21's worst bug was the silent overcharge: `pointsToUse=100` burned 100 points and then created the Stripe payment intent for the GROSS amount. The test that would have caught this on the very first run is one line: "create order with `pointsToUse=100`, assert `saved.totalAmount() == gross - 100`." It did not exist because the implementation was written to "subtract points → create discount row → done" without ever asserting the user-visible end state.
+
+Rule: **for any feature with a user-visible end state (money charged, points balance, ticket count, search hit count), the integration test that asserts the end state goes in BEFORE the implementation, even if it currently fails.** TDD-lite: the test is the spec for what "done" means. Implementation that doesn't pass that test is not done.
+
+### Reading rules from CLAUDE.md is necessary but not sufficient — generalize them every time
+
+I read the "plain `save()` on a status column with multiple writers" rule from PR #18 / #19. I applied it to status enums. I missed that the same root cause kills any read-modify-write on any multi-writer column — balances, counters, JSON merge fields. The literal rule was correct; the generalization was missing. So I introduced PR #18's bug AGAIN on a different column type and shipped it past my own self-review.
+
+Rule: **when reading a CLAUDE.md rule, explicitly generalize it.** Ask "what is the root cause this rule prevents?" and "what other code paths in this PR are vulnerable to that root cause?" The literal rule covers one face of the bug; the generalization covers the rest.
+
+### The number of review rounds is itself the signal
+
+PR #20 = 2 review rounds, all clustered on testing edge cases. PR #21 = 4 review rounds, with each round catching a bug introduced by the previous round's fix. The escalation indicates that the fixes are incomplete or the testing surface is too narrow. When a PR is on its 3rd round of review feedback, stop fixing individual findings and re-read the entire diff with the question: "what class of bug am I missing?" Document the class in CLAUDE.md before pushing the next fix.
+
 ## Process Lessons (workflow patterns from PR #18)
 
 Generalizable lessons from 55 commits + 4 reviewer rounds (CodeRabbit, Codex, Devin, Gemini). These are workflow rules, not code patterns.
