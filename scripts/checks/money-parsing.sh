@@ -38,15 +38,18 @@ while IFS= read -r line; do
   fi
   VIOLATIONS+="$line"$'\n'
 done < <(
+  # Match money-handling files by any path segment, not just basename:
+  # includes e.g. `cart/utils/index.ts`. rg glob `**/cart*/**/*.ts` lets
+  # the keyword live anywhere in the path tree.
   rg -n --no-heading --no-ignore \
-    -g '*cart*.ts' -g '*cart*.tsx' \
-    -g '*price*.ts' -g '*price*.tsx' \
-    -g '*payment*.ts' -g '*payment*.tsx' \
-    -g '*order*.ts' -g '*order*.tsx' \
-    -g '*points*.ts' -g '*points*.tsx' \
-    -g '*wallet*.ts' -g '*wallet*.tsx' \
-    -g '*subtotal*.ts' -g '*subtotal*.tsx' \
-    -g '*amount*.ts' -g '*amount*.tsx' \
+    -g '**/*cart*.ts' -g '**/*cart*.tsx' -g '**/cart/**/*.ts' -g '**/cart/**/*.tsx' \
+    -g '**/*price*.ts' -g '**/*price*.tsx' -g '**/price/**/*.ts' -g '**/price/**/*.tsx' \
+    -g '**/*payment*.ts' -g '**/*payment*.tsx' -g '**/payments/**/*.ts' -g '**/payments/**/*.tsx' \
+    -g '**/*order*.ts' -g '**/*order*.tsx' -g '**/orders/**/*.ts' -g '**/orders/**/*.tsx' \
+    -g '**/*points*.ts' -g '**/*points*.tsx' -g '**/points/**/*.ts' -g '**/points/**/*.tsx' \
+    -g '**/*wallet*.ts' -g '**/*wallet*.tsx' -g '**/wallet/**/*.ts' -g '**/wallet/**/*.tsx' \
+    -g '**/*subtotal*.ts' -g '**/*subtotal*.tsx' \
+    -g '**/*amount*.ts' -g '**/*amount*.tsx' \
     '(parseFloat\(|Number\()' "$SCAN_ROOT" 2>/dev/null || true
 )
 

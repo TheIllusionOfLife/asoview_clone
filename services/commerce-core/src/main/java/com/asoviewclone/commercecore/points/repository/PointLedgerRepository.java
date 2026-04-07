@@ -13,6 +13,8 @@ public interface PointLedgerRepository extends JpaRepository<PointLedgerEntry, U
 
   boolean existsByReasonAndOrderId(PointReason reason, String orderId);
 
+  long countByReasonAndOrderId(PointReason reason, String orderId);
+
   /**
    * Finds the user_id of the {@code BURN_PURCHASE} ledger entry pinned to {@code orderId}, used by
    * {@link OrphanedDiscountReconciliationJob} to resolve which user to refund when the {@code

@@ -3,6 +3,7 @@ package com.asoviewclone.commercecore.arch;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.domain.JavaMethod;
+import com.tngtech.archunit.core.domain.JavaMethodCall;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import jakarta.servlet.Filter;
@@ -11,6 +12,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
 
 /**
@@ -32,14 +34,29 @@ public class FilterRegistrationRules {
             .withImportOption(new ImportOption.DoNotIncludeTests())
             .importPackages("com.asoviewclone.commercecore");
 
+    // A method is a valid suppressor iff:
+    //   1. It is @Bean-annotated,
+    //   2. Returns FilterRegistrationBean<X>,
+    //   3. Takes the filter class as a constructor/parameter (so we can bind
+    //      it to its target filter), AND
+    //   4. Calls FilterRegistrationBean.setEnabled(...) somewhere in the
+    //      body. (Without setEnabled(false), the suppressor is a lie.)
     Set<String> filtersWithSuppressor = new HashSet<>();
     for (JavaClass c : all) {
       for (JavaMethod m : c.getMethods()) {
-        if (m.getRawReturnType().isAssignableTo(FilterRegistrationBean.class)) {
-          for (JavaClass p : m.getRawParameterTypes()) {
-            if (p.isAssignableTo(Filter.class)) {
-              filtersWithSuppressor.add(p.getFullName());
-            }
+        if (!m.isAnnotatedWith(Bean.class)) continue;
+        if (!m.getRawReturnType().isAssignableTo(FilterRegistrationBean.class)) continue;
+        boolean callsSetEnabled =
+            m.getMethodCallsFromSelf().stream()
+                .map(JavaMethodCall::getTarget)
+                .anyMatch(
+                    t ->
+                        "setEnabled".equals(t.getName())
+                            && t.getOwner().isAssignableTo(FilterRegistrationBean.class));
+        if (!callsSetEnabled) continue;
+        for (JavaClass p : m.getRawParameterTypes()) {
+          if (p.isAssignableTo(Filter.class)) {
+            filtersWithSuppressor.add(p.getFullName());
           }
         }
       }

@@ -92,9 +92,13 @@ class PointLedgerIdempotencyTest {
     // load-bearing assertion is the row + balance count below.
 
     // Exactly one ledger row for the (BURN_PURCHASE, orderId) tuple.
-    boolean burnExists =
-        ledgerRepository.existsByReasonAndOrderId(PointReason.BURN_PURCHASE, orderId);
-    assertThat(burnExists).as("at least one burn ledger row exists").isTrue();
+    // Using count() not exists(): exists() returns true for 1..N rows, which
+    // would silently miss a regression where insert-first idempotency is
+    // reverted to exists-then-save TOCTOU and two rows land.
+    long burnCount = ledgerRepository.countByReasonAndOrderId(PointReason.BURN_PURCHASE, orderId);
+    assertThat(burnCount)
+        .as("exactly one burn ledger row must exist, not N (errors=%d)", errors.get())
+        .isEqualTo(1L);
 
     // Balance reflects exactly one burn, not N. (initialEarn − burnAmount).
     long balance = balanceRepository.findCurrentBalance(userId).orElse(-1L);

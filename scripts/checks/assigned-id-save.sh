@@ -28,10 +28,13 @@ fi
 ENTITY_NAMES=()
 while IFS= read -r f; do
   # Extract every class name declared in the file. Most JPA entities are
-  # one class per file, but we tolerate multiple just in case.
+  # one class per file, but we tolerate multiple just in case. The
+  # regex matches any modifier combination before `class Name` so
+  # `public final class Foo`, `abstract class Bar`, and plain `class Baz`
+  # are all covered.
   while IFS= read -r name; do
     [[ -n "$name" ]] && ENTITY_NAMES+=("$name")
-  done < <(rg -o --no-filename '^\s*(?:public\s+)?(?:abstract\s+)?class\s+(\w+)' --replace '$1' "$f" 2>/dev/null || true)
+  done < <(rg -o --no-filename '\bclass\s+(\w+)' --replace '$1' "$f" 2>/dev/null || true)
 done < <(
   for root in "${SCAN_ROOTS[@]}"; do
     [[ -d "$root" ]] || continue
@@ -53,20 +56,62 @@ fi
 
 # Build the alternation, e.g. (Foo|Bar|Baz)
 joined="$(IFS='|'; echo "${ENTITY_NAMES[*]}")"
-PATTERN="\\.save\\(\\s*new (${joined})\\("
+# Two patterns:
+#   - inline:  repo.save(new Foo(...))
+#   - assigned-@Id entity as local var: Foo e = new Foo(...);  repo.save(e)
+#
+# For the variable form we collect local var declarations of type
+# <Foo> and then match .save(<varname>). Simple, single-file scope
+# (we don't cross-reference across files to keep the check line-local).
+INLINE_PATTERN="\\.save\\(\\s*new\\s+(${joined})\\("
 
 VIOLATIONS=""
 for root in "${SCAN_ROOTS[@]}"; do
   [[ -d "$root" ]] || continue
+
+  # Inline matches.
   while IFS= read -r line; do
     [[ -z "$line" ]] && continue
-    # Allow-list saveAndFlush
-    if echo "$line" | rg -q '\.saveAndFlush\('; then
-      continue
-    fi
     VIOLATIONS+="$line"$'\n'
-  done < <(rg -n --no-heading --no-ignore "$PATTERN" "$root" 2>/dev/null || true)
+  done < <(rg -n --no-heading --no-ignore "$INLINE_PATTERN" "$root" 2>/dev/null || true)
+
+  # Variable-form matches. For each .java file, learn local variable
+  # names declared as `<EntityName> varName` or `var varName =
+  # new EntityName(`, then grep `.save(varName)`.
+  while IFS= read -r f; do
+    # Collect (type, varname) declarations.
+    local_vars=()
+    while IFS= read -r decl; do
+      [[ -z "$decl" ]] && continue
+      local_vars+=("$decl")
+    done < <(
+      rg --no-heading --no-filename --no-ignore \
+        -o "\\b(${joined})\\s+(\\w+)\\s*(?:=|;)" \
+        --replace '$2' "$f" 2>/dev/null || true
+    )
+    [[ ${#local_vars[@]} -eq 0 ]] && continue
+    for v in "${local_vars[@]}"; do
+      # Deny-list: .save(v)  — but allow .saveAndFlush(v).
+      while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        VIOLATIONS+="$line"$'\n'
+      done < <(
+        rg -n --no-heading --no-ignore "(?<!saveAndFlush)\\.save\\(\\s*${v}\\s*\\)" "$f" 2>/dev/null || true
+      )
+    done
+  done < <(
+    rg -l --no-messages --no-ignore -g '*.java' "\\b(${joined})\\b" "$root" 2>/dev/null || true
+  )
 done
+
+# NOTE on saveAndFlush: Codex flagged that saveAndFlush STILL routes
+# through merge() for assigned-@Id entities and thus cannot reliably
+# throw DataIntegrityViolationException on replay. The structural fix
+# is `insertIfMissing` — saveAndFlush is a last-resort workaround for
+# code that genuinely wants JPA merge semantics. We do NOT warn on
+# saveAndFlush here to avoid flooding the ledger + saga code that
+# relies on it; upgrading to insertIfMissing is tracked as a follow-up
+# refactor in the PR body.
 
 if [[ -n "$VIOLATIONS" ]]; then
   echo "FAIL assigned-id-save: JpaRepository.save() on assigned-@Id entity routes through merge() —"

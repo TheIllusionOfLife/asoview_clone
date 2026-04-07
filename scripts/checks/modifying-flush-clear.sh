@@ -7,8 +7,10 @@
 # entities; without clearAutomatically a subsequent findById returns
 # the pre-update value.
 #
-# Approach: ripgrep every `@Modifying` annotation under
-# services/commerce-core/src/main/java and assert it has both flags.
+# Approach: ripgrep each `@Modifying` annotation in multiline mode so
+# the flags can live on continuation lines (common after IDE
+# reformatting). Reject any match that doesn't contain BOTH flags
+# somewhere inside the annotation's parens.
 
 set -euo pipefail
 
@@ -23,23 +25,33 @@ fi
 
 [[ -d "$SCAN_ROOT" ]] || exit 0
 
+# Multiline-match:
+#   ^\s*@Modifying([^)]*)
+# capturing everything up to the closing paren. Then assert both flags
+# are somewhere inside the capture. A bare `@Modifying` (no parens)
+# also fails.
 VIOLATIONS=""
-while IFS= read -r line; do
-  [[ -z "$line" ]] && continue
-  # The match looks like:  /path/to/Foo.java:42:  @Modifying
-  # Or:                    /path/to/Foo.java:42:  @Modifying(clearAutomatically=true)
-  # We pass if BOTH flags are present on the same line.
-  if echo "$line" | rg -q 'clearAutomatically\s*=\s*true' && \
-     echo "$line" | rg -q 'flushAutomatically\s*=\s*true'; then
+while IFS= read -r match; do
+  [[ -z "$match" ]] && continue
+  # Bare @Modifying without parens is a violation.
+  if ! echo "$match" | rg -q 'clearAutomatically\s*=\s*true'; then
+    VIOLATIONS+="$match"$'\n\n'
     continue
   fi
-  VIOLATIONS+="$line"$'\n'
-done < <(rg -n --no-heading --no-ignore '^\s*@Modifying' "$SCAN_ROOT" 2>/dev/null || true)
+  if ! echo "$match" | rg -q 'flushAutomatically\s*=\s*true'; then
+    VIOLATIONS+="$match"$'\n\n'
+    continue
+  fi
+done < <(
+  rg -U --multiline-dotall --no-heading --line-number --no-ignore \
+    '^\s*@Modifying(\([^)]*\))?' "$SCAN_ROOT" 2>/dev/null || true
+)
 
 if [[ -n "$VIOLATIONS" ]]; then
   echo "FAIL modifying-flush-clear: @Modifying JPA queries must set both"
-  echo "  clearAutomatically=true and flushAutomatically=true to keep the persistence context"
-  echo "  consistent with the database. See CLAUDE.md 'Review Pitfalls (PR #21)'."
+  echo "  clearAutomatically=true and flushAutomatically=true. Multiline"
+  echo "  annotations are tolerated — the check reads each @Modifying(...)"
+  echo "  paren group as a whole. See CLAUDE.md 'Review Pitfalls (PR #21)'."
   echo
   echo "$VIOLATIONS" | sed 's/^/  /'
   exit 1

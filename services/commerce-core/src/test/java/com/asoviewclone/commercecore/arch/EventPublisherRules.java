@@ -60,13 +60,19 @@ public class EventPublisherRules {
         }
       };
 
+  // NOTE: private methods are intentionally NOT excluded. Allowing a
+  // public non-transactional method to delegate the publish call to a
+  // private helper would be a trivial loophole — CodeRabbit/Gemini PR
+  // #23 feedback. Recipients of this check's violations on private
+  // methods whose boundary is established by a TransactionTemplate
+  // (e.g. PaymentReconciliationJob.reconcileBatch) should annotate the
+  // private method with @Transactional(propagation = MANDATORY) to
+  // assert the expectation at runtime, OR inline the private helper.
   @ArchTest
   static final ArchRule publish_event_callers_must_be_transactional =
       methods()
           .that()
           .areNotDeclaredIn(ApplicationEventPublisher.class)
-          .and()
-          .areNotPrivate()
           .and(
               new DescribedPredicate<JavaMethod>("call publishEvent") {
                 @Override

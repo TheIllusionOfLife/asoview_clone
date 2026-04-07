@@ -23,7 +23,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.stereotype.Component;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -104,7 +103,9 @@ class OrderPaidEventReconciliationTest {
     }
   }
 
-  @Component
+  // NOT @Component — that would cause Spring's component scan to pick it up
+  // for EVERY @SpringBootTest in the suite and pollute unrelated tests. The
+  // @Bean in RecorderConfig above is sufficient and scoped to this test.
   static class OrderPaidEventRecorder {
     final List<OrderPaidEvent> events = new CopyOnWriteArrayList<>();
 

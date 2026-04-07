@@ -18,6 +18,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -130,7 +132,13 @@ public class PaymentReconciliationJob {
     return true;
   }
 
-  private void reconcileBatch(List<Payment> processing) {
+  // Propagation.MANDATORY: this method is always invoked inside the
+  // per-batch requiresNewTxTemplate.executeWithoutResult(...) scope; the
+  // annotation asserts that contract at runtime AND satisfies the
+  // EventPublisherRules ArchUnit check (which requires every
+  // publishEvent caller to be @Transactional). See PR 3d.5.
+  @Transactional(propagation = Propagation.MANDATORY)
+  public void reconcileBatch(List<Payment> processing) {
     for (Payment payment : processing) {
       try {
         Order order = orderRepository.findById(payment.getOrderId());
