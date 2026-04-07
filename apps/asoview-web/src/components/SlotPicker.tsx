@@ -15,7 +15,7 @@
 
 import { ApiError, NetworkError, SignInRedirect, SlotTakenError, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { clearIdempotencyKey } from "@/lib/idempotency";
+import { clearIdempotencyKey, setOrderFingerprint } from "@/lib/idempotency";
 import type {
   AvailabilityEntry,
   CreateOrderRequest,
@@ -162,6 +162,12 @@ export function SlotPicker({ product }: { product: ProductResponse }) {
     };
     try {
       const order = await api.post<OrderResponse>("/v1/orders", body, { idempotency: fp });
+      // Pin the fingerprint to this orderId so CheckoutClient can clear
+      // it once the order reaches a terminal state. Without this, the
+      // UUID lingers in sessionStorage and a subsequent booking of the
+      // same product/slot/quantity silently returns the old terminal
+      // order. (Devin PR #22 finding.)
+      setOrderFingerprint(order.orderId, fp);
       router.push(`/checkout/${order.orderId}`);
     } catch (e: unknown) {
       setSubmitting(false);

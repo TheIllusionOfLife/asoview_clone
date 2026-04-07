@@ -62,7 +62,13 @@ function buildCsp(): string {
   if (authDomainOrigin) frame.push(authDomainOrigin);
   return [
     "default-src 'self'",
-    "script-src 'self' https://js.stripe.com",
+    // Next.js 16 App Router emits inline hydration scripts (RSC stream
+    // bootstrap, __next_f bridge). Without 'unsafe-inline' the browser
+    // blocks hydration and every client component stays on its SSR
+    // skeleton forever. A nonce-based middleware is the proper
+    // hardened approach and should land in a follow-up PR; for now
+    // we accept the same posture as 'style-src 'unsafe-inline' above.
+    "script-src 'self' 'unsafe-inline' https://js.stripe.com",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self' data:",
     "img-src 'self' data: https://*.googleusercontent.com",
