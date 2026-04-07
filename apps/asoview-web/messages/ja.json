@@ -40,6 +40,12 @@
       "priceDesc": "価格が高い順"
     }
   },
+  "points": {
+    "balance": "保有ポイント",
+    "ledgerTitle": "ポイント履歴",
+    "useLabel": "ポイントを使う",
+    "useHelper": "1ポイント = 1円として利用できます。"
+  },
   "favorites": {
     "title": "お気に入り",
     "empty": "お気に入りはまだありません。",

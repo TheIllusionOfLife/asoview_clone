@@ -9,12 +9,19 @@
 
 import { Link } from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
-import { ApiError, NetworkError, SignInRedirect, SlotTakenError, api } from "@/lib/api";
+import {
+  ApiError,
+  NetworkError,
+  SignInRedirect,
+  SlotTakenError,
+  api,
+  getPointsBalance,
+} from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { clearIdempotencyKey, setOrderFingerprint } from "@/lib/idempotency";
 import type { CreateOrderRequest, OrderResponse } from "@/lib/types";
 import { useCart } from "@/lib/useCart";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 function formatJpy(amount: number | string): string {
   // Display-only formatter. Japanese retail uses integer yen, so Math.trunc
@@ -61,6 +68,35 @@ export default function CartPage() {
   const [submitting, setSubmitting] = useState(false);
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [lineErrors, setLineErrors] = useState<Record<string, string>>({});
+  const [pointsBalance, setPointsBalance] = useState<number | null>(null);
+  const [pointsToUse, setPointsToUse] = useState<number>(0);
+
+  // Fetch the user's points balance once they are signed in. Fail silent —
+  // points are optional and a fetch failure should not block checkout.
+  useEffect(() => {
+    if (!ready || !user) return;
+    let cancelled = false;
+    const ctrl = new AbortController();
+    (async () => {
+      try {
+        const { balance } = await getPointsBalance({ signal: ctrl.signal });
+        if (!cancelled) setPointsBalance(balance);
+      } catch {
+        if (!cancelled) setPointsBalance(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      ctrl.abort();
+    };
+  }, [ready, user]);
+
+  // Clamp 0 <= pointsToUse <= min(balance, subtotal). Yen integer minor units.
+  const subtotalYen = Math.trunc(Number(subtotal)); // money-parse-ok: display clamp only
+  const maxPoints = Math.max(
+    0,
+    Math.min(Number.isFinite(subtotalYen) ? subtotalYen : 0, pointsBalance ?? 0),
+  );
 
   const onCheckout = useCallback(async () => {
     if (cart.lines.length === 0) return;
@@ -71,12 +107,14 @@ export default function CartPage() {
       return;
     }
     const fp = cartFingerprint(cart.lines);
+    const clampedPoints = Math.max(0, Math.min(maxPoints, Math.trunc(pointsToUse || 0)));
     const body: CreateOrderRequest = {
       items: cart.lines.map((l) => ({
         productVariantId: l.productVariantId,
         slotId: l.slotId,
         quantity: l.quantity,
       })),
+      ...(clampedPoints > 0 ? { pointsToUse: clampedPoints } : {}),
     };
     setSubmitting(true);
     try {
@@ -117,7 +155,7 @@ export default function CartPage() {
           : "予約処理中にエラーが発生しました",
       );
     }
-  }, [cart.lines, router, user]);
+  }, [cart.lines, router, user, maxPoints, pointsToUse]);
 
   if (!hydrated || !ready) {
     return (
@@ -222,6 +260,39 @@ export default function CartPage() {
           </li>
         ))}
       </ul>
+
+      {user && pointsBalance !== null && pointsBalance > 0 && (
+        <div className="mt-6 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+          <label className="flex items-center justify-between gap-3 text-sm">
+            <span>
+              ポイントを使う
+              <span className="ml-2 text-xs text-[var(--color-ink-muted)]">
+                (保有 {pointsBalance} pt / 上限 {maxPoints} pt)
+              </span>
+            </span>
+            <input
+              type="number"
+              min={0}
+              max={maxPoints}
+              step={1}
+              value={pointsToUse}
+              onChange={(e) => {
+                const v = Number.parseInt(e.target.value, 10);
+                if (Number.isNaN(v)) {
+                  setPointsToUse(0);
+                } else {
+                  setPointsToUse(Math.max(0, Math.min(maxPoints, Math.trunc(v))));
+                }
+              }}
+              aria-label="使用するポイント"
+              className="w-28 rounded-[var(--radius-sm)] border border-[var(--color-border)] px-2 py-1 text-right"
+            />
+          </label>
+          <p className="mt-2 text-xs text-[var(--color-ink-muted)]">
+            1ポイント = 1円として利用できます。
+          </p>
+        </div>
+      )}
 
       <div className="mt-6 flex items-center justify-between rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
         <span className="text-sm text-[var(--color-ink-muted)]">合計</span>

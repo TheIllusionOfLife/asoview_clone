@@ -1,5 +1,6 @@
 import { Link } from "@/i18n/navigation";
 import { CartBadge } from "./CartBadge";
+import { PointsBalance } from "./points/PointsBalance";
 
 export function Header() {
   return (
@@ -21,6 +22,13 @@ export function Header() {
           </Link>
           <Link href="/me/favorites" className="hover:text-[var(--color-primary)]">
             お気に入り
+          </Link>
+          <Link
+            href="/me/points"
+            className="hover:text-[var(--color-primary)] inline-flex items-center gap-1"
+          >
+            ポイント
+            <PointsBalance />
           </Link>
           <Link href="/me/orders" className="hover:text-[var(--color-primary)]">
             予約履歴

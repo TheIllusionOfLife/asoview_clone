@@ -40,6 +40,12 @@
       "priceDesc": "Price: high to low"
     }
   },
+  "points": {
+    "balance": "Points balance",
+    "ledgerTitle": "Points history",
+    "useLabel": "Use points",
+    "useHelper": "1 point = 1 yen."
+  },
   "favorites": {
     "title": "Favorites",
     "empty": "You have no favorites yet.",
