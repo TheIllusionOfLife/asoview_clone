@@ -33,11 +33,32 @@ function serverBaseUrl(): string {
  *
  * Uses Next's `revalidate` cache for short-TTL SSR caching.
  */
+const SERVER_FETCH_TIMEOUT_MS = 8_000;
+
 export async function serverGet<T>(path: string, revalidateSeconds = 60): Promise<T> {
-  const res = await fetch(`${serverBaseUrl()}${path}`, {
-    headers: { Accept: "application/json" },
-    next: { revalidate: revalidateSeconds },
-  });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), SERVER_FETCH_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(`${serverBaseUrl()}${path}`, {
+      headers: { Accept: "application/json" },
+      next: { revalidate: revalidateSeconds },
+      signal: ctrl.signal,
+    });
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") {
+      throw new ServerFetchError(
+        504,
+        `Upstream timeout after ${SERVER_FETCH_TIMEOUT_MS}ms for ${path}`,
+      );
+    }
+    throw new ServerFetchError(
+      502,
+      e instanceof Error ? e.message : `Upstream fetch error for ${path}`,
+    );
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) {
     throw new ServerFetchError(res.status, `${res.status} ${res.statusText} for ${path}`);
   }

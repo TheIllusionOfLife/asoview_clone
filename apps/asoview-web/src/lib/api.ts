@@ -78,8 +78,16 @@ function baseUrl(): string {
 const DEFAULT_TIMEOUT_MS = 10_000;
 const PAYMENTS_TIMEOUT_MS = 30_000;
 
-function timeoutForPath(path: string): number {
-  return path.startsWith("/v1/payments") ? PAYMENTS_TIMEOUT_MS : DEFAULT_TIMEOUT_MS;
+/**
+ * Payment endpoints get the longer timeout. We must match BOTH:
+ *   - the top-level prefix `/v1/payments...`
+ *   - the per-order subresource `/v1/orders/{id}/payments...`
+ * The previous `startsWith("/v1/payments")` predicate missed the latter
+ * (10s timeout was applied to a Stripe round trip, which timed out
+ * intermittently in the slow-network test).
+ */
+export function timeoutForPath(path: string): number {
+  return /\/payments(?:[/?]|$)/.test(path) ? PAYMENTS_TIMEOUT_MS : DEFAULT_TIMEOUT_MS;
 }
 
 // ---------- Core request ----------

@@ -48,13 +48,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       unsub = onIdTokenChanged(auth, async (u) => {
         setUser(u);
-        if (u) {
-          const token = await u.getIdToken();
-          setIdToken(token);
-        } else {
+        try {
+          if (u) {
+            const token = await u.getIdToken();
+            setIdToken(token);
+          } else {
+            setIdToken(null);
+          }
+        } catch (err) {
+          // A token-fetch failure (network blip, revoked session, clock
+          // skew) must NOT leave the auth provider hung in `ready=false`,
+          // because every page that gates on `ready` would spin forever.
+          // Drop the token and proceed as if signed-out for this paint;
+          // a subsequent onIdTokenChanged tick will recover.
+          console.warn("Failed to fetch Firebase ID token", err);
           setIdToken(null);
+        } finally {
+          setReady(true);
         }
-        setReady(true);
       });
     })();
     return () => {

@@ -6,6 +6,7 @@ import {
   SlotTakenError,
   apiRequest,
   setIdTokenGetter,
+  timeoutForPath,
 } from "../api";
 
 const BASE = "http://test.local";
@@ -115,6 +116,17 @@ describe("apiRequest", () => {
   it("wraps fetch failures in NetworkError", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new TypeError("Failed to fetch"));
     await expect(apiRequest("/v1/foo")).rejects.toBeInstanceOf(NetworkError);
+  });
+
+  it("timeoutForPath matches both /v1/payments and /v1/orders/{id}/payments", () => {
+    expect(timeoutForPath("/v1/payments/intents")).toBe(30_000);
+    expect(timeoutForPath("/v1/orders/ord-1/payments")).toBe(30_000);
+    expect(timeoutForPath("/v1/orders/ord-1/payments?foo=bar")).toBe(30_000);
+    expect(timeoutForPath("/v1/orders/ord-1/payments/123")).toBe(30_000);
+    expect(timeoutForPath("/v1/orders/ord-1")).toBe(10_000);
+    expect(timeoutForPath("/v1/products")).toBe(10_000);
+    // Don't false-match a substring like "/v1/paymentsfoo".
+    expect(timeoutForPath("/v1/paymentsfoo")).toBe(10_000);
   });
 
   it("aborts on external signal", async () => {
