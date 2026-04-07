@@ -13,6 +13,7 @@ spring-retry = "2.0.12"
 spotless = "8.4.0"
 checkstyle = "13.4.0"
 stripe-java = "32.0.0"
+bucket4j = "8.10.1"
 
 [libraries]
 # Spring Cloud
@@ -48,6 +49,9 @@ spring-retry = { module = "org.springframework.retry:spring-retry", version.ref 
 
 # Stripe
 stripe-java = { module = "com.stripe:stripe-java", version.ref = "stripe-java" }
+
+# Bucket4j (in-process token bucket for webhook rate limiting)
+bucket4j-core = { module = "com.bucket4j:bucket4j-core", version.ref = "bucket4j" }
 
 # Testcontainers
 testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }
