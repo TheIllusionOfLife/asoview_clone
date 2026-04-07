@@ -73,12 +73,14 @@ export function writeCart(
 ): void {
   if (!storage) return;
   storage.setItem(cartKey(uid), JSON.stringify(cart));
+  invalidateSnapshotCache(uid);
   notify();
 }
 
 export function clearCart(uid: string | null, storage: Storage | null = defaultStorage()): void {
   if (!storage) return;
   storage.removeItem(cartKey(uid));
+  invalidateSnapshotCache(uid);
   notify();
 }
 
@@ -143,6 +145,33 @@ export function mergeGuestIntoUser(uid: string, storage: Storage | null = defaul
   writeCart(uid, merged, storage);
   clearCart(null, storage);
   return merged;
+}
+
+// ---------- Snapshot cache (for useSyncExternalStore stability) ----------
+
+/**
+ * Module-level cache of the most recent parsed Cart per uid. The cache
+ * exists so that `useSyncExternalStore`'s `getSnapshot` returns the
+ * same object reference when nothing has changed; otherwise React
+ * detects a "store has changed" on every render and tears.
+ *
+ * Invalidation: every cart mutation (`writeCart`, `clearCart`) calls
+ * `invalidateSnapshotCache` BEFORE notifying listeners, so the next
+ * `snapshotCart(uid)` call re-parses storage and the new (stable)
+ * reference is returned.
+ */
+const snapshotCache = new Map<string | null, Cart>();
+
+export function invalidateSnapshotCache(uid: string | null): void {
+  snapshotCache.delete(uid);
+}
+
+export function snapshotCart(uid: string | null, storage: Storage | null = defaultStorage()): Cart {
+  const cached = snapshotCache.get(uid);
+  if (cached) return cached;
+  const fresh = readCart(uid, storage);
+  snapshotCache.set(uid, fresh);
+  return fresh;
 }
 
 // ---------- Subscription mirror for React ----------

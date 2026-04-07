@@ -4,10 +4,13 @@ import {
   GUEST_CART_KEY,
   addLine,
   cartKey,
+  clearCart,
   emptyCart,
+  invalidateSnapshotCache,
   mergeGuestIntoUser,
   readCart,
   removeLine,
+  snapshotCart,
   subtotal,
   updateQuantity,
   writeCart,
@@ -163,5 +166,42 @@ describe("mergeGuestIntoUser", () => {
     const merged = mergeGuestIntoUser("u1", store);
     expect(merged.lines).toHaveLength(1);
     expect(merged.lines[0]?.quantity).toBe(4);
+  });
+});
+
+describe("snapshotCart referential stability", () => {
+  let store: ReturnType<typeof memoryStorage>;
+
+  beforeEach(() => {
+    store = memoryStorage();
+    invalidateSnapshotCache("u1");
+    invalidateSnapshotCache(null);
+  });
+
+  it("returns the same reference across consecutive calls when nothing changed", () => {
+    writeCart("u1", addLine(emptyCart(), makeLine("s1", 2)), store);
+    const a = snapshotCart("u1", store);
+    const b = snapshotCart("u1", store);
+    expect(Object.is(a, b)).toBe(true);
+  });
+
+  it("returns a fresh stable reference after a write", () => {
+    writeCart("u1", addLine(emptyCart(), makeLine("s1", 2)), store);
+    const before = snapshotCart("u1", store);
+    writeCart("u1", addLine(emptyCart(), makeLine("s1", 5)), store);
+    const after1 = snapshotCart("u1", store);
+    const after2 = snapshotCart("u1", store);
+    expect(Object.is(before, after1)).toBe(false);
+    expect(Object.is(after1, after2)).toBe(true);
+    expect(after1.lines[0]?.quantity).toBe(5);
+  });
+
+  it("invalidates on clearCart", () => {
+    writeCart("u1", addLine(emptyCart(), makeLine("s1", 2)), store);
+    const a = snapshotCart("u1", store);
+    clearCart("u1", store);
+    const b = snapshotCart("u1", store);
+    expect(Object.is(a, b)).toBe(false);
+    expect(b.lines).toEqual([]);
   });
 });

@@ -13,27 +13,38 @@ import {
   type CartLine,
   addLine,
   emptyCart,
+  invalidateSnapshotCache,
   mergeGuestIntoUser,
   readCart,
   removeLine,
+  snapshotCart,
   subscribeCart,
   subtotal,
   updateQuantity,
   writeCart,
 } from "./cart";
 
+const SERVER_EMPTY_CART: Cart = emptyCart();
+function getServerSnapshot(): Cart {
+  return SERVER_EMPTY_CART;
+}
+
 export function useCart() {
   const { user, ready } = useAuth();
   const uid = user?.uid ?? null;
   const [hydrated, setHydrated] = useState(false);
 
-  // useSyncExternalStore: re-render whenever the cart for the current
-  // uid changes. Server snapshot is always emptyCart() so SSR matches
-  // first paint, then we hydrate from localStorage in the effect.
+  // useSyncExternalStore requires referential stability when the
+  // underlying store has not changed. `snapshotCart(uid)` reads through
+  // a module-level cache keyed on uid; the cache is invalidated inside
+  // the cart store's `notify()` so two consecutive calls without a
+  // mutation return the SAME object reference. Returning a fresh
+  // `readCart(uid)` here would tear the store and cause infinite
+  // re-renders.
   const cart = useSyncExternalStore<Cart>(
     subscribeCart,
-    () => (hydrated ? readCart(uid) : emptyCart()),
-    () => emptyCart(),
+    () => (hydrated ? snapshotCart(uid) : SERVER_EMPTY_CART),
+    getServerSnapshot,
   );
 
   useEffect(() => {
