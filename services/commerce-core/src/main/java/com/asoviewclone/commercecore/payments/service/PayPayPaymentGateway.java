@@ -145,7 +145,12 @@ public class PayPayPaymentGateway implements PaymentGateway {
       throw new ValidationException("Missing X-PAYPAY-Signature header");
     }
     String expected = hmacSha256Hex(webhookSecret, rawBody);
-    if (!constantTimeEquals(expected, signatureHeader.trim())) {
+    // MessageDigest.isEqual is the JDK's constant-time byte-array compare and
+    // handles null inputs and length mismatches without leaking timing info via
+    // an early return on length. (PR #21 review follow-up.)
+    if (!java.security.MessageDigest.isEqual(
+        expected.getBytes(StandardCharsets.UTF_8),
+        signatureHeader.trim().getBytes(StandardCharsets.UTF_8))) {
       throw new ValidationException("PayPay webhook signature verification failed");
     }
 
@@ -200,17 +205,6 @@ public class PayPayPaymentGateway implements PaymentGateway {
     } catch (Exception e) {
       throw new ValidationException("Unable to compute HMAC-SHA256: " + e.getMessage());
     }
-  }
-
-  private static boolean constantTimeEquals(String a, String b) {
-    if (a == null || b == null || a.length() != b.length()) {
-      return false;
-    }
-    int diff = 0;
-    for (int i = 0; i < a.length(); i++) {
-      diff |= a.charAt(i) ^ b.charAt(i);
-    }
-    return diff == 0;
   }
 
   private static long toMinorUnits(BigDecimal amount, String currency) {

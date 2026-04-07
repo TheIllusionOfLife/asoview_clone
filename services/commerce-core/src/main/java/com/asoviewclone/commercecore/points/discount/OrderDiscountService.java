@@ -52,11 +52,11 @@ public class OrderDiscountService {
               + ")");
     }
     pointService.burn(userId, pointsToUse, orderId);
-    // Idempotent insert: if a duplicate comes in due to retry, the unique(order_id)
-    // constraint will prevent a second row; caller can catch and no-op.
-    if (discountRepository.findByOrderId(orderId).isEmpty()) {
-      discountRepository.save(new OrderDiscount(orderId, DISCOUNT_TYPE_POINTS, pointsToUse));
-    }
+    // Atomic insert-or-noop. Replaces the findByOrderId-then-save TOCTOU
+    // pattern that CLAUDE.md PR #21 review pitfalls explicitly bans: a
+    // concurrent retry would otherwise pass the empty-check and both INSERTs
+    // would race at flush time. (PR #21 review follow-up.)
+    discountRepository.insertIfMissing(orderId, DISCOUNT_TYPE_POINTS, pointsToUse);
   }
 
   /** Refund the burned points when an order is cancelled. Idempotent. */

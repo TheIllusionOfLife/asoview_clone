@@ -12,6 +12,11 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+// CLAUDE.md "PR #21 Review Pitfalls": never use existsBy-then-save for an
+// idempotency gate. The composite-@IdClass entity defers INSERT to commit
+// time; a concurrent winner causes an unhandled DataIntegrityViolationException
+// at flush. Use INSERT ... ON CONFLICT DO NOTHING returning row count instead.
+
 @Service
 @Transactional
 public class FavoriteService {
@@ -23,10 +28,9 @@ public class FavoriteService {
   }
 
   public void addFavorite(UUID userId, UUID productId) {
-    if (favoriteRepository.existsByUserIdAndProductId(userId, productId)) {
-      return; // idempotent
-    }
-    favoriteRepository.save(new Favorite(userId, productId));
+    // Atomic insert-or-noop. If the row already exists the row count is 0
+    // and we return without error; otherwise we hold the uniqueness gate.
+    favoriteRepository.insertIfMissing(userId, productId);
   }
 
   public void removeFavorite(UUID userId, UUID productId) {

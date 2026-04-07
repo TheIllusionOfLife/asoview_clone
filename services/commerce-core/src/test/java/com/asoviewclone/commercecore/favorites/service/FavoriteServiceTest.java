@@ -2,8 +2,10 @@ package com.asoviewclone.commercecore.favorites.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -30,10 +32,14 @@ class FavoriteServiceTest {
 
   @Test
   void addFavorite_idempotent() {
-    when(repo.existsByUserIdAndProductId(userId, productId)).thenReturn(false, true);
+    // First call inserts (rows=1), second call is a no-op against the unique
+    // constraint (rows=0). Service is unconditional: it just calls
+    // insertIfMissing both times and lets the DB enforce uniqueness atomically.
+    when(repo.insertIfMissing(eq(userId), eq(productId))).thenReturn(1, 0);
     service.addFavorite(userId, productId);
     service.addFavorite(userId, productId);
-    verify(repo).save(any(Favorite.class));
+    verify(repo, times(2)).insertIfMissing(eq(userId), eq(productId));
+    verify(repo, never()).save(any(Favorite.class));
   }
 
   @Test

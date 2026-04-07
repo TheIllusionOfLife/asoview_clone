@@ -3,6 +3,7 @@ package com.asoviewclone.commercecore.points.discount;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -35,12 +36,14 @@ class OrderDiscountServiceTest {
   @Test
   void applyPointsBurnDiscount_happy() {
     when(pointService.getBalance(userId)).thenReturn(500L);
-    when(repo.findByOrderId(orderId)).thenReturn(Optional.empty());
+    when(repo.insertIfMissing(eq(orderId), eq(OrderDiscountService.DISCOUNT_TYPE_POINTS), eq(100L)))
+        .thenReturn(1);
 
     service.applyPointsBurnDiscount(orderId, userId, 100L, new BigDecimal("1000"));
 
     verify(pointService).burn(userId, 100L, orderId);
-    verify(repo).save(any(OrderDiscount.class));
+    verify(repo)
+        .insertIfMissing(eq(orderId), eq(OrderDiscountService.DISCOUNT_TYPE_POINTS), eq(100L));
   }
 
   @Test

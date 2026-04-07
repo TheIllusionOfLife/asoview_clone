@@ -25,11 +25,11 @@ public interface ReviewRepository extends JpaRepository<Review, UUID> {
    * double-vote attempts; this method just keeps the denormalized counter in sync. (PR #21 review
    * H3 from Gemini.)
    */
-  @Modifying
+  @Modifying(clearAutomatically = true, flushAutomatically = true)
   @Query("UPDATE Review r SET r.helpfulCount = r.helpfulCount + 1 WHERE r.id = :reviewId")
   int incrementHelpfulCount(@Param("reviewId") UUID reviewId);
 
-  @Modifying
+  @Modifying(clearAutomatically = true, flushAutomatically = true)
   @Query(
       "UPDATE Review r SET r.helpfulCount = r.helpfulCount - 1"
           + " WHERE r.id = :reviewId AND r.helpfulCount > 0")

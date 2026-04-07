@@ -17,7 +17,7 @@ public interface ProductReviewAggregateRepository
    * Recompute aggregates across all products in a single SQL statement. Uses Postgres upsert to
    * avoid N+1. Only counts PUBLISHED reviews.
    */
-  @Modifying
+  @Modifying(clearAutomatically = true, flushAutomatically = true)
   @Query(
       value =
           "INSERT INTO product_review_aggregates (product_id, average_rating, review_count, updated_at) "
