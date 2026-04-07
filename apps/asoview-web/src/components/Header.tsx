@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "@/i18n/navigation";
 import { CartBadge } from "./CartBadge";
 
 export function Header() {

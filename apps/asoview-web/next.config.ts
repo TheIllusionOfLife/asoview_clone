@@ -1,4 +1,10 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
+
+// Wire next-intl's request-scoped config loader. Passing an explicit path
+// avoids relying on the default `./i18n/request.ts` convention so we can
+// keep all i18n plumbing under src/i18n/.
+const withNextIntl = createNextIntlPlugin("./src/i18n/config.ts");
 
 /**
  * Build a CSP string from the active env. The connect-src list reads
@@ -107,4 +113,7 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Cast: the monorepo hoists `next` twice, so withNextIntl's NextConfig
+// type comes from a different copy than the one our local import sees.
+// The runtime shape is identical.
+export default withNextIntl(nextConfig as Parameters<typeof withNextIntl>[0]);

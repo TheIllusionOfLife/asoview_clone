@@ -1,0 +1,20 @@
+{
+  "common": {
+    "siteName": "アソビュー!",
+    "signIn": "ログイン",
+    "cart": "カート",
+    "search": "検索",
+    "myPage": "マイページ",
+    "language": "言語"
+  },
+  "landing": {
+    "hero": {
+      "title": "体験を、もっと身近に。",
+      "subtitle": "全国のレジャー・アクティビティ・体験をかんたん予約。"
+    }
+  },
+  "nav": {
+    "areas": "エリアから探す",
+    "products": "注目の体験"
+  }
+}

@@ -1,10 +1,11 @@
 "use client";
 
+import { Link } from "@/i18n/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { ApiError, NetworkError, SignInRedirect, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { OrderResponse, OrderStatus } from "@/lib/types";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 const PAGE_SIZE = 10;

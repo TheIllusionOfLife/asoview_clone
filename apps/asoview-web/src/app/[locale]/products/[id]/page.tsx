@@ -1,13 +1,13 @@
 import { SlotPicker } from "@/components/SlotPicker";
+import { Link } from "@/i18n/navigation";
 import { ServerFetchError, serverGet } from "@/lib/server-api";
 import type { ProductResponse } from "@/lib/types";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 export const revalidate = 60;
 
 type Props = {
-  params: Promise<{ id: string }>;
+  params: Promise<{ locale: string; id: string }>;
 };
 
 function formatJpy(amount: string | undefined): string {
@@ -21,9 +21,18 @@ function formatJpy(amount: string | undefined): string {
   }).format(Math.trunc(n));
 }
 
-async function loadProduct(id: string): Promise<ProductResponse | null> {
+/**
+ * Fetches a product scoped to the caller's active locale. The gateway
+ * resolves the request's `lang` against the V14 `translations` JSONB
+ * column and returns `name` / `description` already localized. Unknown
+ * locales fall back to the default `ja` content server-side, so we
+ * don't need a client fallback.
+ */
+async function loadProduct(id: string, lang: string): Promise<ProductResponse | null> {
   try {
-    return await serverGet<ProductResponse>(`/v1/products/${encodeURIComponent(id)}`);
+    return await serverGet<ProductResponse>(
+      `/v1/products/${encodeURIComponent(id)}?lang=${encodeURIComponent(lang)}`,
+    );
   } catch (e) {
     if (e instanceof ServerFetchError && e.status === 404) return null;
     throw e;
@@ -31,8 +40,8 @@ async function loadProduct(id: string): Promise<ProductResponse | null> {
 }
 
 export default async function ProductPage({ params }: Props) {
-  const { id } = await params;
-  const product = await loadProduct(id);
+  const { locale, id } = await params;
+  const product = await loadProduct(id, locale);
   // Visibility gate: never render non-ACTIVE products on the public detail page.
   if (!product || product.status !== "ACTIVE") {
     notFound();

@@ -7,13 +7,13 @@
  * without losing the rest of the cart.
  */
 
+import { Link } from "@/i18n/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { ApiError, NetworkError, SignInRedirect, SlotTakenError, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { clearIdempotencyKey, setOrderFingerprint } from "@/lib/idempotency";
 import type { CreateOrderRequest, OrderResponse } from "@/lib/types";
 import { useCart } from "@/lib/useCart";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
 function formatJpy(amount: number | string): string {

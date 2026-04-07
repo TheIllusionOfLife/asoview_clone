@@ -1,9 +1,9 @@
 "use client";
 
+import { Link } from "@/i18n/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { ApiError, NetworkError, SignInRedirect, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { TicketCard } from "./TicketCard";
 

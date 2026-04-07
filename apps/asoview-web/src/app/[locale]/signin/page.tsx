@@ -1,8 +1,9 @@
 "use client";
 
+import { useRouter } from "@/i18n/navigation";
 import { useAuth } from "@/lib/auth";
 import { sanitizeNext } from "@/lib/redirect";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 
 function SignInInner() {

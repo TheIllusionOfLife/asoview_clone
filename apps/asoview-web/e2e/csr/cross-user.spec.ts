@@ -14,7 +14,7 @@ test.describe("cross-user", () => {
     await page.route(`**/v1/orders/${FOREIGN_ORDER_ID}`, (route) =>
       route.fulfill({ status: 404, body: "{}" }),
     );
-    await page.goto(`/checkout/${FOREIGN_ORDER_ID}`);
+    await page.goto(`/ja/checkout/${FOREIGN_ORDER_ID}`);
     await expect(page.getByText("この注文は見つかりませんでした。")).toBeVisible();
   });
 
@@ -26,7 +26,7 @@ test.describe("cross-user", () => {
         body: "[]",
       }),
     );
-    await page.goto(`/tickets/${FOREIGN_ORDER_ID}`);
+    await page.goto(`/ja/tickets/${FOREIGN_ORDER_ID}`);
     await expect(page.getByText("このチケットは見つかりませんでした。")).toBeVisible();
   });
 });

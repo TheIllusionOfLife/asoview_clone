@@ -24,6 +24,6 @@ test.describe("funnel happy path", () => {
     //   2. Visit /, click into a product, pick a slot, click Book.
     //   3. /checkout/[orderId]?fakeMode=1 polls until PAID.
     //   4. Lands on /tickets/[orderId] with at least one QR <img>.
-    await page.goto("/");
+    await page.goto("/ja");
   });
 });

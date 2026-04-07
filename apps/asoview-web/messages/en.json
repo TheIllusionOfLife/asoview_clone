@@ -1,0 +1,20 @@
+{
+  "common": {
+    "siteName": "Asoview!",
+    "signIn": "Sign in",
+    "cart": "Cart",
+    "search": "Search",
+    "myPage": "My page",
+    "language": "Language"
+  },
+  "landing": {
+    "hero": {
+      "title": "Experiences, closer to you.",
+      "subtitle": "Book leisure, activities, and experiences across Japan with ease."
+    }
+  },
+  "nav": {
+    "areas": "Browse by area",
+    "products": "Featured experiences"
+  }
+}

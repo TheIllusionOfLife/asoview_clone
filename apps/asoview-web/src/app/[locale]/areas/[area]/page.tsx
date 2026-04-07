@@ -1,15 +1,16 @@
 import { ProductCard } from "@/components/ProductCard";
+import { Link } from "@/i18n/navigation";
+import { redirect } from "@/i18n/navigation";
 import { serverGet } from "@/lib/server-api";
 import type { AreaResponse, Page, ProductResponse } from "@/lib/types";
-import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
 export const revalidate = 60;
 
 const PAGE_SIZE = 12;
 
 type Props = {
-  params: Promise<{ area: string }>;
+  params: Promise<{ locale: string; area: string }>;
   searchParams: Promise<{ page?: string }>;
 };
 
@@ -31,7 +32,7 @@ async function loadProducts(areaId: string, pageNum: number): Promise<Page<Produ
 }
 
 export default async function AreaPage({ params, searchParams }: Props) {
-  const { area: slug } = await params;
+  const { locale, area: slug } = await params;
   const sp = await searchParams;
   const pageNum = Math.max(0, Number.parseInt(sp.page ?? "0", 10) || 0);
 
@@ -50,7 +51,10 @@ export default async function AreaPage({ params, searchParams }: Props) {
   // floor-clamped to 0 above.
   if (pageNum > 0 && pageNum >= totalPages) {
     const lastPage = Math.max(0, totalPages - 1);
-    redirect(`/areas/${encodeURIComponent(slug)}?page=${lastPage}`);
+    redirect({
+      href: `/areas/${encodeURIComponent(slug)}?page=${lastPage}`,
+      locale,
+    });
   }
   const hasPrev = pageNum > 0;
   const hasNext = pageNum + 1 < totalPages;

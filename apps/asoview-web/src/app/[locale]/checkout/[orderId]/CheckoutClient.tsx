@@ -26,13 +26,13 @@
  *       - CONFIRMING → keep polling (transient).
  */
 
+import { Link } from "@/i18n/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { ApiError, NetworkError, SignInRedirect, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { clearCart, readCart, writeCart } from "@/lib/cart";
 import { clearIdempotencyKey, clearOrderFingerprint, getOrderFingerprint } from "@/lib/idempotency";
 import type { OrderResponse, OrderStatus, PaymentResponse } from "@/lib/types";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 const POLL_INTERVAL_MS = 1500;

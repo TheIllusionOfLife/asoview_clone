@@ -1,5 +1,5 @@
+import { Link } from "@/i18n/navigation";
 import type { ProductResponse } from "@/lib/types";
-import Link from "next/link";
 
 function formatJpy(amount: string | undefined): string {
   if (!amount) return "—";
