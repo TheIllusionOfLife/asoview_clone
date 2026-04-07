@@ -125,6 +125,28 @@ Key env vars (local profile defaults in `application-local.yml`):
 
 Tests use Testcontainers (Postgres, Redis, Spanner emulator via `org.testcontainers:gcloud`) so no running docker-compose is required for `./gradlew test`.
 
+## Pitfall enforcement (PR 3d.5)
+
+Most rules in the sections below are also enforced mechanically by `scripts/checks/*.sh` (Tier 1 shell checks), `services/commerce-core/src/test/java/.../arch/*Rules.java` (Tier 1.5 ArchUnit), and dedicated regression tests (Tier 2). Run `./scripts/checks/run-all.sh` locally before committing; CI runs the same script in the `Lint - Pitfalls` job. Add a fixture pair under `scripts/checks/__fixtures__/` for any new shell check, and a meta-test entry in `test-fixtures.sh`. Do not add new prose-only rules — every recurring pitfall gets a mechanical guard.
+
+| Rule | Mechanism | Location |
+|---|---|---|
+| Assigned-`@Id` `save()` defers SQL past catch | shell | `scripts/checks/assigned-id-save.sh` |
+| NUMERIC money parsed via parseFloat / Number | shell | `scripts/checks/money-parsing.sh` |
+| `@Modifying` missing `clearAutomatically=true,flushAutomatically=true` | shell | `scripts/checks/modifying-flush-clear.sh` |
+| Playwright `page.route` under `e2e/ssr/` | shell | `scripts/checks/ssr-no-route.sh` |
+| `@Modifying` without `@Transactional` (any granularity) | ArchUnit | `arch/JpaTransactionalRules.java` |
+| AFTER_COMMIT publisher not `@Transactional` | ArchUnit | `arch/EventPublisherRules.java` |
+| `@Component` Filter without `FilterRegistrationBean` suppressor | ArchUnit | `arch/FilterRegistrationRules.java` |
+| `@Profile`-restricted bean injected unconditionally | ArchUnit | `arch/ProfileConsumerRules.java` |
+| Webhook double-confirm via assigned-`@Id` `save()` regression | runtime | `PaymentWebhookControllerReplayTest` |
+| Point ledger insert-first idempotency race | runtime | `PointLedgerIdempotencyTest` |
+| Reconciliation job not re-publishing AFTER_COMMIT events | runtime | `OrderPaidEventReconciliationTest` |
+| `cart.subtotal` fractional-yen / Math.trunc regression | runtime | `cart.subtotal.test.ts` |
+| `apiRequest` retries non-5xx | runtime | `api.retry.test.ts` |
+| UTC date math on JST slot dates | runtime | `SlotPicker.jst.test.ts` |
+| SSR manifest drift (page loses `force-dynamic`/`revalidate`) | runtime | `ssr-manifest.test.ts` |
+
 ## Recurring Pitfalls (learned the hard way on PR #18)
 
 These are not generic best practices — each one bit us during the booking/payment correctness work. Read before touching the saga, payments, or Spanner DDL.
