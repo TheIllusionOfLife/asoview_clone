@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -36,6 +37,10 @@ import org.springframework.test.web.servlet.MockMvc;
  * saga is exercised by {@link PaymentConfirmationSagaTest} so duplicating the Spanner /
  * Testcontainers stack here would add minutes of runtime for no additional coverage.
  */
+// PayPayWebhookController is @ConditionalOnProperty(payments.gateway=paypay) so the test slice
+// has to set that property explicitly; otherwise the controller bean is not registered and
+// POST /v1/payments/webhooks/paypay returns 404.
+@TestPropertySource(properties = "payments.gateway=paypay")
 @WebMvcTest(PayPayWebhookController.class)
 @AutoConfigureMockMvc(addFilters = false)
 class PayPaySagaRegressionTest {
