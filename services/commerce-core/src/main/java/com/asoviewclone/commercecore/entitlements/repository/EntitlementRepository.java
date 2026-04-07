@@ -6,6 +6,7 @@ import com.asoviewclone.commercecore.entitlements.model.EntitlementType;
 import com.asoviewclone.commercecore.entitlements.model.TicketPass;
 import com.asoviewclone.commercecore.entitlements.model.TicketPassStatus;
 import com.asoviewclone.commercecore.entitlements.model.TicketPassView;
+import com.asoviewclone.commercecore.entitlements.model.TicketPassWithEntitlement;
 import com.asoviewclone.common.time.ClockProvider;
 import com.google.cloud.Timestamp;
 import com.google.cloud.spanner.DatabaseClient;
@@ -15,6 +16,7 @@ import com.google.cloud.spanner.Statement;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Repository;
 
@@ -198,6 +200,47 @@ public class EntitlementRepository {
       }
     }
     return result;
+  }
+
+  /**
+   * Single-row lookup that joins a ticket pass to its parent entitlement so callers can resolve
+   * ownership, order id, validity window, and product variant in one Spanner read. Returns empty
+   * when the ticket pass does not exist; the caller is responsible for translating that to a
+   * domain-level NotFoundException so callers cannot distinguish "doesn't exist" from "exists but
+   * belongs to someone else" by latency or response code.
+   */
+  public Optional<TicketPassWithEntitlement> findTicketPassWithEntitlementById(
+      String ticketPassId) {
+    Statement stmt =
+        Statement.newBuilder(
+                "SELECT tp.ticket_pass_id, tp.entitlement_id, tp.qr_code_payload, tp.status,"
+                    + " e.order_id, e.user_id, e.product_variant_id, e.valid_from, e.valid_until"
+                    + " FROM ticket_passes tp"
+                    + " JOIN entitlements e ON tp.entitlement_id = e.entitlement_id"
+                    + " WHERE tp.ticket_pass_id = @tid LIMIT 1")
+            .bind("tid")
+            .to(ticketPassId)
+            .build();
+    try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
+      if (rs.next()) {
+        return Optional.of(
+            new TicketPassWithEntitlement(
+                rs.getString("ticket_pass_id"),
+                rs.getString("entitlement_id"),
+                rs.getString("qr_code_payload"),
+                TicketPassStatus.valueOf(rs.getString("status")),
+                rs.getString("order_id"),
+                rs.getString("user_id"),
+                rs.getString("product_variant_id"),
+                rs.isNull("valid_from")
+                    ? null
+                    : rs.getTimestamp("valid_from").toSqlTimestamp().toInstant(),
+                rs.isNull("valid_until")
+                    ? null
+                    : rs.getTimestamp("valid_until").toSqlTimestamp().toInstant()));
+      }
+    }
+    return Optional.empty();
   }
 
   public List<Entitlement> findByOrderId(String orderId) {

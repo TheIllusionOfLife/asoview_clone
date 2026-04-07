@@ -1,5 +1,6 @@
 package com.asoviewclone.commercecore.catalog.service;
 
+import com.asoviewclone.commercecore.catalog.event.ProductIndexEventPublisher;
 import com.asoviewclone.commercecore.catalog.model.Category;
 import com.asoviewclone.commercecore.catalog.model.Product;
 import com.asoviewclone.commercecore.catalog.model.ProductStatus;
@@ -19,11 +20,28 @@ public class CatalogServiceImpl implements CatalogService {
 
   private final CategoryRepository categoryRepository;
   private final ProductRepository productRepository;
+  private final ProductIndexEventPublisher productIndexEventPublisher;
 
   public CatalogServiceImpl(
-      CategoryRepository categoryRepository, ProductRepository productRepository) {
+      CategoryRepository categoryRepository,
+      ProductRepository productRepository,
+      ProductIndexEventPublisher productIndexEventPublisher) {
     this.categoryRepository = categoryRepository;
     this.productRepository = productRepository;
+    this.productIndexEventPublisher = productIndexEventPublisher;
+  }
+
+  /**
+   * Hook invoked from product write paths (create / update / status flip) AFTER the JPA save so the
+   * search index gets a refresh signal. Phase 3c only exposes read APIs publicly so this is called
+   * from seed loaders and the (still-internal) admin write paths. The
+   * {@code @TransactionalEventListener(AFTER_COMMIT)} guarantees that a rolled back write does not
+   * produce a stale index update.
+   */
+  protected void notifyProductUpserted(Product product) {
+    if (product != null && product.getId() != null) {
+      productIndexEventPublisher.publishUpsert(product.getId().toString());
+    }
   }
 
   @Override

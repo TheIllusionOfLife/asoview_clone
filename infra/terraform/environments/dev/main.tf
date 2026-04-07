@@ -84,6 +84,30 @@ module "artifact_registry" {
   region     = var.region
 }
 
+module "opensearch" {
+  source       = "../../modules/opensearch"
+  project_id   = var.project_id
+  region       = var.region
+  cluster_name = "asoview-clone-dev"
+}
+
+module "wallet_kms" {
+  source     = "../../modules/wallet-kms"
+  project_id = var.project_id
+  region     = var.region
+}
+
+module "identity_platform" {
+  source        = "../../modules/identity-platform"
+  project_id    = var.project_id
+  support_email = var.support_email
+}
+
+variable "support_email" {
+  type    = string
+  default = "ops@asoview-clone.invalid"
+}
+
 variable "project_id" {
   type    = string
   default = "asoview-clone"

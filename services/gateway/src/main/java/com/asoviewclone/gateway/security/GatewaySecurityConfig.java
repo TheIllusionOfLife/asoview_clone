@@ -26,7 +26,19 @@ public class GatewaySecurityConfig {
                 exchanges
                     .pathMatchers("/healthz", "/actuator/**")
                     .permitAll()
-                    .pathMatchers(HttpMethod.GET, "/v1/categories/**", "/v1/products/**")
+                    // Admin endpoints under /v1/search/admin/** must NOT be public.
+                    // Order matters: this denyAll matcher runs BEFORE the public
+                    // /v1/search/** permitAll below. (PR #21 Codex finding: the
+                    // reindex endpoint was reachable by any caller through the
+                    // gateway with no role check.)
+                    .pathMatchers("/v1/search/admin/**")
+                    .denyAll()
+                    .pathMatchers(
+                        HttpMethod.GET,
+                        "/v1/categories/**",
+                        "/v1/products/**",
+                        "/v1/areas/**",
+                        "/v1/search/**")
                     .permitAll()
                     .anyExchange()
                     .authenticated())

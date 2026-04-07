@@ -1,5 +1,7 @@
 package com.asoviewclone.commercecore.security;
 
+import com.asoviewclone.commercecore.payments.webhook.WebhookRateLimitFilter;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -14,9 +16,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
   private final FirebaseTokenFilter firebaseTokenFilter;
+  private final WebhookRateLimitFilter webhookRateLimitFilter;
 
-  public SecurityConfig(FirebaseTokenFilter firebaseTokenFilter) {
+  public SecurityConfig(
+      FirebaseTokenFilter firebaseTokenFilter, WebhookRateLimitFilter webhookRateLimitFilter) {
     this.firebaseTokenFilter = firebaseTokenFilter;
+    this.webhookRateLimitFilter = webhookRateLimitFilter;
   }
 
   @Bean
@@ -39,8 +44,27 @@ public class SecurityConfig {
                     .permitAll()
                     .anyRequest()
                     .authenticated())
-        .addFilterBefore(firebaseTokenFilter, UsernamePasswordAuthenticationFilter.class);
+        .addFilterBefore(firebaseTokenFilter, UsernamePasswordAuthenticationFilter.class)
+        // Rate limit + body cap runs BEFORE Firebase so abusive callers are dropped before
+        // any heavier work and unauthenticated webhook callers still get throttled.
+        .addFilterBefore(webhookRateLimitFilter, FirebaseTokenFilter.class);
 
     return http.build();
+  }
+
+  /**
+   * Suppress Spring Boot's automatic servlet-filter registration of the {@link
+   * WebhookRateLimitFilter} bean. The filter is added to the security chain via {@code
+   * addFilterBefore} above; without this disabling registration the filter would also be
+   * auto-registered into the global servlet pipeline and execute twice — halving the effective rate
+   * limit. (PR #21 review follow-up.)
+   */
+  @Bean
+  public FilterRegistrationBean<WebhookRateLimitFilter> disableWebhookRateLimitAutoRegistration(
+      WebhookRateLimitFilter filter) {
+    FilterRegistrationBean<WebhookRateLimitFilter> registration =
+        new FilterRegistrationBean<>(filter);
+    registration.setEnabled(false);
+    return registration;
   }
 }

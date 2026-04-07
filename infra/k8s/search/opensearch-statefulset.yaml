@@ -1,0 +1,160 @@
+# OpenSearch 3-node statefulset for asoview-clone search.
+#
+# Single-cluster topology, 3 master-eligible data nodes. The
+# analysis-kuromoji plugin is pre-baked into the container image
+# (asia-northeast1-docker.pkg.dev/.../opensearch-kuromoji:2.18.0,
+# built from docker/Dockerfile.opensearch) so no plugin install
+# happens at pod startup. Persistent volumes come from the GKE
+# default storage class. KMS encryption at rest is provided by
+# the GCE PD CMEK configured in the infra/terraform/modules/opensearch
+# module.
+#
+# Snapshot uploads use the snapshot-bucket + workload-identity SA
+# also provisioned by the Terraform module.
+#
+# SECURITY POSTURE: the OpenSearch security plugin is intentionally
+# DISABLED on this cluster for now. Re-enabling it requires (a) a
+# securityadmin.sh init Job that creates internal users + role
+# mappings, (b) TLS material distributed to every node via a Secret,
+# and (c) the search-service deployment switching to https + mTLS
+# with client certs. That rollout is tracked as a follow-up
+# (PR-3e or its own security PR); for the time being the cluster is
+# inside a private GKE namespace with no external ingress, NetworkPolicy
+# pinning ingress to the search-service ServiceAccount, and Workload
+# Identity gating snapshot uploads.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: search
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opensearch
+  namespace: search
+  annotations:
+    iam.gke.io/gcp-service-account: opensearch-snapshots@asoview-clone.iam.gserviceaccount.com
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opensearch
+  namespace: search
+spec:
+  clusterIP: None
+  selector:
+    app: opensearch
+  ports:
+    - name: rest
+      port: 9200
+      targetPort: 9200
+    - name: transport
+      port: 9300
+      targetPort: 9300
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: opensearch
+  namespace: search
+spec:
+  serviceName: opensearch
+  replicas: 3
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: opensearch
+  template:
+    metadata:
+      labels:
+        app: opensearch
+    spec:
+      serviceAccountName: opensearch
+      # Pod-level securityContext: enforce non-root and a known uid/gid so
+      # the persistent volume claim, log files, and any heap dumps land with
+      # predictable ownership. Restricted PodSecurityStandards-compatible.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: opensearch
+          image: asia-northeast1-docker.pkg.dev/asoview-clone/services/opensearch-kuromoji:2.18.0
+          imagePullPolicy: IfNotPresent
+          # Container-level hardening. readOnlyRootFilesystem stays false because
+          # OpenSearch writes config snapshots to /usr/share/opensearch at startup.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: cluster.name
+              value: asoview-search
+            - name: node.name
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: discovery.seed_hosts
+              value: opensearch-0.opensearch,opensearch-1.opensearch,opensearch-2.opensearch
+            - name: cluster.initial_cluster_manager_nodes
+              value: opensearch-0,opensearch-1,opensearch-2
+            # bootstrap.memory_lock requires the IPC_LOCK linux capability,
+            # which the container security context drops above. Disable
+            # mlock and rely on the K8s cgroup memory limit + the JVM
+            # heap (-Xms == -Xmx) to keep RSS bounded. (PR #21 review follow-up.)
+            - name: bootstrap.memory_lock
+              value: "false"
+            - name: OPENSEARCH_JAVA_OPTS
+              value: "-Xms2g -Xmx2g"
+            # Security plugin DISABLED — see top-of-file SECURITY POSTURE comment.
+            # The full mTLS + securityadmin.sh init Job + admin Secret rollout
+            # ships in a follow-up security PR.
+            - name: plugins.security.disabled
+              value: "true"
+          ports:
+            - name: rest
+              containerPort: 9200
+            - name: transport
+              containerPort: 9300
+          resources:
+            requests:
+              cpu: "1"
+              memory: "4Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+          volumeMounts:
+            - name: data
+              mountPath: /usr/share/opensearch/data
+          readinessProbe:
+            httpGet:
+              path: /_cluster/health?local=true
+              port: 9200
+            initialDelaySeconds: 30
+            periodSeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: standard-rwo
+        resources:
+          requests:
+            storage: 50Gi
+---
+# Protect the 3-node cluster's quorum during voluntary disruptions (node
+# upgrades, drains, rolling deploys). minAvailable: 2 means at most one
+# replica can be down at a time. (PR #21 review follow-up.)
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: opensearch
+  namespace: search
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: opensearch

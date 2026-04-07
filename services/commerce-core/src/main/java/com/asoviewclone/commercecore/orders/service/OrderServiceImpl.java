@@ -4,10 +4,12 @@ import com.asoviewclone.commercecore.catalog.model.ProductVariant;
 import com.asoviewclone.commercecore.catalog.repository.ProductVariantRepository;
 import com.asoviewclone.commercecore.inventory.model.InventoryHold;
 import com.asoviewclone.commercecore.inventory.service.InventoryService;
+import com.asoviewclone.commercecore.orders.event.OrderCancelledEvent;
 import com.asoviewclone.commercecore.orders.model.Order;
 import com.asoviewclone.commercecore.orders.model.OrderItem;
 import com.asoviewclone.commercecore.orders.model.OrderStatus;
 import com.asoviewclone.commercecore.orders.repository.OrderRepository;
+import com.asoviewclone.commercecore.points.discount.OrderDiscountService;
 import com.asoviewclone.common.error.ConflictException;
 import com.asoviewclone.common.error.NotFoundException;
 import com.asoviewclone.common.error.ValidationException;
@@ -17,27 +19,50 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 @Service
 public class OrderServiceImpl implements OrderService {
 
+  private static final Logger log = LoggerFactory.getLogger(OrderServiceImpl.class);
+
+  /**
+   * Internal marker exception thrown by {@code createOrder} when a Spanner write fails AFTER the
+   * points-burn was committed AND the burn-refund itself fails. The user's points are stranded
+   * against an order id that may never exist; we surface this as a 500 to the caller (instead of
+   * silently returning a race-winner order) so ops can repair the orphan ledger row.
+   */
+  public static class StrandedPointsBurnException extends RuntimeException {
+    public StrandedPointsBurnException(String orderId, Throwable cause) {
+      super("Stranded points burn against order " + orderId + " — manual repair required", cause);
+    }
+  }
+
   private final OrderRepository orderRepository;
   private final InventoryService inventoryService;
   private final ProductVariantRepository productVariantRepository;
+  private final OrderDiscountService orderDiscountService;
+  private final ApplicationEventPublisher eventPublisher;
 
   public OrderServiceImpl(
       OrderRepository orderRepository,
       InventoryService inventoryService,
-      ProductVariantRepository productVariantRepository) {
+      ProductVariantRepository productVariantRepository,
+      OrderDiscountService orderDiscountService,
+      ApplicationEventPublisher eventPublisher) {
     this.orderRepository = orderRepository;
     this.inventoryService = inventoryService;
     this.productVariantRepository = productVariantRepository;
+    this.orderDiscountService = orderDiscountService;
+    this.eventPublisher = eventPublisher;
   }
 
   @Override
   public Order createOrder(
-      String userId, String idempotencyKey, List<CreateOrderItemRequest> items) {
+      String userId, String idempotencyKey, List<CreateOrderItemRequest> items, long pointsToUse) {
     if (items == null || items.isEmpty()) {
       throw new ValidationException("Order must have at least one item");
     }
@@ -108,42 +133,114 @@ public class OrderServiceImpl implements OrderService {
                 null));
       }
 
-      return orderRepository.save(
-          userId, total.toPlainString(), currency, idempotencyKey, orderItems);
+      // Burn points (and validate balance) BEFORE writing the Spanner order. If
+      // burn fails after the Spanner write, the order row stays as PENDING with
+      // released holds and poisons idempotency on retry — the next request with
+      // the same key would findByIdempotencyKey, hit the orphan, and proceed to
+      // payment with non-existent holds. (PR #21 review C4 from Devin.)
+      //
+      // Pre-generate the order id so the points-burn ledger row can pin to a
+      // stable order id; OrderRepository.save accepts the pre-generated id.
+      //
+      // PROCESS-CRASH RISK: if the JVM dies between the points burn (Postgres
+      // commit) and orderRepository.saveWithId (Spanner write), the burn is
+      // stranded against an order id that never makes it to Spanner. This is
+      // the well-known cross-store outbox problem. The reconciliation sweep
+      // in OrphanedDiscountReconciliationJob (scheduled) sweeps Postgres
+      // discount rows whose order_id has no matching Spanner row and refunds
+      // them. Codex review flagged this as a design recommendation; full
+      // outbox/saga refactor is tracked as a follow-up but the recovery sweep
+      // already prevents permanent loss in the crash-mid-method case.
+      String preGeneratedOrderId = UUID.randomUUID().toString();
+      if (pointsToUse > 0) {
+        orderDiscountService.applyPointsBurnDiscount(
+            preGeneratedOrderId, UUID.fromString(userId), pointsToUse, total);
+      }
+
+      // CRITICAL: subtract burned points from the order's payable total so the
+      // payment intent is created for the discounted amount, not the gross total.
+      // Without this the user loses points AND is charged the full amount —
+      // a silent overcharge bug. (PR #21 Codex finding.)
+      BigDecimal payableTotal = total;
+      if (pointsToUse > 0) {
+        payableTotal = total.subtract(BigDecimal.valueOf(pointsToUse)).max(BigDecimal.ZERO);
+      }
+
+      Order saved;
+      try {
+        saved =
+            orderRepository.saveWithId(
+                preGeneratedOrderId,
+                userId,
+                payableTotal.toPlainString(),
+                currency,
+                idempotencyKey,
+                orderItems);
+      } catch (RuntimeException ex) {
+        // Spanner write failed after the burn committed. Roll the burn back so
+        // we don't trap the user's points behind a non-existent order.
+        // CRITICAL: if the refund itself fails, do NOT silently swallow it —
+        // the points are now stranded against an order id that may never
+        // exist (the ALREADY_EXISTS race-winner path below would otherwise
+        // return success and the user's points would be lost). Re-throw a
+        // marker exception so the outer SpannerException handler refuses to
+        // return the race winner. (PR #21 review follow-up from Devin.)
+        if (pointsToUse > 0) {
+          try {
+            orderDiscountService.refundForCancelledOrder(
+                preGeneratedOrderId, UUID.fromString(userId));
+          } catch (Exception refundEx) {
+            log.error(
+                "STRANDED POINTS BURN: order_id={} user={} pointsToUse={}; manual repair required",
+                preGeneratedOrderId,
+                userId,
+                pointsToUse,
+                refundEx);
+            // Wrap the original Spanner failure with a marker so the outer
+            // SpannerException handler can detect the stranded-burn case and
+            // surface a 500 instead of returning the race-winner.
+            throw new StrandedPointsBurnException(preGeneratedOrderId, ex);
+          }
+        }
+        throw ex;
+      }
+      return saved;
+    } catch (StrandedPointsBurnException stranded) {
+      // The points-burn refund failed after a Spanner write failure. Holds
+      // released, but the burn is permanent until ops repairs the orphan
+      // ledger row. Surface as a 500 — DO NOT return any race-winner order
+      // or the caller will think their points were used cleanly.
+      releaseHoldsBestEffort(holds);
+      throw stranded;
     } catch (SpannerException e) {
       // Handle idempotency race: concurrent insert with same idempotency key
       if (e.getErrorCode() == com.google.cloud.spanner.ErrorCode.ALREADY_EXISTS) {
         Optional<Order> raceWinner = orderRepository.findByIdempotencyKey(idempotencyKey);
         if (raceWinner.isPresent() && raceWinner.get().userId().equals(userId)) {
-          // Release holds we created since the other request won
-          for (InventoryHold hold : holds) {
-            try {
-              inventoryService.releaseHold(hold.holdId());
-            } catch (Exception ignored) {
-            }
-          }
+          releaseHoldsBestEffort(holds);
           return raceWinner.get();
         }
       }
-      // Release any holds that were created
-      for (InventoryHold hold : holds) {
-        try {
-          inventoryService.releaseHold(hold.holdId());
-        } catch (Exception ignored) {
-          // Best effort release
-        }
-      }
+      releaseHoldsBestEffort(holds);
       throw e;
     } catch (Exception e) {
-      // Release any holds that were created
-      for (InventoryHold hold : holds) {
-        try {
-          inventoryService.releaseHold(hold.holdId());
-        } catch (Exception ignored) {
-          // Best effort release
-        }
-      }
+      releaseHoldsBestEffort(holds);
       throw e;
+    }
+  }
+
+  /**
+   * Best-effort hold release used by every cleanup branch in {@code createOrder}. Each release runs
+   * in its own try/catch so a failure on one hold does not prevent the rest from being released.
+   * (PR #21 review N — extracted helper for the repeated cleanup loop.)
+   */
+  private void releaseHoldsBestEffort(List<InventoryHold> holds) {
+    for (InventoryHold hold : holds) {
+      try {
+        inventoryService.releaseHold(hold.holdId());
+      } catch (Exception ignored) {
+        // Best-effort: hold may have already expired or been confirmed.
+      }
     }
   }
 
@@ -158,7 +255,13 @@ public class OrderServiceImpl implements OrderService {
   }
 
   @Override
+  @org.springframework.transaction.annotation.Transactional
   public void cancelOrder(String orderId) {
+    // @Transactional is required even though every persistent write here is a
+    // Spanner CAS (Spanner runs its own tx). The empty JPA transaction is the
+    // hook @TransactionalEventListener(AFTER_COMMIT) needs — without it,
+    // PointRefundListener silently never fires and burned points are never
+    // refunded on cancel. (PR #21 review C1 from Devin.)
     Order order = orderRepository.findById(orderId);
     OrderStatus currentStatus = order.status();
     if (!currentStatus.canTransitionTo(OrderStatus.CANCELLED)) {
@@ -185,5 +288,10 @@ public class OrderServiceImpl implements OrderService {
         }
       }
     }
+
+    // Publish OrderCancelledEvent so points-refund and other side effects can run
+    // AFTER_COMMIT. Spanner CAS is already durable, so listeners do not need the
+    // local transaction; they subscribe via @TransactionalEventListener(AFTER_COMMIT).
+    eventPublisher.publishEvent(new OrderCancelledEvent(orderId, order.userId()));
   }
 }

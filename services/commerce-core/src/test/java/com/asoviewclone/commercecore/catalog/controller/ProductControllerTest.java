@@ -9,7 +9,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.asoviewclone.commercecore.catalog.model.Product;
 import com.asoviewclone.commercecore.catalog.model.ProductStatus;
+import com.asoviewclone.commercecore.catalog.repository.ProductReviewAggregateRepository;
 import com.asoviewclone.commercecore.catalog.service.CatalogService;
+import com.asoviewclone.commercecore.favorites.service.FavoriteService;
 import com.asoviewclone.commercecore.identity.repository.TenantUserRepository;
 import com.asoviewclone.commercecore.identity.repository.UserRepository;
 import com.asoviewclone.commercecore.inventory.service.InventoryQueryService;
@@ -35,6 +37,8 @@ class ProductControllerTest {
   @MockitoBean private FirebaseAuth firebaseAuth;
   @MockitoBean private UserRepository userRepository;
   @MockitoBean private TenantUserRepository tenantUserRepository;
+  @MockitoBean private ProductReviewAggregateRepository productReviewAggregateRepository;
+  @MockitoBean private FavoriteService favoriteService;
 
   @Test
   void listProductsReturnsPage() throws Exception {

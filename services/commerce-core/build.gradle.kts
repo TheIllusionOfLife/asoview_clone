@@ -37,6 +37,20 @@ dependencies {
     // Stripe Java SDK (payments gateway, phase 2)
     implementation(libs.stripe.java)
 
+    // Bucket4j (webhook rate limiting) + Caffeine (size-bounded eviction so the
+    // per-IP bucket map cannot grow unbounded against a long tail of unique IPs).
+    implementation(libs.bucket4j.core)
+    implementation(libs.caffeine)
+
+    // BouncyCastle (PKCS#7 detached signature for Apple Wallet .pkpass)
+    implementation(libs.bouncycastle.bcpkix)
+    implementation(libs.bouncycastle.bcprov)
+
+    // JJWT (Google Wallet RS256 JWT signing)
+    implementation(libs.jjwt.api)
+    runtimeOnly(libs.jjwt.impl)
+    runtimeOnly(libs.jjwt.jackson)
+
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
