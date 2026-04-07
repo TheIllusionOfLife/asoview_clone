@@ -306,6 +306,101 @@ export function searchSuggest(
   });
 }
 
+// ---------- Reviews ----------
+
+export type ReviewResponse = {
+  id: string;
+  userId: string;
+  productId: string;
+  rating: number;
+  title: string | null;
+  body: string | null;
+  language: string | null;
+  status: string;
+  helpfulCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** Spring Page<ReviewResponse> from GET /v1/products/{productId}/reviews. */
+export function listReviews(
+  productId: string,
+  page = 0,
+  size = 10,
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<{ content: ReviewResponse[]; totalElements: number; number: number; size: number }> {
+  return apiRequest(
+    `/v1/products/${encodeURIComponent(productId)}/reviews?page=${page}&size=${size}`,
+    { ...options, method: "GET" },
+  );
+}
+
+export function submitReview(
+  input: { productId: string; rating: number; title?: string; body?: string; language?: string },
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<ReviewResponse> {
+  return apiRequest("/v1/reviews", {
+    ...options,
+    method: "POST",
+    body: {
+      productId: input.productId,
+      rating: input.rating,
+      title: input.title ?? "",
+      body: input.body ?? "",
+      language: input.language ?? "ja",
+    },
+  });
+}
+
+export function voteHelpful(
+  reviewId: string,
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<void> {
+  return apiRequest<void>(`/v1/reviews/${encodeURIComponent(reviewId)}/helpful`, {
+    ...options,
+    method: "POST",
+    body: {},
+  });
+}
+
+// ---------- Favorites ----------
+
+/** Backend returns a flat List<UUID> of favorited product ids. */
+export function listFavorites(
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<string[]> {
+  return apiRequest<string[]>("/v1/me/favorites", { ...options, method: "GET" });
+}
+
+export function addFavorite(
+  productId: string,
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<void> {
+  return apiRequest<void>(`/v1/me/favorites/${encodeURIComponent(productId)}`, {
+    ...options,
+    method: "PUT",
+  });
+}
+
+export function removeFavorite(
+  productId: string,
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<void> {
+  return apiRequest<void>(`/v1/me/favorites/${encodeURIComponent(productId)}`, {
+    ...options,
+    method: "DELETE",
+  });
+}
+
+// ---------- Points ----------
+
+/** Backend returns {balance: long}. No ledger endpoint exists yet. */
+export function getPointsBalance(
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<{ balance: number }> {
+  return apiRequest<{ balance: number }>("/v1/me/points", { ...options, method: "GET" });
+}
+
 export const api = {
   get: <T>(path: string, options: Omit<RequestOptions, "method" | "body"> = {}) =>
     apiRequest<T>(path, { ...options, method: "GET" }),

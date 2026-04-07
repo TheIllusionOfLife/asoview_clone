@@ -39,5 +39,14 @@
       "priceAsc": "Price: low to high",
       "priceDesc": "Price: high to low"
     }
+  },
+  "reviews": {
+    "title": "Reviews",
+    "formTitle": "Write a review",
+    "rating": "Rating",
+    "bodyPlaceholder": "How was the experience?",
+    "submit": "Submit",
+    "helpful": "Helpful",
+    "empty": "No reviews yet."
   }
 }

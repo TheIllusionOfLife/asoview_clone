@@ -39,5 +39,14 @@
       "priceAsc": "価格が安い順",
       "priceDesc": "価格が高い順"
     }
+  },
+  "reviews": {
+    "title": "レビュー",
+    "formTitle": "レビューを書く",
+    "rating": "評価",
+    "bodyPlaceholder": "体験はいかがでしたか？",
+    "submit": "投稿",
+    "helpful": "参考になった",
+    "empty": "まだレビューはありません。"
   }
 }

@@ -1,4 +1,6 @@
 import { SlotPicker } from "@/components/SlotPicker";
+import { ReviewForm } from "@/components/reviews/ReviewForm";
+import { ReviewList } from "@/components/reviews/ReviewList";
 import { Link } from "@/i18n/navigation";
 import { ServerFetchError, serverGet } from "@/lib/server-api";
 import type { ProductResponse } from "@/lib/types";
@@ -74,6 +76,14 @@ export default async function ProductPage({ params }: Props) {
         </div>
         <SlotPicker product={product} />
       </div>
+
+      <section className="mt-12">
+        <h2 className="font-display text-2xl font-bold mb-4">レビュー</h2>
+        <ReviewList productId={product.id} />
+        <div className="mt-6">
+          <ReviewForm productId={product.id} />
+        </div>
+      </section>
     </div>
   );
 }
