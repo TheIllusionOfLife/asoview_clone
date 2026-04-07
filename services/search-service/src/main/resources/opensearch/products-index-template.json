@@ -1,0 +1,48 @@
+{
+  "index_patterns": ["asoview-products-*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "analysis": {
+        "tokenizer": {
+          "ja_kuromoji_tokenizer": {
+            "type": "kuromoji_tokenizer",
+            "mode": "search"
+          }
+        },
+        "analyzer": {
+          "ja_kuromoji_search": {
+            "type": "custom",
+            "tokenizer": "ja_kuromoji_tokenizer",
+            "filter": [
+              "kuromoji_baseform",
+              "kuromoji_part_of_speech",
+              "ja_stop",
+              "kuromoji_stemmer",
+              "lowercase"
+            ]
+          }
+        }
+      }
+    },
+    "mappings": {
+      "properties": {
+        "productId": { "type": "keyword" },
+        "areaId": { "type": "keyword" },
+        "categoryId": { "type": "keyword" },
+        "status": { "type": "keyword" },
+        "name": {
+          "type": "text",
+          "analyzer": "ja_kuromoji_search"
+        },
+        "description": {
+          "type": "text",
+          "analyzer": "ja_kuromoji_search"
+        },
+        "minPrice": { "type": "long" },
+        "indexedAt": { "type": "date" }
+      }
+    }
+  }
+}
