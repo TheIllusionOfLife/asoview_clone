@@ -109,6 +109,18 @@ export function CheckoutClient({
     setPhase("polling");
   }, []);
 
+  // Capture `user` via a ref so the init effect does NOT re-run on
+  // Firebase token refresh (onIdTokenChanged swaps the User reference
+  // every ~55 minutes). A re-run during polling would re-fetch the
+  // order, re-create the intent (idempotent but sets phase back to
+  // "ready"), and silently kill the polling loop. The only consumer
+  // of `user` inside the init effect is `clearOrderLinesFromCart`
+  // which reads `user.uid` — ref is sufficient.
+  const userRef = useRef(user);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
   // 1. Fetch order + 2. create payment intent.
   useEffect(() => {
     if (!ready) return;
@@ -128,7 +140,8 @@ export function CheckoutClient({
         // If the order is already terminal, skip the intent and surface state.
         if (fetchedOrder.status === "PAID") {
           setPhase("succeeded");
-          if (user) clearOrderLinesFromCart(user.uid, fetchedOrder);
+          const u = userRef.current;
+          if (u) clearOrderLinesFromCart(u.uid, fetchedOrder);
           clearIdempotencyForOrder(orderId);
           router.replace(`/tickets/${orderId}`);
           return;
@@ -187,7 +200,7 @@ export function CheckoutClient({
       cancelled = true;
       ctrl.abort();
     };
-  }, [ready, orderId, fakeMode, router, user, startPolling]);
+  }, [ready, orderId, fakeMode, router, startPolling]);
 
   useEffect(() => {
     if (phase !== "polling") return;

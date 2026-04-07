@@ -220,7 +220,11 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     try {
       return await doFetch<T>(path, options);
     } catch (e) {
-      if (!isRetryable || attempt >= retries || !(e instanceof ApiError)) {
+      // Retry only on transient 5xx. 4xx (400/403/404/429...) are
+      // permanent for the caller and must surface immediately; the
+      // earlier code reference `!(e instanceof ApiError)` was missing
+      // the explicit `>= 500` gate and would retry 404/400/429 too.
+      if (!isRetryable || attempt >= retries || !(e instanceof ApiError) || e.status < 500) {
         throw e;
       }
       await delay(jitteredBackoff(attempt), options.signal);
