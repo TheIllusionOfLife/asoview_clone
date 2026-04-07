@@ -50,6 +50,36 @@ services:
     entrypoint: ["/bin/bash", "/usr/local/bin/spanner-init.sh"]
     restart: "no"
 
+  firebase-auth-emulator:
+    # andreysenov/firebase-tools is on Docker Hub (public, no auth needed). The
+    # spectoolco/firebase-tools image on ghcr.io requires authentication and is
+    # denied in CI runners — see PR #22 build failure 24075280357.
+    image: andreysenov/firebase-tools:13.29.1
+    # The auth emulator defaults to binding 127.0.0.1 inside the container,
+    # which makes the published port unreachable from the docker host or
+    # sibling services. We mount a firebase.json that pins host=0.0.0.0.
+    working_dir: /firebase
+    volumes:
+      - ./db/seeds/firebase:/firebase:ro
+    command:
+      [
+        "firebase",
+        "emulators:start",
+        "--only",
+        "auth",
+        "--project",
+        "asoview-clone",
+        "--config",
+        "/firebase/firebase.json",
+      ]
+    ports:
+      - "9099:9099"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9099 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   opensearch:
     build:
       context: .

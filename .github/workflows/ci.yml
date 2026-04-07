@@ -46,6 +46,13 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bunx biome check .
       - name: Build all web apps
+        # asoview-web fails the build if NEXT_PUBLIC_API_BASE_URL is not
+        # set in production (next.config.ts CSP fail-fast). Set a
+        # placeholder gateway origin so the CI build exercises the
+        # production code path. The e2e job (below) overrides this with
+        # a real gateway URL when it stands up the backend stack.
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
         run: |
           for app in apps/asoview-web apps/gift-web apps/furusato-web apps/overseas-web apps/urakata-ticket-web apps/urakata-reservation-web apps/area-gate-web apps/ads-web; do
             echo "Building $app"
@@ -53,6 +60,62 @@ jobs:
           done
       - name: Typecheck scanner app
         run: cd apps/scanner-app && bunx tsc --noEmit || true
+
+  asoview-web-e2e:
+    name: asoview-web Playwright
+    runs-on: ubuntu-latest
+    needs: ts-build
+    env:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+      NEXT_PUBLIC_FIREBASE_API_KEY: fake-api-key
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: localhost
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: asoview-test
+      NEXT_PUBLIC_FIREBASE_APP_ID: 1:test:web:test
+      NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL: http://localhost:9099
+      NEXT_PUBLIC_FAKE_CHECKOUT_MODE: "1"
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_unused
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.23"
+      - run: bun install --frozen-lockfile
+      - name: Install Playwright browsers
+        run: cd apps/asoview-web && bunx playwright install --with-deps chromium
+      - name: Start infra containers (postgres + redis + spanner emulator + firebase auth emulator + opensearch)
+        # This step brings up ONLY the infra services defined in
+        # docker-compose.yml. The `commerce-core` Spring Boot app is NOT
+        # started here, so nothing listens on :8080 and the default
+        # NEXT_PUBLIC_API_BASE_URL=http://localhost:8080 is unreachable.
+        # That is intentional: every Playwright spec in this job uses
+        # `page.route` interception and never contacts a real backend.
+        # Backend-driven specs (funnel-happy.spec.ts, the charged part
+        # of idempotency.spec.ts) are gated on ASOVIEW_E2E_BACKEND=1 and
+        # will only run once a follow-up PR promotes FakePaymentGateway
+        # to main scope and wires commerce-core into this job.
+        run: docker compose up -d
+      - name: Build asoview-web
+        run: cd apps/asoview-web && bun run build
+      - name: Start asoview-web
+        # Background the server, then poll readiness for up to 30s. The
+        # previous `sleep 5` raced server startup on slower runners and
+        # produced flaky 502s in the headers smoke step.
+        run: |
+          cd apps/asoview-web
+          (bun run start &)
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000 > /dev/null; then
+              echo "asoview-web is up after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "asoview-web did not become ready within 30s" >&2
+          exit 1
+      - name: Smoke security headers
+        run: cd apps/asoview-web && ./scripts/check-headers.sh http://localhost:3000
+      - name: Run Playwright matrix
+        run: cd apps/asoview-web && bun run test:e2e
 
   proto-lint:
     name: Proto Lint

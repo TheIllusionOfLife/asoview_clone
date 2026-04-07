@@ -67,6 +67,7 @@ class PayPaySagaRegressionTest {
         new Payment(
             UUID.randomUUID().toString(), "user-1", new BigDecimal("3000"), "JPY", "idem-1");
     when(paymentService.confirmByProviderPaymentId(eq(MP_ID))).thenReturn(confirmed);
+    when(processedEvents.insertIfMissing("PAYPAY", EVENT_ID)).thenReturn(1);
 
     mockMvc
         .perform(
@@ -75,7 +76,7 @@ class PayPaySagaRegressionTest {
                 .content((EVENT_ID + ":" + MP_ID + ":SUCCEEDED").getBytes()))
         .andExpect(status().isOk());
 
-    verify(processedEvents, times(1)).save(any());
+    verify(processedEvents, times(1)).insertIfMissing("PAYPAY", EVENT_ID);
     verify(paymentService, times(1)).confirmByProviderPaymentId(MP_ID);
   }
 }

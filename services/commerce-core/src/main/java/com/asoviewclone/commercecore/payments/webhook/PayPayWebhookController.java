@@ -9,7 +9,6 @@ import com.asoviewclone.common.error.ValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -72,9 +71,11 @@ public class PayPayWebhookController {
     // Replay protection: insert marker row before doing any work. Composite
     // PK on (provider, event_id) from V9 keeps Stripe and PayPay event ids
     // isolated so there's no cross-provider collision risk.
-    try {
-      processedEvents.save(new ProcessedWebhookEvent(event.rawEventId(), event.provider()));
-    } catch (DataIntegrityViolationException dup) {
+    // Insert-first idempotency gate. ProcessedWebhookEvent has assigned @Id fields, so
+    // save() would route through merge() (SELECT + UPDATE) for sequential retries and never
+    // throw DataIntegrityViolationException — defeating replay protection. Native ON CONFLICT
+    // DO NOTHING is atomic against the unique key. (Devin PR #22 finding.)
+    if (processedEvents.insertIfMissing(event.provider(), event.rawEventId()) == 0) {
       log.info(
           "Duplicate PayPay webhook replay event_id={} provider_payment_id={} action=skip",
           event.rawEventId(),
