@@ -16,6 +16,7 @@
   "dependencies": {
     "@asoview/design-tokens": "workspace:*",
     "@asoview/frontend-shared": "workspace:*",
+    "firebase": "^12.11.0",
     "next": "^16.2.2",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"

@@ -50,6 +50,17 @@ services:
     entrypoint: ["/bin/bash", "/usr/local/bin/spanner-init.sh"]
     restart: "no"
 
+  firebase-auth-emulator:
+    image: ghcr.io/spectoolco/firebase-tools:13.29.1
+    command: ["firebase", "emulators:start", "--only", "auth", "--project", "asoview-clone"]
+    ports:
+      - "9099:9099"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9099 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   opensearch:
     build:
       context: .
