@@ -4,6 +4,11 @@ type Props = {
   params: Promise<{ orderId: string }>;
 };
 
+// ticket-url: PINNED as /tickets/[orderId] for Phase 3e. Wallet buttons
+// (3e commit 8), Lighthouse CI (3e commit 13), E2E specs (3e commit 12),
+// and native iOS/Android (Phase 3f) all reference this shape. Changing
+// it requires a plan-level decision, not a local rename.
+
 /**
  * Shell-SSR ticket page. Server renders the title; client fetches the
  * owner-checked ticket list via GET /v1/me/tickets?orderId={orderId}.
