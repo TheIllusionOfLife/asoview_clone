@@ -11,7 +11,9 @@ import com.asoviewclone.commercecore.inventory.model.InventorySlot;
 import com.asoviewclone.commercecore.inventory.repository.InventorySlotRepository;
 import com.asoviewclone.commercecore.orders.model.Order;
 import com.asoviewclone.commercecore.orders.model.OrderItem;
+import com.asoviewclone.commercecore.orders.service.OrderService;
 import com.asoviewclone.commercecore.payments.service.EntitlementCreator;
+import com.asoviewclone.common.error.NotFoundException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -41,14 +43,17 @@ public class EntitlementServiceImpl implements EntitlementCreator {
   private final EntitlementRepository entitlementRepository;
   private final InventorySlotRepository inventorySlotRepository;
   private final QrCodeGenerator qrCodeGenerator;
+  private final OrderService orderService;
 
   public EntitlementServiceImpl(
       EntitlementRepository entitlementRepository,
       InventorySlotRepository inventorySlotRepository,
-      QrCodeGenerator qrCodeGenerator) {
+      QrCodeGenerator qrCodeGenerator,
+      OrderService orderService) {
     this.entitlementRepository = entitlementRepository;
     this.inventorySlotRepository = inventorySlotRepository;
     this.qrCodeGenerator = qrCodeGenerator;
+    this.orderService = orderService;
   }
 
   @Override
@@ -169,5 +174,18 @@ public class EntitlementServiceImpl implements EntitlementCreator {
    */
   public List<TicketPassView> listUserTicketPassViews(String userId, String orderIdOrNull) {
     return entitlementRepository.findTicketPassViewsByUserId(userId, orderIdOrNull);
+  }
+
+  /**
+   * Returns ticket passes for a given order, but only if the caller owns that order. Throws {@link
+   * NotFoundException} for both "order does not exist" and "order belongs to someone else" so we
+   * never leak existence — matches the contract of {@code GET /v1/orders/{id}}.
+   */
+  public List<TicketPassView> listTicketPassViewsForOrderOwnedBy(String orderId, String userId) {
+    Order order = orderService.getOrder(orderId);
+    if (!userId.equals(order.userId())) {
+      throw new NotFoundException("Order", orderId);
+    }
+    return entitlementRepository.findTicketPassViewsByUserId(userId, orderId);
   }
 }
