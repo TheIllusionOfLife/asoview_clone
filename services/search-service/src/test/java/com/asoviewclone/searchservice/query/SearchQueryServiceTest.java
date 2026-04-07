@@ -22,7 +22,7 @@ import org.testcontainers.utility.DockerImageName;
 @Testcontainers
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.NONE,
-    properties = "search.index-name=asoview-products-test")
+    properties = {"search.index-name=asoview-products-test", "search.backfill.enabled=false"})
 class SearchQueryServiceTest {
 
   private static final String INDEX = "asoview-products-test";
@@ -67,41 +67,11 @@ class SearchQueryServiceTest {
     } catch (Exception ignored) {
       // first run — index doesn't exist
     }
-    indexDoc(
-        "p1",
-        "東京ダイビング体験ツアー",
-        "初心者向けの体験ダイビングです",
-        "A1",
-        "C1",
-        8000);
-    indexDoc(
-        "p2",
-        "沖縄ダイビングライセンス講習",
-        "PADIライセンス取得コース",
-        "A2",
-        "C1",
-        45000);
-    indexDoc(
-        "p3",
-        "東京スカイツリー展望台チケット",
-        "東京の人気観光スポット",
-        "A1",
-        "C2",
-        2500);
-    indexDoc(
-        "p4",
-        "京都伝統茶道体験",
-        "本格的な茶道を体験",
-        "A3",
-        "C2",
-        6000);
-    indexDoc(
-        "p5",
-        "大阪城見学ツアー",
-        "歴史ガイド付き",
-        "A4",
-        "C2",
-        3000);
+    indexDoc("p1", "東京ダイビング体験ツアー", "初心者向けの体験ダイビングです", "A1", "C1", 8000);
+    indexDoc("p2", "沖縄ダイビングライセンス講習", "PADIライセンス取得コース", "A2", "C1", 45000);
+    indexDoc("p3", "東京スカイツリー展望台チケット", "東京の人気観光スポット", "A1", "C2", 2500);
+    indexDoc("p4", "京都伝統茶道体験", "本格的な茶道を体験", "A3", "C2", 6000);
+    indexDoc("p5", "大阪城見学ツアー", "歴史ガイド付き", "A4", "C2", 3000);
     // refresh
     client.getLowLevelClient().performRequest(new Request("POST", "/" + INDEX + "/_refresh"));
   }
@@ -154,7 +124,9 @@ class SearchQueryServiceTest {
   void sortPriceAsc() {
     ProductSearchResponse resp =
         searchQueryService.search(null, null, null, null, null, "price_asc", 0, 20);
-    assertThat(resp.content()).extracting("productId").containsExactly("p3", "p5", "p4", "p1", "p2");
+    assertThat(resp.content())
+        .extracting("productId")
+        .containsExactly("p3", "p5", "p4", "p1", "p2");
   }
 
   @Test
