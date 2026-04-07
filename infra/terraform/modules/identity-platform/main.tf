@@ -26,7 +26,7 @@ resource "google_project_service" "identity_toolkit" {
 }
 
 resource "google_identity_platform_config" "default" {
-  project  = var.project_id
+  project                    = var.project_id
   autodelete_anonymous_users = false
 
   sign_in {
