@@ -31,6 +31,8 @@ jobs:
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v6
       - name: Verify pitfall check fixtures
+        env:
+          PITFALL_DEBUG: "1"
         run: ./scripts/checks/test-fixtures.sh
       - name: Run pitfall checks (shell + ArchUnit)
         run: ./scripts/checks/run-all.sh
