@@ -7,6 +7,10 @@ locals {
     "checkin-events",
     "inventory-events",
     "analytics-events",
+    "product-index-events",
+    "review-events",
+    "favorite-events",
+    "point-events",
   ]
 }
 
