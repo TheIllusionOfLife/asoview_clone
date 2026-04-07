@@ -48,24 +48,54 @@ export type AreaResponse = {
   slug: string;
 };
 
+/**
+ * Single slot availability entry, as returned by
+ * `GET /v1/products/{productId}/availability?from=&to=`.
+ * Field names match `InventoryQueryService.AvailabilityEntry` exactly.
+ */
+export type AvailabilityEntry = {
+  slotId: string;
+  productVariantId: string;
+  /** YYYY-MM-DD */
+  date: string;
+  /** HH:mm:ss */
+  startTime: string;
+  /** HH:mm:ss */
+  endTime: string;
+  remaining: number;
+};
+
+/** `OrderResponse.ItemResponse` from the backend. */
 export type OrderItemResponse = {
-  id: string;
-  productId: string;
+  orderItemId: string;
   productVariantId: string;
   slotId: string;
   quantity: number;
   unitPrice: string;
 };
 
+/** `OrderResponse` from the backend. NB: `orderId`, not `id`. */
 export type OrderResponse = {
-  id: string;
+  orderId: string;
   userId: string;
   status: OrderStatus;
   totalAmount: string;
   currency: string;
   items: OrderItemResponse[];
-  createdAt: string;
-  updatedAt: string;
+};
+
+/** `CreateOrderRequest.OrderItemRequest` — note `productVariantId`. */
+export type CreateOrderItemRequest = {
+  productVariantId: string;
+  slotId: string;
+  quantity: number;
+};
+
+/** `CreateOrderRequest`. `idempotencyKey` may be omitted when sent via header. */
+export type CreateOrderRequest = {
+  items: CreateOrderItemRequest[];
+  pointsToUse?: number;
+  idempotencyKey?: string;
 };
 
 export type PaymentResponse = {
