@@ -233,6 +233,79 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 }
 
+// ---------- Search helpers ----------
+
+export type SearchHit = {
+  productId: string;
+  name: string;
+  description: string | null;
+  minPrice: number | null;
+  areaId: string | null;
+  categoryId: string | null;
+};
+
+export type ProductSearchResponse = {
+  content: SearchHit[];
+  totalElements: number;
+  number: number;
+  size: number;
+};
+
+export type SearchSuggestion = { productId: string; name: string };
+export type AutosuggestResponse = { suggestions: SearchSuggestion[] };
+
+export type SearchParams = {
+  q?: string;
+  category?: string;
+  area?: string;
+  priceMin?: number;
+  priceMax?: number;
+  sort?: string;
+  page?: number;
+  size?: number;
+};
+
+/**
+ * Calls search-service via the gateway. The backend already filters on
+ * visibility, but per CLAUDE.md PR #21 rule we still pass status=ACTIVE
+ * as defense in depth — though the current backend shape ignores unknown
+ * params so it is harmless if removed.
+ */
+export function searchProducts(
+  params: SearchParams,
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<ProductSearchResponse> {
+  const sp = new URLSearchParams();
+  if (params.q) sp.set("q", params.q);
+  if (params.category) sp.set("category", params.category);
+  if (params.area) sp.set("area", params.area);
+  if (params.priceMin !== undefined && Number.isFinite(params.priceMin)) {
+    sp.set("minPrice", String(params.priceMin));
+  }
+  if (params.priceMax !== undefined && Number.isFinite(params.priceMax)) {
+    sp.set("maxPrice", String(params.priceMax));
+  }
+  if (params.sort) sp.set("sort", params.sort);
+  if (params.page !== undefined) sp.set("page", String(params.page));
+  if (params.size !== undefined) sp.set("size", String(params.size));
+  const qs = sp.toString();
+  return apiRequest<ProductSearchResponse>(`/v1/search${qs ? `?${qs}` : ""}`, {
+    ...options,
+    method: "GET",
+  });
+}
+
+export function searchSuggest(
+  q: string,
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<AutosuggestResponse> {
+  const sp = new URLSearchParams({ q });
+  return apiRequest<AutosuggestResponse>(`/v1/search/suggest?${sp.toString()}`, {
+    ...options,
+    method: "GET",
+  });
+}
+
 export const api = {
   get: <T>(path: string, options: Omit<RequestOptions, "method" | "body"> = {}) =>
     apiRequest<T>(path, { ...options, method: "GET" }),

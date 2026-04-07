@@ -16,5 +16,28 @@
   "nav": {
     "areas": "エリアから探す",
     "products": "注目の体験"
+  },
+  "search": {
+    "placeholder": "体験を検索",
+    "noResults": "「{q}」に一致する結果はありません",
+    "error": "検索結果の読み込みに失敗しました。",
+    "facets": {
+      "category": "カテゴリ",
+      "priceMin": "下限価格（円）",
+      "priceMax": "上限価格（円）",
+      "sort": "並び替え",
+      "any": "すべて",
+      "categories": {
+        "outdoor": "アウトドア",
+        "indoor": "インドア",
+        "food": "グルメ",
+        "culture": "文化"
+      }
+    },
+    "sort": {
+      "relevance": "おすすめ順",
+      "priceAsc": "価格が安い順",
+      "priceDesc": "価格が高い順"
+    }
   }
 }

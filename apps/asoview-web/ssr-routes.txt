@@ -5,3 +5,4 @@
 /[locale]
 /[locale]/areas/[area]
 /[locale]/products/[id]
+/[locale]/search

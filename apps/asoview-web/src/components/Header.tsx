@@ -12,6 +12,9 @@ export function Header() {
           <Link href="/" className="hover:text-[var(--color-primary)]">
             ホーム
           </Link>
+          <Link href="/search" className="hover:text-[var(--color-primary)]">
+            検索
+          </Link>
           <Link href="/cart" className="hover:text-[var(--color-primary)] inline-flex items-center">
             カート
             <CartBadge />

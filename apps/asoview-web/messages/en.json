@@ -16,5 +16,28 @@
   "nav": {
     "areas": "Browse by area",
     "products": "Featured experiences"
+  },
+  "search": {
+    "placeholder": "Search experiences",
+    "noResults": "No results for '{q}'",
+    "error": "Failed to load search results.",
+    "facets": {
+      "category": "Category",
+      "priceMin": "Min price (JPY)",
+      "priceMax": "Max price (JPY)",
+      "sort": "Sort",
+      "any": "Any",
+      "categories": {
+        "outdoor": "Outdoor",
+        "indoor": "Indoor",
+        "food": "Food",
+        "culture": "Culture"
+      }
+    },
+    "sort": {
+      "relevance": "Relevance",
+      "priceAsc": "Price: low to high",
+      "priceDesc": "Price: high to low"
+    }
   }
 }
