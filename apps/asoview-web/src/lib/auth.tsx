@@ -43,6 +43,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let unsub: (() => void) | undefined;
     let cancelled = false;
+    // Safety net: if Firebase never fires its first onIdTokenChanged
+    // within 2 seconds (unreachable emulator, stalled REST call, etc),
+    // unblock the app as signed-out so route protection can redirect.
+    // A later successful auth restore will still update the state.
+    const readyTimer = setTimeout(() => {
+      if (!cancelled) setReady(true);
+    }, 2000);
     (async () => {
       try {
         const { auth } = await ensureFirebaseReady();
@@ -83,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
     return () => {
       cancelled = true;
+      clearTimeout(readyTimer);
       if (unsub) unsub();
     };
   }, []);

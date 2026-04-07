@@ -27,18 +27,31 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 const WINDOW_DAYS = 14;
+const JST_TIMEZONE = "Asia/Tokyo";
 
-function isoDate(d: Date): string {
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+/**
+ * Asoview is JP-only and the backend stores slot_date as a JST local
+ * date string (STRING(10) in Spanner). Every date computed on the
+ * client — "today", window boundaries, display labels — MUST be in JST
+ * regardless of the user's browser timezone. Using UTC would shift the
+ * visible availability window by up to 15 hours.
+ */
+function todayIsoJst(): string {
+  // sv-SE produces "YYYY-MM-DD" directly.
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: JST_TIMEZONE }).format(new Date());
 }
 
-function addDays(base: Date, days: number): Date {
-  const d = new Date(base);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d;
+function addDaysIso(iso: string, days: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  // Use UTC arithmetic purely as a calendar library — we're treating
+  // the ISO string as an abstract date, not a moment in time, so
+  // daylight-saving and tz drift do not apply (JST has no DST).
+  const base = new Date(Date.UTC(y, m - 1, d));
+  base.setUTCDate(base.getUTCDate() + days);
+  const yy = base.getUTCFullYear();
+  const mm = String(base.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(base.getUTCDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
 }
 
 function formatJpDate(iso: string): string {
@@ -60,11 +73,7 @@ export function SlotPicker({ product }: { product: ProductResponse }) {
   const { user, ready } = useAuth();
   const { add: addToCart } = useCart();
   const [addedToCart, setAddedToCart] = useState(false);
-  const [windowStart, setWindowStart] = useState<Date>(() => {
-    const d = new Date();
-    d.setUTCHours(0, 0, 0, 0);
-    return d;
-  });
+  const [windowStart, setWindowStart] = useState<string>(() => todayIsoJst());
   const [entries, setEntries] = useState<AvailabilityEntry[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -73,8 +82,8 @@ export function SlotPicker({ product }: { product: ProductResponse }) {
   const [submitting, setSubmitting] = useState(false);
   const [bookError, setBookError] = useState<string | null>(null);
 
-  const from = useMemo(() => isoDate(windowStart), [windowStart]);
-  const to = useMemo(() => isoDate(addDays(windowStart, WINDOW_DAYS - 1)), [windowStart]);
+  const from = windowStart;
+  const to = useMemo(() => addDaysIso(windowStart, WINDOW_DAYS - 1), [windowStart]);
 
   useEffect(() => {
     let cancelled = false;
@@ -211,7 +220,7 @@ export function SlotPicker({ product }: { product: ProductResponse }) {
       <div className="mt-3 flex items-center justify-between gap-3">
         <button
           type="button"
-          onClick={() => setWindowStart((d) => addDays(d, -WINDOW_DAYS))}
+          onClick={() => setWindowStart((d) => addDaysIso(d, -WINDOW_DAYS))}
           className="rounded-[var(--radius-md)] border border-[var(--color-border)] px-3 py-1.5 text-sm hover:border-[var(--color-primary)] focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]"
           aria-label="前の14日間を表示"
         >
@@ -222,7 +231,7 @@ export function SlotPicker({ product }: { product: ProductResponse }) {
         </span>
         <button
           type="button"
-          onClick={() => setWindowStart((d) => addDays(d, WINDOW_DAYS))}
+          onClick={() => setWindowStart((d) => addDaysIso(d, WINDOW_DAYS))}
           className="rounded-[var(--radius-md)] border border-[var(--color-border)] px-3 py-1.5 text-sm hover:border-[var(--color-primary)] focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]"
           aria-label="次の14日間を表示"
         >
