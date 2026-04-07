@@ -8,7 +8,6 @@ import com.asoviewclone.common.error.ConflictException;
 import com.asoviewclone.common.error.ValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -82,9 +81,11 @@ public class PaymentWebhookController {
 
     // Replay protection: insert first, then act. If the event id is a duplicate the unique
     // constraint rejects the insert and we return 200 without re-running the confirm/fail logic.
-    try {
-      processedEvents.save(new ProcessedWebhookEvent(event.rawEventId(), event.provider()));
-    } catch (DataIntegrityViolationException dup) {
+    // Insert-first idempotency gate. ProcessedWebhookEvent has assigned @Id fields, so
+    // save() would route through merge() (SELECT + UPDATE) for sequential retries and never
+    // throw DataIntegrityViolationException — defeating replay protection. Native ON CONFLICT
+    // DO NOTHING is atomic against the unique key. (Devin PR #22 finding.)
+    if (processedEvents.insertIfMissing(event.provider(), event.rawEventId()) == 0) {
       log.info(
           "Duplicate webhook replay stripe_event_id={} provider_payment_id={} action=skip",
           event.rawEventId(),

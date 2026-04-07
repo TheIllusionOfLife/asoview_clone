@@ -2,7 +2,6 @@ package com.asoviewclone.commercecore.payments.webhook;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -24,7 +23,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -59,7 +57,7 @@ class PaymentWebhookControllerTest {
                 .header("Stripe-Signature", "t=0,v1=bad")
                 .content("{}"))
         .andExpect(status().isBadRequest());
-    verify(processedEvents, never()).save(any());
+    verify(processedEvents, never()).insertIfMissing(anyString(), anyString());
   }
 
   @Test
@@ -74,7 +72,7 @@ class PaymentWebhookControllerTest {
                 .header("Stripe-Signature", "t=0,v1=x")
                 .content("{}"))
         .andExpect(status().isOk());
-    verify(processedEvents, never()).save(any());
+    verify(processedEvents, never()).insertIfMissing(anyString(), anyString());
     verify(paymentService, never()).confirmByProviderPaymentId(anyString());
   }
 
@@ -87,6 +85,7 @@ class PaymentWebhookControllerTest {
     Payment payment = new Payment("order-1", "user-1", new BigDecimal("100"), "JPY", "idem-1");
     payment.setProviderPaymentId(PI_ID);
     when(paymentService.confirmByProviderPaymentId(PI_ID)).thenReturn(payment);
+    when(processedEvents.insertIfMissing("STRIPE", EVENT_ID)).thenReturn(1);
 
     mockMvc
         .perform(
@@ -94,7 +93,7 @@ class PaymentWebhookControllerTest {
                 .header("Stripe-Signature", "t=0,v1=x")
                 .content("{}"))
         .andExpect(status().isOk());
-    verify(processedEvents, times(1)).save(any());
+    verify(processedEvents, times(1)).insertIfMissing("STRIPE", EVENT_ID);
     verify(paymentService, times(1)).confirmByProviderPaymentId(PI_ID);
   }
 
@@ -104,7 +103,7 @@ class PaymentWebhookControllerTest {
         .thenReturn(
             new PaymentGatewayEvent(
                 EVENT_ID, PI_ID, PaymentGatewayEvent.Status.SUCCEEDED, "STRIPE"));
-    doThrow(new DataIntegrityViolationException("dup")).when(processedEvents).save(any());
+    when(processedEvents.insertIfMissing("STRIPE", EVENT_ID)).thenReturn(0);
 
     mockMvc
         .perform(
@@ -122,6 +121,7 @@ class PaymentWebhookControllerTest {
         .thenReturn(
             new PaymentGatewayEvent(
                 EVENT_ID, unknownId, PaymentGatewayEvent.Status.SUCCEEDED, "STRIPE"));
+    when(processedEvents.insertIfMissing("STRIPE", EVENT_ID)).thenReturn(1);
     when(paymentService.confirmByProviderPaymentId(unknownId)).thenReturn(null);
 
     mockMvc
