@@ -87,10 +87,15 @@ public class PointServiceImpl implements PointService {
       ledgerRepository.save(new PointLedgerEntry(userId, delta, reason, null));
     }
 
-    // Now CAS the balance. Retry on contention. If we exhaust retries the
-    // ledger row has already been claimed but the balance was not updated —
-    // throw so the caller surfaces it; a reconciliation job will repair the
-    // divergent ledger entry.
+    // Now CAS the balance. Retry on contention. If we exhaust retries we
+    // throw IllegalStateException — because the ledger insert and the balance
+    // CAS run inside the same @Transactional method, throwing rolls the
+    // ENTIRE transaction back (including the ledger row we just inserted),
+    // so under normal ACID operation the caller sees a clean retryable
+    // failure with no divergence. The phrase "reconciliation job" elsewhere
+    // in this codebase only matters for cross-store divergence (Spanner
+    // orders vs Postgres ledger) under distributed-system failures, not for
+    // this single-store JPA path.
     balanceRepository.insertIfMissing(userId, 0L);
     boolean swapped = false;
     for (int attempt = 0; attempt < CAS_MAX_ATTEMPTS; attempt++) {

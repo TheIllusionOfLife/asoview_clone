@@ -121,7 +121,7 @@ class ReviewServiceImplTest {
     service.voteHelpful(userId, reviewId);
     service.voteHelpful(userId, reviewId);
 
-    verify(voteRepository, times(1)).save(any(ReviewHelpfulVote.class));
+    verify(voteRepository, times(1)).saveAndFlush(any(ReviewHelpfulVote.class));
     verify(reviewRepository, times(1)).incrementHelpfulCount(reviewId);
   }
 }

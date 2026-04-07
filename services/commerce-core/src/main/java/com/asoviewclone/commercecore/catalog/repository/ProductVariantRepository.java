@@ -15,9 +15,9 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
 
   /**
    * Returns the set of {@code product_id} values referenced by the given variant ids in a single
-   * query. Avoids the per-variant {@code variant.getProduct().getId()} lazy load that the previous
-   * {@link #findAllById(Iterable)} call site triggered. Used by {@code ReviewEligibilityService}.
-   * (PR #21 review N4 from CodeRabbit.)
+   * query. Avoids the per-variant {@code variant.getProduct().getId()} lazy load that the
+   * straightforward {@link #findAllById(Iterable)} loop triggers when a caller only needs the
+   * parent product ids. Used by {@code ReviewEligibilityService}.
    */
   @Query("SELECT DISTINCT pv.product.id FROM ProductVariant pv WHERE pv.id IN :variantIds")
   Set<UUID> findProductIdsByVariantIds(@Param("variantIds") Collection<UUID> variantIds);

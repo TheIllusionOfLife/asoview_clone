@@ -24,6 +24,7 @@ spec:
   policyTypes:
     - Ingress
   ingress:
+    # search-service queries OpenSearch on the REST port only (9200).
     - from:
         - podSelector:
             matchLabels:
@@ -31,6 +32,15 @@ spec:
       ports:
         - protocol: TCP
           port: 9200
+    # OpenSearch nodes must be able to reach each other on the transport
+    # port (9300) for cluster formation, shard replication, and the
+    # initial cluster manager election. Without this rule the StatefulSet
+    # would never form a cluster. (PR #21 review follow-up.)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: opensearch
+      ports:
         - protocol: TCP
           port: 9300
 ---
@@ -47,9 +57,12 @@ spec:
     - Ingress
   ingress:
     - from:
+        # Use the Kubernetes-managed namespace label (set automatically by
+        # the API server) instead of a custom `name: edge` label that would
+        # require manual labeling of the edge namespace.
         - namespaceSelector:
             matchLabels:
-              name: edge
+              kubernetes.io/metadata.name: edge
           podSelector:
             matchLabels:
               app.kubernetes.io/part-of: edge-gateway

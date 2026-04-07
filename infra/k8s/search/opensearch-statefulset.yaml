@@ -101,8 +101,12 @@ spec:
               value: opensearch-0.opensearch,opensearch-1.opensearch,opensearch-2.opensearch
             - name: cluster.initial_cluster_manager_nodes
               value: opensearch-0,opensearch-1,opensearch-2
+            # bootstrap.memory_lock requires the IPC_LOCK linux capability,
+            # which the container security context drops above. Disable
+            # mlock and rely on the K8s cgroup memory limit + the JVM
+            # heap (-Xms == -Xmx) to keep RSS bounded. (PR #21 review follow-up.)
             - name: bootstrap.memory_lock
-              value: "true"
+              value: "false"
             - name: OPENSEARCH_JAVA_OPTS
               value: "-Xms2g -Xmx2g"
             # Security plugin DISABLED — see top-of-file SECURITY POSTURE comment.
@@ -140,3 +144,17 @@ spec:
         resources:
           requests:
             storage: 50Gi
+---
+# Protect the 3-node cluster's quorum during voluntary disruptions (node
+# upgrades, drains, rolling deploys). minAvailable: 2 means at most one
+# replica can be down at a time. (PR #21 review follow-up.)
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: opensearch
+  namespace: search
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: opensearch

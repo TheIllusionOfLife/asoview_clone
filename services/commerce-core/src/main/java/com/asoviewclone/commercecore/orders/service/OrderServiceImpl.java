@@ -141,6 +141,16 @@ public class OrderServiceImpl implements OrderService {
       //
       // Pre-generate the order id so the points-burn ledger row can pin to a
       // stable order id; OrderRepository.save accepts the pre-generated id.
+      //
+      // PROCESS-CRASH RISK: if the JVM dies between the points burn (Postgres
+      // commit) and orderRepository.saveWithId (Spanner write), the burn is
+      // stranded against an order id that never makes it to Spanner. This is
+      // the well-known cross-store outbox problem. The reconciliation sweep
+      // in OrphanedDiscountReconciliationJob (scheduled) sweeps Postgres
+      // discount rows whose order_id has no matching Spanner row and refunds
+      // them. Codex review flagged this as a design recommendation; full
+      // outbox/saga refactor is tracked as a follow-up but the recovery sweep
+      // already prevents permanent loss in the crash-mid-method case.
       String preGeneratedOrderId = UUID.randomUUID().toString();
       if (pointsToUse > 0) {
         orderDiscountService.applyPointsBurnDiscount(
@@ -200,47 +210,37 @@ public class OrderServiceImpl implements OrderService {
       // released, but the burn is permanent until ops repairs the orphan
       // ledger row. Surface as a 500 — DO NOT return any race-winner order
       // or the caller will think their points were used cleanly.
-      for (InventoryHold hold : holds) {
-        try {
-          inventoryService.releaseHold(hold.holdId());
-        } catch (Exception ignored) {
-        }
-      }
+      releaseHoldsBestEffort(holds);
       throw stranded;
     } catch (SpannerException e) {
       // Handle idempotency race: concurrent insert with same idempotency key
       if (e.getErrorCode() == com.google.cloud.spanner.ErrorCode.ALREADY_EXISTS) {
         Optional<Order> raceWinner = orderRepository.findByIdempotencyKey(idempotencyKey);
         if (raceWinner.isPresent() && raceWinner.get().userId().equals(userId)) {
-          // Release holds we created since the other request won
-          for (InventoryHold hold : holds) {
-            try {
-              inventoryService.releaseHold(hold.holdId());
-            } catch (Exception ignored) {
-            }
-          }
+          releaseHoldsBestEffort(holds);
           return raceWinner.get();
         }
       }
-      // Release any holds that were created
-      for (InventoryHold hold : holds) {
-        try {
-          inventoryService.releaseHold(hold.holdId());
-        } catch (Exception ignored) {
-          // Best effort release
-        }
-      }
+      releaseHoldsBestEffort(holds);
       throw e;
     } catch (Exception e) {
-      // Release any holds that were created
-      for (InventoryHold hold : holds) {
-        try {
-          inventoryService.releaseHold(hold.holdId());
-        } catch (Exception ignored) {
-          // Best effort release
-        }
-      }
+      releaseHoldsBestEffort(holds);
       throw e;
+    }
+  }
+
+  /**
+   * Best-effort hold release used by every cleanup branch in {@code createOrder}. Each release runs
+   * in its own try/catch so a failure on one hold does not prevent the rest from being released.
+   * (PR #21 review N — extracted helper for the repeated cleanup loop.)
+   */
+  private void releaseHoldsBestEffort(List<InventoryHold> holds) {
+    for (InventoryHold hold : holds) {
+      try {
+        inventoryService.releaseHold(hold.holdId());
+      } catch (Exception ignored) {
+        // Best-effort: hold may have already expired or been confirmed.
+      }
     }
   }
 

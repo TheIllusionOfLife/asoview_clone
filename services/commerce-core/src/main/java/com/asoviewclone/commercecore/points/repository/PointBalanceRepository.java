@@ -40,7 +40,7 @@ public interface PointBalanceRepository extends JpaRepository<PointBalance, UUID
    * org.springframework.dao.DataIntegrityViolationException} which the caller treats as "row
    * exists, retry CAS".
    */
-  @Modifying
+  @Modifying(clearAutomatically = true, flushAutomatically = true)
   @Query(
       value =
           "INSERT INTO point_balances(user_id, balance, updated_at)"

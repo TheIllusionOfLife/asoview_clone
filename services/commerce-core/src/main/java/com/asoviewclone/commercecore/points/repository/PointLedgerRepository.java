@@ -13,6 +13,18 @@ public interface PointLedgerRepository extends JpaRepository<PointLedgerEntry, U
   boolean existsByReasonAndOrderId(PointReason reason, String orderId);
 
   /**
+   * Finds the user_id of the {@code BURN_PURCHASE} ledger entry pinned to {@code orderId}, used by
+   * {@link OrphanedDiscountReconciliationJob} to resolve which user to refund when the {@code
+   * order_discounts} row has only the order id.
+   */
+  @org.springframework.data.jpa.repository.Query(
+      "SELECT l.userId FROM PointLedgerEntry l"
+          + " WHERE l.reason = com.asoviewclone.commercecore.points.model.PointReason.BURN_PURCHASE"
+          + " AND l.orderId = :orderId")
+  java.util.Optional<UUID> findBurnUserId(
+      @org.springframework.data.repository.query.Param("orderId") String orderId);
+
+  /**
    * Insert a ledger row, returning the number of rows inserted (1 = first to claim this {@code
    * (reason, order_id)} tuple, 0 = a concurrent winner already inserted it). Backed by Postgres
    * {@code ON CONFLICT DO NOTHING} against the partial unique index on {@code (reason, order_id)

@@ -92,7 +92,8 @@ public class WalletDevCertProvider {
     try (FileInputStream fis = new FileInputStream(path.toFile())) {
       ks.load(fis, certPassword.toCharArray());
     }
-    String alias = ks.aliases().hasMoreElements() ? ks.aliases().nextElement() : ALIAS;
+    java.util.Enumeration<String> aliases = ks.aliases();
+    String alias = aliases.hasMoreElements() ? aliases.nextElement() : ALIAS;
     this.certificate = (X509Certificate) ks.getCertificate(alias);
     this.privateKey = (PrivateKey) ks.getKey(alias, certPassword.toCharArray());
   }

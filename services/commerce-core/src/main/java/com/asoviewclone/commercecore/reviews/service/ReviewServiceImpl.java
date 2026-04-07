@@ -119,7 +119,13 @@ public class ReviewServiceImpl implements ReviewService {
       return; // idempotent
     }
     try {
-      voteRepository.save(new ReviewHelpfulVote(reviewId, userId));
+      // saveAndFlush forces the INSERT to hit the database immediately so any
+      // unique-constraint violation surfaces here, INSIDE the try-catch.
+      // Plain save() defers the SQL to commit time and the exception would
+      // escape the catch as a 500. (PR #21 review follow-up from Devin: the
+      // ReviewHelpfulVote entity has an assigned @Id (composite @IdClass),
+      // not @GeneratedValue, so EntityManager.persist defers without flush.)
+      voteRepository.saveAndFlush(new ReviewHelpfulVote(reviewId, userId));
     } catch (org.springframework.dao.DataIntegrityViolationException dup) {
       // Concurrent vote winner; idempotent no-op.
       return;

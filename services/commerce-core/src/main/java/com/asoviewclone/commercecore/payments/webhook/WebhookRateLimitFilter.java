@@ -72,6 +72,18 @@ public class WebhookRateLimitFilter extends OncePerRequestFilter {
       throws ServletException, IOException {
 
     long contentLength = request.getContentLengthLong();
+    if (contentLength < 0) {
+      // Chunked transfer / unknown length: getContentLengthLong returns -1.
+      // Stripe and PayPay both send a Content-Length header on their webhook
+      // POSTs, so an unknown length is a strong signal of an unexpected
+      // client and the body cap could otherwise be bypassed by streaming.
+      // (PR #21 review follow-up.)
+      log.warn(
+          "Webhook body length unknown (chunked or missing Content-Length): remote={}",
+          request.getRemoteAddr());
+      response.setStatus(HttpServletResponse.SC_LENGTH_REQUIRED);
+      return;
+    }
     if (contentLength > maxBodyBytes) {
       log.warn(
           "Webhook body too large: content_length={} max={} remote={}",
