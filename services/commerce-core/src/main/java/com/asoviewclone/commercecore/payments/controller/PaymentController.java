@@ -39,6 +39,11 @@ public class PaymentController {
     // Stripe Elements on the frontend needs the client_secret to confirm the intent.
     // Persisted on the row by V8 so this is identical on idempotent replays.
     response.put("clientSecret", payment.getClientSecret());
+    // Provider-hosted redirect URL (PayPay QR / hosted checkout). Null for in-page
+    // gateways like Stripe Elements. Backend is the source of truth for `provider`
+    // so the frontend no longer has to derive it from a query param.
+    response.put("redirectUrl", payment.getRedirectUrl());
+    response.put("provider", payment.getProvider());
     return response;
   }
 }

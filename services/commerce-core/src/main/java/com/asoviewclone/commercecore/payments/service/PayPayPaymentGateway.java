@@ -129,10 +129,14 @@ public class PayPayPaymentGateway implements PaymentGateway {
       JsonNode root = objectMapper.readTree(response == null ? "{}" : response);
       JsonNode data = root.path("data");
       String codeId = data.path("codeId").asText(merchantPaymentId);
-      // PayPay has no Stripe-style "client secret"; the browser uses the QR URL
-      // + merchantPaymentId to complete. We persist merchantPaymentId in its place
-      // so the API contract stays stable across providers.
-      return new PaymentResult(codeId, merchantPaymentId, true);
+      // PayPay has no Stripe-style "client secret"; the browser navigates to the
+      // provider-hosted QR/checkout URL returned in data.url to complete payment.
+      // We expose that URL via PaymentResult.redirectUrl (and the persisted
+      // Payment.redirect_url column) and keep merchantPaymentId in the
+      // clientSecret slot purely for backward compatibility with callers that
+      // already use it as a stable opaque handle.
+      String redirectUrl = data.path("url").asText(null);
+      return new PaymentResult(codeId, merchantPaymentId, redirectUrl, true);
     } catch (RestClientException | com.fasterxml.jackson.core.JsonProcessingException e) {
       log.warn("PayPay createIntent failed for order {}: {}", orderId, e.getMessage());
       throw new ConflictException("PayPay rejected payment intent creation: " + e.getMessage());

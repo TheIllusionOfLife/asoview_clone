@@ -51,6 +51,12 @@ public class Payment {
   @Column(name = "client_secret")
   private String clientSecret;
 
+  // Provider-hosted redirect / checkout URL the browser navigates to. Populated for
+  // gateways like PayPay that complete payment off-site; null for in-page gateways
+  // (Stripe Elements). Added in V15.
+  @Column(name = "redirect_url")
+  private String redirectUrl;
+
   @Column(name = "idempotency_key", nullable = false, unique = true)
   private String idempotencyKey;
 
@@ -117,6 +123,14 @@ public class Payment {
 
   public void setClientSecret(String clientSecret) {
     this.clientSecret = clientSecret;
+  }
+
+  public String getRedirectUrl() {
+    return redirectUrl;
+  }
+
+  public void setRedirectUrl(String redirectUrl) {
+    this.redirectUrl = redirectUrl;
   }
 
   public String getIdempotencyKey() {

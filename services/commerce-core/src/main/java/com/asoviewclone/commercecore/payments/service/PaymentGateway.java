@@ -29,7 +29,17 @@ public interface PaymentGateway {
    *     deterministic synthetic value ({@code <intentId>_secret_(stub|fake)}) so local dev and
    *     Playwright tests can render the same UI flow without hitting Stripe. May be {@code null} if
    *     a future gateway has no equivalent concept.
+   * @param redirectUrl provider-hosted URL the browser should navigate to in order to complete
+   *     payment (PayPay QR / hosted checkout). {@code null} for gateways that confirm in-page via a
+   *     client SDK (Stripe Elements uses {@code clientSecret} instead).
    * @param success whether the intent was successfully created on the provider
    */
-  record PaymentResult(String providerPaymentId, String clientSecret, boolean success) {}
+  record PaymentResult(
+      String providerPaymentId, String clientSecret, String redirectUrl, boolean success) {
+
+    /** Backwards-compatible constructor for gateways without a hosted redirect URL. */
+    public PaymentResult(String providerPaymentId, String clientSecret, boolean success) {
+      this(providerPaymentId, clientSecret, null, success);
+    }
+  }
 }
