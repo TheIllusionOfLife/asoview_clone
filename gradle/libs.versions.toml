@@ -19,6 +19,7 @@ opensearch-client = "2.19.2"
 opensearch-testcontainers = "2.1.3"
 bouncycastle = "1.83"
 jjwt = "0.13.0"
+archunit = "1.4.1"
 
 [libraries]
 # Spring Cloud
@@ -80,6 +81,9 @@ bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref 
 jjwt-api = { module = "io.jsonwebtoken:jjwt-api", version.ref = "jjwt" }
 jjwt-impl = { module = "io.jsonwebtoken:jjwt-impl", version.ref = "jjwt" }
 jjwt-jackson = { module = "io.jsonwebtoken:jjwt-jackson", version.ref = "jjwt" }
+
+# ArchUnit (architecture rule tests for pitfall enforcement, PR 3d.5)
+archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }

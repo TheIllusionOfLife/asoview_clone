@@ -61,4 +61,6 @@ dependencies {
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.testcontainers.gcloud)
 
+    // ArchUnit — pitfall enforcement (PR 3d.5).
+    testImplementation(libs.archunit.junit5)
 }

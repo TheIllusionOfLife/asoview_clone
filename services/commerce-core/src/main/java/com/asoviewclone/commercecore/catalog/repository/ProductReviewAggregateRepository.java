@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface ProductReviewAggregateRepository
     extends JpaRepository<ProductReviewAggregate, UUID> {
@@ -17,6 +18,7 @@ public interface ProductReviewAggregateRepository
    * Recompute aggregates across all products in a single SQL statement. Uses Postgres upsert to
    * avoid N+1. Only counts PUBLISHED reviews.
    */
+  @Transactional
   @Modifying(clearAutomatically = true, flushAutomatically = true)
   @Query(
       value =

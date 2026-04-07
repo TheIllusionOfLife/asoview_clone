@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface PointBalanceRepository extends JpaRepository<PointBalance, UUID> {
 
@@ -16,6 +17,7 @@ public interface PointBalanceRepository extends JpaRepository<PointBalance, UUID
    * PointServiceImpl.apply} to avoid the read-modify-write race documented in PR #21 review C5 from
    * CodeRabbit.
    */
+  @Transactional
   @Modifying(clearAutomatically = true, flushAutomatically = true)
   @Query(
       "UPDATE PointBalance b SET b.balance = :newBalance, b.updatedAt = CURRENT_TIMESTAMP"
@@ -40,6 +42,7 @@ public interface PointBalanceRepository extends JpaRepository<PointBalance, UUID
    * org.springframework.dao.DataIntegrityViolationException} which the caller treats as "row
    * exists, retry CAS".
    */
+  @Transactional
   @Modifying(clearAutomatically = true, flushAutomatically = true)
   @Query(
       value =
