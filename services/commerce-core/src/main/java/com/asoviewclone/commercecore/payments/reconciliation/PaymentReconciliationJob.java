@@ -104,8 +104,15 @@ public class PaymentReconciliationJob {
       try {
         long unit = new java.math.BigDecimal(item.unitPrice()).longValueExact();
         subtotal += unit * item.quantity();
-      } catch (NumberFormatException | ArithmeticException ignored) {
-        // Treat unparseable as 0 — matches PaymentServiceImpl behavior.
+      } catch (NumberFormatException | ArithmeticException ex) {
+        // Mirror PaymentServiceImpl: log so a zero subtotal is visible in
+        // ops dashboards instead of silently producing zero points.
+        log.warn(
+            "Reconciliation: order {} item {} unit_price '{}' is not parseable as integer JPY;"
+                + " treating as 0 for points calc",
+            order.orderId(),
+            item.orderItemId(),
+            item.unitPrice());
       }
     }
     return subtotal;

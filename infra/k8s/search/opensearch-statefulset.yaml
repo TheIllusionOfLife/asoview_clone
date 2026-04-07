@@ -1,13 +1,27 @@
 # OpenSearch 3-node statefulset for asoview-clone search.
 #
-# Single-cluster topology, 3 master-eligible data nodes, plugin
-# analysis-kuromoji baked in via initContainer. Persistent volumes
-# come from the GKE default storage class. KMS encryption at rest
-# is provided by the GCE PD CMEK configured in the
-# infra/terraform/modules/opensearch module.
+# Single-cluster topology, 3 master-eligible data nodes. The
+# analysis-kuromoji plugin is pre-baked into the container image
+# (asia-northeast1-docker.pkg.dev/.../opensearch-kuromoji:2.18.0,
+# built from docker/Dockerfile.opensearch) so no plugin install
+# happens at pod startup. Persistent volumes come from the GKE
+# default storage class. KMS encryption at rest is provided by
+# the GCE PD CMEK configured in the infra/terraform/modules/opensearch
+# module.
 #
 # Snapshot uploads use the snapshot-bucket + workload-identity SA
 # also provisioned by the Terraform module.
+#
+# SECURITY POSTURE: the OpenSearch security plugin is intentionally
+# DISABLED on this cluster for now. Re-enabling it requires (a) a
+# securityadmin.sh init Job that creates internal users + role
+# mappings, (b) TLS material distributed to every node via a Secret,
+# and (c) the search-service deployment switching to https + mTLS
+# with client certs. That rollout is tracked as a follow-up
+# (PR-3e or its own security PR); for the time being the cluster is
+# inside a private GKE namespace with no external ingress, NetworkPolicy
+# pinning ingress to the search-service ServiceAccount, and Workload
+# Identity gating snapshot uploads.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -56,22 +70,26 @@ spec:
         app: opensearch
     spec:
       serviceAccountName: opensearch
+      # Pod-level securityContext: enforce non-root and a known uid/gid so
+      # the persistent volume claim, log files, and any heap dumps land with
+      # predictable ownership. Restricted PodSecurityStandards-compatible.
       securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
         fsGroup: 1000
-      # The analysis-kuromoji plugin is baked into a custom image rather than
-      # installed by an initContainer — the previous initContainer-based approach
-      # installed the plugin to its own ephemeral layer, which the main container
-      # never saw (PR #21 review C9 from Devin). Build + push the image with:
-      #
-      #   gcloud builds submit docker/ \
-      #     --config docker/cloudbuild-opensearch.yaml \
-      #     --tag asia-northeast1-docker.pkg.dev/asoview-clone/services/opensearch-kuromoji:2.18.0
-      #
-      # The Dockerfile lives at docker/Dockerfile.opensearch.
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: opensearch
           image: asia-northeast1-docker.pkg.dev/asoview-clone/services/opensearch-kuromoji:2.18.0
           imagePullPolicy: IfNotPresent
+          # Container-level hardening. readOnlyRootFilesystem stays false because
+          # OpenSearch writes config snapshots to /usr/share/opensearch at startup.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: cluster.name
               value: asoview-search
@@ -87,16 +105,11 @@ spec:
               value: "true"
             - name: OPENSEARCH_JAVA_OPTS
               value: "-Xms2g -Xmx2g"
-            # Security plugin stays ENABLED in the cluster (PR #21 review H1 from
-            # Gemini). Admin password is sourced from a Secret managed by Argo CD;
-            # internal users + role mappings are managed via securityadmin.sh in
-            # an init Job that runs once per environment. The search-service
-            # connects via mTLS using a workload-identity-bound certificate.
-            - name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: opensearch-admin
-                  key: password
+            # Security plugin DISABLED — see top-of-file SECURITY POSTURE comment.
+            # The full mTLS + securityadmin.sh init Job + admin Secret rollout
+            # ships in a follow-up security PR.
+            - name: plugins.security.disabled
+              value: "true"
           ports:
             - name: rest
               containerPort: 9200

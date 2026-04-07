@@ -37,8 +37,10 @@ dependencies {
     // Stripe Java SDK (payments gateway, phase 2)
     implementation(libs.stripe.java)
 
-    // Bucket4j (webhook rate limiting)
+    // Bucket4j (webhook rate limiting) + Caffeine (size-bounded eviction so the
+    // per-IP bucket map cannot grow unbounded against a long tail of unique IPs).
     implementation(libs.bucket4j.core)
+    implementation(libs.caffeine)
 
     // BouncyCastle (PKCS#7 detached signature for Apple Wallet .pkpass)
     implementation(libs.bouncycastle.bcpkix)

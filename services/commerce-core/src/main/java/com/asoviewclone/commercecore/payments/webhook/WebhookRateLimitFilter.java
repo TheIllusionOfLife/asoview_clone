@@ -1,5 +1,7 @@
 package com.asoviewclone.commercecore.payments.webhook;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import jakarta.servlet.FilterChain;
@@ -8,8 +10,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.Duration;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -40,13 +40,24 @@ public class WebhookRateLimitFilter extends OncePerRequestFilter {
 
   private final long maxBodyBytes;
   private final int requestsPerMinute;
-  private final ConcurrentMap<String, Bucket> buckets = new ConcurrentHashMap<>();
+  // Caffeine-backed cache instead of an unbounded ConcurrentHashMap so a long
+  // tail of unique IPs (e.g. a botnet probe) cannot grow the map indefinitely.
+  // 10k active IPs * 5 min idle eviction is comfortable for the webhook traffic
+  // shape and bounds memory at a few MB. (PR #21 review follow-up.)
+  private final Cache<String, Bucket> buckets;
 
   public WebhookRateLimitFilter(
       @Value("${app.payments.webhook.max-body-bytes:65536}") long maxBodyBytes,
-      @Value("${app.payments.webhook.requests-per-minute:60}") int requestsPerMinute) {
+      @Value("${app.payments.webhook.requests-per-minute:60}") int requestsPerMinute,
+      @Value("${app.payments.webhook.max-tracked-ips:10000}") long maxTrackedIps,
+      @Value("${app.payments.webhook.bucket-idle-minutes:5}") long bucketIdleMinutes) {
     this.maxBodyBytes = maxBodyBytes;
     this.requestsPerMinute = requestsPerMinute;
+    this.buckets =
+        Caffeine.newBuilder()
+            .maximumSize(maxTrackedIps)
+            .expireAfterAccess(Duration.ofMinutes(bucketIdleMinutes))
+            .build();
   }
 
   @Override
@@ -72,7 +83,7 @@ public class WebhookRateLimitFilter extends OncePerRequestFilter {
     }
 
     String key = clientKey(request);
-    Bucket bucket = buckets.computeIfAbsent(key, k -> newBucket());
+    Bucket bucket = buckets.get(key, k -> newBucket());
     if (!bucket.tryConsume(1)) {
       log.warn("Webhook rate limit exceeded: remote={}", key);
       response.setStatus(429);

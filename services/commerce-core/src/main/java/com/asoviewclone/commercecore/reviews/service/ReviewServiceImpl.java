@@ -75,9 +75,17 @@ public class ReviewServiceImpl implements ReviewService {
       review.setRating(rating);
     }
     if (title != null) {
+      // Mirror createReview's validation: blank/whitespace-only titles are rejected.
+      // (PR #21 review follow-up.)
+      if (title.isBlank()) {
+        throw new ValidationException("title must not be blank");
+      }
       review.setTitle(title);
     }
     if (body != null) {
+      if (body.isBlank()) {
+        throw new ValidationException("body must not be blank");
+      }
       review.setBody(body);
     }
     return reviewRepository.save(review);

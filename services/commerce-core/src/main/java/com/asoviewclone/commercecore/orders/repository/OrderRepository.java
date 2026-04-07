@@ -224,11 +224,6 @@ public class OrderRepository {
   }
 
   /**
-   * Compare-and-swap status update. Reads the current status in a read-write transaction, only
-   * writes the new status if the current status matches {@code expected}. Returns true on success,
-   * false if the status did not match.
-   */
-  /**
    * Returns the set of {@code product_variant_id}s referenced by PAID orders for the given user.
    * Pushes both the user filter and the {@code status='PAID'} filter into Spanner so we don't fetch
    * every order in memory just to filter it. (PR #21 review M1 from Gemini.)
@@ -251,6 +246,11 @@ public class OrderRepository {
     return result;
   }
 
+  /**
+   * Compare-and-swap status update. Reads the current status in a read-write transaction, only
+   * writes the new status if the current status matches {@code expected}. Returns true on success,
+   * false if the status did not match.
+   */
   public boolean updateStatusIf(String orderId, OrderStatus expected, OrderStatus newStatus) {
     Boolean result =
         databaseClient

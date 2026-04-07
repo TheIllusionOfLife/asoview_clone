@@ -127,6 +127,27 @@ public class PayPayWebhookController {
       // Transient: delete the replay row so the next delivery can re-enter.
       processedEvents.deleteById(new ProcessedWebhookEventId(event.provider(), event.rawEventId()));
       return ResponseEntity.status(HttpStatus.ACCEPTED).body("conflict");
+    } catch (RuntimeException unexpected) {
+      // Any uncaught exception below ConflictException would otherwise leave
+      // the replay marker in place forever, causing every retry from PayPay
+      // to be silently dropped as a duplicate. Delete the marker so the
+      // provider can retry, then re-throw so the 5xx propagates and the
+      // failure is observable. (PR #21 review follow-up.)
+      log.error(
+          "PayPay webhook unexpected error event_id={} provider_payment_id={}; releasing replay marker",
+          event.rawEventId(),
+          event.providerPaymentId(),
+          unexpected);
+      try {
+        processedEvents.deleteById(
+            new ProcessedWebhookEventId(event.provider(), event.rawEventId()));
+      } catch (Exception cleanup) {
+        log.warn(
+            "PayPay webhook replay marker cleanup also failed event_id={}; manual repair needed",
+            event.rawEventId(),
+            cleanup);
+      }
+      throw unexpected;
     }
   }
 }

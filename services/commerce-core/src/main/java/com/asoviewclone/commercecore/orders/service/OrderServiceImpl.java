@@ -19,11 +19,27 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 @Service
 public class OrderServiceImpl implements OrderService {
+
+  private static final Logger log = LoggerFactory.getLogger(OrderServiceImpl.class);
+
+  /**
+   * Internal marker exception thrown by {@code createOrder} when a Spanner write fails AFTER the
+   * points-burn was committed AND the burn-refund itself fails. The user's points are stranded
+   * against an order id that may never exist; we surface this as a 500 to the caller (instead of
+   * silently returning a race-winner order) so ops can repair the orphan ledger row.
+   */
+  public static class StrandedPointsBurnException extends RuntimeException {
+    public StrandedPointsBurnException(String orderId, Throwable cause) {
+      super("Stranded points burn against order " + orderId + " — manual repair required", cause);
+    }
+  }
 
   private final OrderRepository orderRepository;
   private final InventoryService inventoryService;
@@ -142,19 +158,46 @@ public class OrderServiceImpl implements OrderService {
                 idempotencyKey,
                 orderItems);
       } catch (RuntimeException ex) {
-        // Spanner write failed after the burn committed; roll the burn back so
+        // Spanner write failed after the burn committed. Roll the burn back so
         // we don't trap the user's points behind a non-existent order.
+        // CRITICAL: if the refund itself fails, do NOT silently swallow it —
+        // the points are now stranded against an order id that may never
+        // exist (the ALREADY_EXISTS race-winner path below would otherwise
+        // return success and the user's points would be lost). Re-throw a
+        // marker exception so the outer SpannerException handler refuses to
+        // return the race winner. (PR #21 review follow-up from Devin.)
         if (pointsToUse > 0) {
           try {
             orderDiscountService.refundForCancelledOrder(
                 preGeneratedOrderId, UUID.fromString(userId));
           } catch (Exception refundEx) {
-            // Best-effort: a recovery sweep job picks up orphaned discount rows.
+            log.error(
+                "STRANDED POINTS BURN: order_id={} user={} pointsToUse={}; manual repair required",
+                preGeneratedOrderId,
+                userId,
+                pointsToUse,
+                refundEx);
+            // Wrap the original Spanner failure with a marker so the outer
+            // SpannerException handler can detect the stranded-burn case and
+            // surface a 500 instead of returning the race-winner.
+            throw new StrandedPointsBurnException(preGeneratedOrderId, ex);
           }
         }
         throw ex;
       }
       return saved;
+    } catch (StrandedPointsBurnException stranded) {
+      // The points-burn refund failed after a Spanner write failure. Holds
+      // released, but the burn is permanent until ops repairs the orphan
+      // ledger row. Surface as a 500 — DO NOT return any race-winner order
+      // or the caller will think their points were used cleanly.
+      for (InventoryHold hold : holds) {
+        try {
+          inventoryService.releaseHold(hold.holdId());
+        } catch (Exception ignored) {
+        }
+      }
+      throw stranded;
     } catch (SpannerException e) {
       // Handle idempotency race: concurrent insert with same idempotency key
       if (e.getErrorCode() == com.google.cloud.spanner.ErrorCode.ALREADY_EXISTS) {

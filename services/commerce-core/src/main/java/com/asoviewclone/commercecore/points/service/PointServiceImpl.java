@@ -9,7 +9,6 @@ import com.asoviewclone.common.error.ValidationException;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,20 +56,45 @@ public class PointServiceImpl implements PointService {
     if (amount == 0) {
       return;
     }
-    if (orderId != null && ledgerRepository.existsByReasonAndOrderId(reason, orderId)) {
-      // Already applied; idempotent no-op.
-      return;
+    long delta = (long) sign * amount;
+
+    // INSERT-FIRST IDEMPOTENCY GATE.
+    //
+    // The previous implementation used existsByReasonAndOrderId then
+    // ledgerRepository.save(...), then if the save lost the unique-constraint
+    // race we'd compensate the balance back. That compensation ran inside a
+    // transaction Spring had already flipped to rollback-only by the
+    // DataIntegrityViolationException, so the compensation never persisted —
+    // PR #21 review C6 caught the TOCTOU gap, follow-up review caught that
+    // the compensation path was doomed.
+    //
+    // The clean shape is: try the ledger insert FIRST via INSERT ... ON
+    // CONFLICT DO NOTHING. If it returns 0, a concurrent winner already
+    // applied this (reason, orderId) — return idempotent no-op without
+    // ever touching the balance row. If it returns 1, we hold the
+    // uniqueness gate and can safely CAS the balance.
+    if (orderId != null) {
+      int inserted =
+          ledgerRepository.insertIfMissing(
+              UUID.randomUUID(), userId, delta, reason.name(), orderId);
+      if (inserted == 0) {
+        return;
+      }
+    } else {
+      // Ad-hoc credits/debits with no orderId have no idempotency key, so
+      // fall back to a plain insert. The caller is responsible for guarding
+      // duplicate-fire (these paths are admin/test only today).
+      ledgerRepository.save(new PointLedgerEntry(userId, delta, reason, null));
     }
 
-    // CAS the balance row to avoid the read-modify-write race that
-    // lost-writes between concurrent earn/burn calls (PR #21 review C5).
-    // Ensure the row exists first via INSERT ... ON CONFLICT DO NOTHING.
+    // Now CAS the balance. Retry on contention. If we exhaust retries the
+    // ledger row has already been claimed but the balance was not updated —
+    // throw so the caller surfaces it; a reconciliation job will repair the
+    // divergent ledger entry.
     balanceRepository.insertIfMissing(userId, 0L);
-    long delta = (long) sign * amount;
     boolean swapped = false;
-    long observedBalance = 0L;
     for (int attempt = 0; attempt < CAS_MAX_ATTEMPTS; attempt++) {
-      observedBalance = balanceRepository.findById(userId).map(PointBalance::getBalance).orElse(0L);
+      long observedBalance = balanceRepository.findCurrentBalance(userId).orElse(0L);
       long newBalance = observedBalance + delta;
       if (newBalance < 0) {
         throw new ValidationException(
@@ -86,44 +110,6 @@ public class PointServiceImpl implements PointService {
     if (!swapped) {
       throw new IllegalStateException(
           "PointBalance CAS exhausted retries for user " + userId + " (concurrent contention)");
-    }
-
-    // Insert the ledger entry. The unique(reason, order_id) partial index
-    // closes the TOCTOU gap from the existsByReasonAndOrderId check above:
-    // a concurrent winner causes a DataIntegrityViolationException, which
-    // we treat as idempotent success since the balance update we already
-    // committed reflects our delta — except now we'd have applied it twice.
-    // The fix is to compensate the balance back if the ledger insert loses
-    // the race so the net effect is exactly one application of the delta.
-    // (PR #21 review C6 from CodeRabbit.)
-    try {
-      ledgerRepository.save(new PointLedgerEntry(userId, delta, reason, orderId));
-    } catch (DataIntegrityViolationException dup) {
-      // Concurrent winner already applied this (reason, orderId). Reverse our
-      // balance update so the net effect is the single committed delta.
-      log.info(
-          "PointLedger duplicate (reason={}, orderId={}, user={}); reversing our balance delta",
-          reason,
-          orderId,
-          userId);
-      for (int attempt = 0; attempt < CAS_MAX_ATTEMPTS; attempt++) {
-        long currentBalance =
-            balanceRepository.findById(userId).map(PointBalance::getBalance).orElse(0L);
-        long reversed = currentBalance - delta;
-        if (reversed < 0) {
-          // Cannot reverse without going negative; the concurrent winner has
-          // already drained our delta in another direction. Log and accept
-          // the divergence — a reconciliation job will detect and repair.
-          log.error(
-              "Cannot reverse PointBalance delta for user {} (reversed={}); reconciliation needed",
-              userId,
-              reversed);
-          break;
-        }
-        if (balanceRepository.casBalance(userId, currentBalance, reversed) == 1) {
-          break;
-        }
-      }
     }
   }
 }

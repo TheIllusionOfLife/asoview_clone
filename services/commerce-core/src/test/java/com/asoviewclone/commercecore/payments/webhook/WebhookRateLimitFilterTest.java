@@ -14,7 +14,7 @@ class WebhookRateLimitFilterTest {
 
   @Test
   void sixtyRequestsPassAndSixtyFirstIsRateLimited() throws Exception {
-    WebhookRateLimitFilter filter = new WebhookRateLimitFilter(65_536L, 60);
+    WebhookRateLimitFilter filter = new WebhookRateLimitFilter(65_536L, 60, 10_000L, 5L);
 
     for (int i = 0; i < 60; i++) {
       MockHttpServletResponse response = new MockHttpServletResponse();
@@ -30,7 +30,7 @@ class WebhookRateLimitFilterTest {
 
   @Test
   void oversizedBodyReturns413() throws Exception {
-    WebhookRateLimitFilter filter = new WebhookRateLimitFilter(65_536L, 60);
+    WebhookRateLimitFilter filter = new WebhookRateLimitFilter(65_536L, 60, 10_000L, 5L);
     MockHttpServletResponse response = new MockHttpServletResponse();
 
     filter.doFilter(request("9.9.9.9", 65_537), response, new MockFilterChain());

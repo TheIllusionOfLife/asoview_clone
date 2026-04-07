@@ -1,6 +1,7 @@
 package com.asoviewclone.commercecore.points.repository;
 
 import com.asoviewclone.commercecore.points.model.PointBalance;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -15,7 +16,7 @@ public interface PointBalanceRepository extends JpaRepository<PointBalance, UUID
    * PointServiceImpl.apply} to avoid the read-modify-write race documented in PR #21 review C5 from
    * CodeRabbit.
    */
-  @Modifying
+  @Modifying(clearAutomatically = true, flushAutomatically = true)
   @Query(
       "UPDATE PointBalance b SET b.balance = :newBalance, b.updatedAt = CURRENT_TIMESTAMP"
           + " WHERE b.userId = :userId AND b.balance = :expected")
@@ -23,6 +24,15 @@ public interface PointBalanceRepository extends JpaRepository<PointBalance, UUID
       @Param("userId") UUID userId,
       @Param("expected") long expected,
       @Param("newBalance") long newBalance);
+
+  /**
+   * Returns just the {@code balance} column for the given user, bypassing the JPA persistence
+   * context entirely. Used by the CAS retry loop in {@code PointServiceImpl} so each iteration sees
+   * a fresh value rather than the cached entity from the previous attempt. Returns {@link
+   * Optional#empty()} if no row exists.
+   */
+  @Query("SELECT b.balance FROM PointBalance b WHERE b.userId = :userId")
+  Optional<Long> findCurrentBalance(@Param("userId") UUID userId);
 
   /**
    * Insert a fresh balance row for a user that has none. Idempotent against the unique PK so
