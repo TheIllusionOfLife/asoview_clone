@@ -99,9 +99,10 @@ export type CreateOrderRequest = {
 };
 
 export type PaymentResponse = {
-  id: string;
-  orderId: string;
+  paymentId: string;
   status: string;
-  provider: "STRIPE" | "PAYPAY" | "FAKE";
+  provider: string;
+  providerPaymentId: string | null;
   clientSecret: string | null;
+  redirectUrl: string | null;
 };

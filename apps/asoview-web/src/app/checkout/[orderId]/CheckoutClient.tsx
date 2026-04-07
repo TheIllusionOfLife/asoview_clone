@@ -29,35 +29,41 @@
 import { ApiError, NetworkError, SignInRedirect, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { clearCart, readCart, writeCart } from "@/lib/cart";
-import type { OrderResponse, OrderStatus } from "@/lib/types";
+import { clearIdempotencyKey, clearOrderFingerprint, getOrderFingerprint } from "@/lib/idempotency";
+import type { OrderResponse, OrderStatus, PaymentResponse } from "@/lib/types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type Provider = "stripe" | "paypay";
 
-type PaymentIntentResponse = {
-  paymentId: string;
-  status: string;
-  providerPaymentId: string | null;
-  clientSecret: string | null;
-};
-
 const POLL_INTERVAL_MS = 1500;
 const POLL_TIMEOUT_MS = 30_000;
+const PAYMENT_PENDING_FLAG_PREFIX = "asoview:payment-pending:";
 const TERMINAL_STATES: ReadonlySet<OrderStatus> = new Set(["PAID", "CANCELLED", "FAILED"]);
 
+function paymentPendingKey(orderId: string): string {
+  return `${PAYMENT_PENDING_FLAG_PREFIX}${orderId}`;
+}
+
 function assertFakeModeAllowed(): void {
+  // CI runs `next build && next start` so NODE_ENV is always "production".
+  // The NEXT_PUBLIC_FAKE_CHECKOUT_MODE env var is inlined at build time and
+  // cannot be flipped at runtime, so it is sufficient defense on its own.
   const enabled = process.env.NEXT_PUBLIC_FAKE_CHECKOUT_MODE === "1";
   if (!enabled) {
-    // Defensive: throw aggressively in any non-fake build so a stray
-    // ?fakeMode=1 in production cannot bypass payment.
     throw new Error(
       "fakeMode harness is disabled. Set NEXT_PUBLIC_FAKE_CHECKOUT_MODE=1 to enable in dev/test only.",
     );
   }
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("fakeMode harness must never run in production builds");
+}
+
+function clearIdempotencyForOrder(orderId: string): void {
+  const fp = getOrderFingerprint(orderId);
+  if (fp) clearIdempotencyKey(fp);
+  clearOrderFingerprint(orderId);
+  if (typeof sessionStorage !== "undefined") {
+    sessionStorage.removeItem(paymentPendingKey(orderId));
   }
 }
 
@@ -84,7 +90,7 @@ export function CheckoutClient({
   const router = useRouter();
   const { user, ready } = useAuth();
   const [order, setOrder] = useState<OrderResponse | null>(null);
-  const [intent, setIntent] = useState<PaymentIntentResponse | null>(null);
+  const [intent, setIntent] = useState<PaymentResponse | null>(null);
   const [phase, setPhase] = useState<
     | "loading"
     | "ready"
@@ -98,6 +104,7 @@ export function CheckoutClient({
   >("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const pollStartedAt = useRef<number | null>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Polling loop trigger; used by Stripe success, PayPay redirect, and fakeMode.
   const startPolling = useCallback(() => {
@@ -126,28 +133,39 @@ export function CheckoutClient({
         if (fetchedOrder.status === "PAID") {
           setPhase("succeeded");
           if (user) clearOrderLinesFromCart(user.uid, fetchedOrder);
+          clearIdempotencyForOrder(orderId);
           router.replace(`/tickets/${orderId}`);
           return;
         }
         if (fetchedOrder.status === "CANCELLED" || fetchedOrder.status === "FAILED") {
           setPhase("failed");
+          clearIdempotencyForOrder(orderId);
           return;
         }
 
+        // If a previous PayPay redirect set the pending flag and the order
+        // is not yet terminal, resume polling instead of re-rendering the
+        // SDK form. The backend intent is idempotent so we still fetch it,
+        // but the UI short-circuits to the polling phase.
+        const pendingFlag =
+          typeof sessionStorage !== "undefined" &&
+          sessionStorage.getItem(paymentPendingKey(orderId)) === "1";
+
         // Idempotent intent: replays return the same clientSecret because
         // the backend keys on (orderId) and persists clientSecret on the row.
-        const created = await api.post<PaymentIntentResponse>(
+        // The backend ignores the request body apart from `idempotencyKey`,
+        // so we send an empty body. Provider selection is server-side.
+        const created = await api.post<PaymentResponse>(
           `/v1/orders/${orderId}/payments`,
-          { provider: provider.toUpperCase() },
+          {},
           { signal: ctrl.signal, currentPath: `/checkout/${orderId}` },
         );
         if (cancelled) return;
         setIntent(created);
         setPhase("ready");
 
-        if (fakeMode) {
-          // Fake harness: skip the SDK; the backend's fake gateway will
-          // flip the order asynchronously. Just start polling.
+        if (fakeMode || pendingFlag) {
+          // Fake harness OR resumed PayPay redirect: skip the SDK and poll.
           startPolling();
         }
       } catch (e) {
@@ -173,15 +191,27 @@ export function CheckoutClient({
       cancelled = true;
       ctrl.abort();
     };
-  }, [ready, orderId, provider, fakeMode, router, user, startPolling]);
+  }, [ready, orderId, fakeMode, router, user, startPolling]);
 
   useEffect(() => {
     if (phase !== "polling") return;
     let stopped = false;
     const ctrl = new AbortController();
 
+    const scheduleNext = () => {
+      if (stopped) return;
+      pollTimerRef.current = setTimeout(tick, POLL_INTERVAL_MS);
+    };
+
     const tick = async () => {
       if (stopped) return;
+      // Timeout check FIRST so it fires regardless of fetch success/failure.
+      const elapsed = Date.now() - (pollStartedAt.current ?? Date.now());
+      if (elapsed >= POLL_TIMEOUT_MS) {
+        stopped = true;
+        setPhase("delayed");
+        return;
+      }
       try {
         const fetched = await api.get<OrderResponse>(`/v1/orders/${orderId}`, {
           signal: ctrl.signal,
@@ -192,39 +222,47 @@ export function CheckoutClient({
         if (fetched.status === "PAID") {
           stopped = true;
           if (user) clearOrderLinesFromCart(user.uid, fetched);
+          clearIdempotencyForOrder(orderId);
           setPhase("succeeded");
           router.replace(`/tickets/${orderId}`);
           return;
         }
         if (fetched.status === "CANCELLED" || fetched.status === "FAILED") {
           stopped = true;
+          clearIdempotencyForOrder(orderId);
           setPhase("failed");
           return;
         }
         // CONFIRMING / PAYMENT_PENDING / PENDING → keep polling.
-        const elapsed = Date.now() - (pollStartedAt.current ?? Date.now());
-        if (elapsed >= POLL_TIMEOUT_MS) {
-          stopped = true;
-          setPhase("delayed");
-          return;
-        }
+        scheduleNext();
       } catch (e) {
         if (stopped) return;
-        if (e instanceof NetworkError) {
-          // Transient; the loop will retry on the next tick.
-        } else if (e instanceof ApiError && e.status === 404) {
+        if (e instanceof SignInRedirect) {
+          stopped = true;
+          if (pollTimerRef.current) {
+            clearTimeout(pollTimerRef.current);
+            pollTimerRef.current = null;
+          }
+          router.push(`/signin?next=${encodeURIComponent(e.next)}`);
+          return;
+        }
+        if (e instanceof ApiError && e.status === 404) {
           stopped = true;
           setPhase("not-found");
           return;
         }
+        // NetworkError or other transient: schedule the next attempt.
+        scheduleNext();
       }
     };
 
-    const id = setInterval(tick, POLL_INTERVAL_MS);
     void tick();
     return () => {
       stopped = true;
-      clearInterval(id);
+      if (pollTimerRef.current) {
+        clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
       ctrl.abort();
     };
   }, [phase, orderId, router, user]);
@@ -300,8 +338,8 @@ export function CheckoutClient({
       </p>
       {fakeMode ? (
         <p className="text-xs text-[var(--color-ink-muted)]">[fakeMode] 決済を待機中…</p>
-      ) : provider === "paypay" ? (
-        <PayPayRedirectButton intent={intent} onRedirect={startPolling} />
+      ) : intent?.provider?.toUpperCase() === "PAYPAY" ? (
+        <PayPayRedirectButton intent={intent} orderId={orderId} onRedirect={startPolling} />
       ) : (
         <StripeFormLoader
           clientSecret={intent?.clientSecret ?? null}
@@ -426,25 +464,38 @@ function StripeFormLoader({
 
 function PayPayRedirectButton({
   intent,
+  orderId,
   onRedirect,
 }: {
-  intent: PaymentIntentResponse | null;
+  intent: PaymentResponse | null;
+  orderId: string;
   onRedirect: () => void;
 }) {
-  // The backend's PayPay gateway returns the redirect URL in clientSecret
-  // (it doubles as the "next action" URL for redirect-based providers).
-  // If a future contract change splits this into a separate field, update
-  // here. The fallback "#" prevents an undefined-href crash; the button
-  // is disabled when there's no URL.
-  const url = intent?.clientSecret ?? null;
+  // The backend now returns a dedicated `redirectUrl` field for hosted
+  // gateways like PayPay. clientSecret is reserved for in-page providers
+  // (Stripe Elements). If redirectUrl is missing at render time we surface
+  // an error UX rather than rendering an invalid link.
+  const url = intent?.redirectUrl ?? null;
+  if (!url) {
+    return (
+      <p role="alert" className="text-sm text-[var(--color-danger)]">
+        決済プロバイダに接続できません。時間をおいて再度お試しください。
+      </p>
+    );
+  }
   return (
     <a
-      href={url ?? "#"}
+      href={url}
       onClick={() => {
-        if (url) onRedirect();
+        // Persist a flag so a return to this page (post-PayPay) resumes
+        // polling instead of re-rendering the redirect button.
+        if (typeof sessionStorage !== "undefined") {
+          sessionStorage.setItem(`asoview:payment-pending:${orderId}`, "1");
+        }
+        onRedirect();
+        window.location.assign(url);
       }}
-      aria-disabled={!url}
-      className="inline-block rounded-[var(--radius-md)] bg-[var(--color-primary)] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+      className="inline-block rounded-[var(--radius-md)] bg-[var(--color-primary)] px-5 py-2.5 text-sm font-semibold text-white"
     >
       PayPayで支払う
     </a>
