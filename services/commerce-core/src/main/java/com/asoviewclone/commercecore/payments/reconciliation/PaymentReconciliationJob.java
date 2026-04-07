@@ -199,8 +199,17 @@ public class PaymentReconciliationJob {
             payment.getOrderId(),
             nfe);
       } catch (Exception e) {
-        log.warn(
-            "Reconciliation failed for payment {}; will retry next run", payment.getPaymentId(), e);
+        // Per PR #21 process lesson: recovery / sweep job catch blocks must
+        // log at ERROR with full context (payment id, order id, user id,
+        // amount) so operators can find and repair the affected row when
+        // the sweep can't recover it on its own.
+        log.error(
+            "Reconciliation failed payment_id={} order_id={} user_id={} amount={}; will retry next run",
+            payment.getPaymentId(),
+            payment.getOrderId(),
+            payment.getUserId(),
+            payment.getAmount(),
+            e);
       }
     }
   }

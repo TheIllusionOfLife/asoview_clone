@@ -48,8 +48,8 @@ done < <(
     -g '**/*order*.ts' -g '**/*order*.tsx' -g '**/orders/**/*.ts' -g '**/orders/**/*.tsx' \
     -g '**/*points*.ts' -g '**/*points*.tsx' -g '**/points/**/*.ts' -g '**/points/**/*.tsx' \
     -g '**/*wallet*.ts' -g '**/*wallet*.tsx' -g '**/wallet/**/*.ts' -g '**/wallet/**/*.tsx' \
-    -g '**/*subtotal*.ts' -g '**/*subtotal*.tsx' \
-    -g '**/*amount*.ts' -g '**/*amount*.tsx' \
+    -g '**/*subtotal*.ts' -g '**/*subtotal*.tsx' -g '**/subtotal/**/*.ts' -g '**/subtotal/**/*.tsx' \
+    -g '**/*amount*.ts' -g '**/*amount*.tsx' -g '**/amount/**/*.ts' -g '**/amount/**/*.tsx' \
     '(parseFloat\(|Number\()' "$SCAN_ROOT" 2>/dev/null || true
 )
 

@@ -53,6 +53,7 @@ if [[ -n "$VIOLATIONS" ]]; then
   echo "  annotations are tolerated — the check reads each @Modifying(...)"
   echo "  paren group as a whole. See CLAUDE.md 'Review Pitfalls (PR #21)'."
   echo
+  # shellcheck disable=SC2001
   echo "$VIOLATIONS" | sed 's/^/  /'
   exit 1
 fi

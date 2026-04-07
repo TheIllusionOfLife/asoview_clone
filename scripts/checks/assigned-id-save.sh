@@ -79,7 +79,9 @@ for root in "${SCAN_ROOTS[@]}"; do
   # names declared as `<EntityName> varName` or `var varName =
   # new EntityName(`, then grep `.save(varName)`.
   while IFS= read -r f; do
-    # Collect (type, varname) declarations.
+    # Collect (type, varname) declarations. Two passes:
+    # 1. Explicit type:  Foo b = new Foo(...);  /  Foo b;
+    # 2. Java 10+ var:   var b = new Foo(...);
     local_vars=()
     while IFS= read -r decl; do
       [[ -z "$decl" ]] && continue
@@ -89,7 +91,24 @@ for root in "${SCAN_ROOTS[@]}"; do
         -o "\\b(${joined})\\s+(\\w+)\\s*(?:=|;)" \
         --replace '$2' "$f" 2>/dev/null || true
     )
+    while IFS= read -r decl; do
+      [[ -z "$decl" ]] && continue
+      local_vars+=("$decl")
+    done < <(
+      rg --no-heading --no-filename --no-ignore \
+        -o "\\bvar\\s+(\\w+)\\s*=\\s*new\\s+(${joined})\\b" \
+        --replace '$1' "$f" 2>/dev/null || true
+    )
     [[ ${#local_vars[@]} -eq 0 ]] && continue
+    # Dedupe in case both passes matched the same variable name.
+    # bash 3.2 (macOS) lacks `readarray`; use a portable while-read loop.
+    if [[ ${#local_vars[@]} -gt 1 ]]; then
+      deduped=()
+      while IFS= read -r v; do
+        deduped+=("$v")
+      done < <(printf '%s\n' "${local_vars[@]}" | awk '!seen[$0]++')
+      local_vars=("${deduped[@]}")
+    fi
     for v in "${local_vars[@]}"; do
       # Deny-list: .save(v)  — but allow .saveAndFlush(v).
       while IFS= read -r line; do
