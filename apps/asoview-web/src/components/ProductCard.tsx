@@ -20,7 +20,7 @@ export function ProductCard({ product }: { product: ProductResponse }) {
   return (
     <Link
       href={`/products/${product.id}`}
-      className="group relative block rounded-[var(--radius-lg)] bg-[var(--color-surface)] border border-[var(--color-border)] overflow-hidden shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] transition-shadow"
+      className="group relative block rounded-[var(--radius-lg)] bg-[var(--color-surface)] border border-[var(--color-border)] overflow-hidden shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] motion-safe:transition-shadow"
     >
       <div className="aspect-[4/3] bg-gradient-to-br from-[var(--color-primary)]/15 to-[var(--color-accent)]/10" />
       <div className="absolute top-2 right-2">
