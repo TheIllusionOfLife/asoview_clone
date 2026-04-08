@@ -54,24 +54,50 @@
     }
   },
   "points": {
+    "pageTitle": "Points",
     "balance": "Points balance",
-    "ledgerTitle": "Points history",
+    "ledgerTitle": "History",
+    "ledgerComingSoon": "Points history coming soon.",
+    "loading": "Loading…",
+    "loadError": "Failed to load points",
     "useLabel": "Use points",
-    "useHelper": "1 point = 1 yen."
+    "useHelper": "1 point = 1 yen.",
+    "useStatus": "Balance {balance} pt / Max {max} pt",
+    "useInputLabel": "Points to use"
   },
   "favorites": {
     "title": "Favorites",
     "empty": "You have no favorites yet.",
-    "remove": "Remove"
+    "remove": "Remove",
+    "loading": "Loading…",
+    "loadError": "Failed to load favorites",
+    "ariaAdd": "Add to favorites",
+    "ariaRemove": "Remove from favorites"
+  },
+  "cart": {
+    "points": {
+      "label": "Use points",
+      "balanceHelp": "(Balance {balance} pt / Max {max} pt)",
+      "inputLabel": "Points to use",
+      "helper": "1 point = 1 yen."
+    }
   },
   "reviews": {
     "title": "Reviews",
     "formTitle": "Write a review",
     "rating": "Rating",
+    "bodyLabel": "Comments",
     "bodyPlaceholder": "How was the experience?",
     "submit": "Submit",
+    "submitting": "Submitting…",
+    "submitError": "Failed to submit",
+    "submitted": "Review submitted.",
     "helpful": "Helpful",
-    "empty": "No reviews yet."
+    "empty": "No reviews yet.",
+    "loading": "…",
+    "prev": "Previous",
+    "next": "Next",
+    "starsLabel": "{r} / 5"
   },
   "recommendations": {
     "popular": "Popular experiences",

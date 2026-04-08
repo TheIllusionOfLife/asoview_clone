@@ -9,6 +9,7 @@ import {
   markUnfavorited,
   subscribeFavorites,
 } from "@/lib/favorites-cache";
+import { useTranslations } from "next-intl";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
 /**
@@ -29,6 +30,7 @@ export function FavoriteToggle({
   initialFavorited?: boolean;
   onChange?: (next: boolean) => void;
 }) {
+  const t = useTranslations("favorites");
   const { user, ready } = useAuth();
   const cached = useSyncExternalStore(
     subscribeFavorites,
@@ -92,7 +94,7 @@ export function FavoriteToggle({
       onClick={toggle}
       disabled={disabled}
       aria-pressed={favorited}
-      aria-label={favorited ? "お気に入り解除" : "お気に入り追加"}
+      aria-label={favorited ? t("ariaRemove") : t("ariaAdd")}
       className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] text-lg hover:border-[var(--color-primary)] disabled:opacity-60"
     >
       <span aria-hidden="true">{favorited ? "♥" : "♡"}</span>

@@ -2,7 +2,7 @@
 
 import { Link } from "@/i18n/navigation";
 import { type ProductSearchResponse, searchProducts } from "@/lib/api";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 type Props = {
@@ -19,6 +19,7 @@ type Props = {
  */
 export function SearchResults(props: Props) {
   const t = useTranslations("search");
+  const locale = useLocale();
   const [state, setState] = useState<
     | { kind: "idle" }
     | { kind: "loading" }
@@ -91,7 +92,7 @@ export function SearchResults(props: Props) {
             )}
             {hit.minPrice != null && (
               <p className="mt-2 text-sm">
-                {new Intl.NumberFormat("ja-JP", {
+                {new Intl.NumberFormat(locale, {
                   style: "currency",
                   currency: "JPY",
                   maximumFractionDigits: 0,

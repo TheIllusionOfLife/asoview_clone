@@ -1,14 +1,15 @@
 import { Link } from "@/i18n/navigation";
 import type { ProductResponse } from "@/lib/types";
+import { useLocale } from "next-intl";
 import { FavoriteToggle } from "./favorites/FavoriteToggle";
 
-function formatJpy(amount: string | undefined): string {
+function formatJpy(amount: string | undefined, locale: string): string {
   if (!amount) return "—";
-  // Backend serialises NUMERIC(12,2) as a string ("1500.00"). Use BigInt-safe
-  // truncation via Math.trunc on Number for display only — never for math.
+  // Backend serialises NUMERIC(12,2) as a string ("1500.00"). Display
+  // only — never for math.
   const n = Number(amount);
   if (!Number.isFinite(n)) return amount;
-  return new Intl.NumberFormat("ja-JP", {
+  return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "JPY",
     maximumFractionDigits: 0,
@@ -16,6 +17,7 @@ function formatJpy(amount: string | undefined): string {
 }
 
 export function ProductCard({ product }: { product: ProductResponse }) {
+  const locale = useLocale();
   const minPrice = product.variants?.[0]?.unitPrice;
   // The FavoriteToggle is a <button> and must NOT be nested inside the
   // <Link> (<button> in <a> is invalid HTML). Render the toggle as an
@@ -34,7 +36,7 @@ export function ProductCard({ product }: { product: ProductResponse }) {
             </p>
           )}
           <p className="mt-3 text-base font-semibold text-[var(--color-primary)]">
-            {formatJpy(minPrice)}
+            {formatJpy(minPrice, locale)}
             <span className="text-xs text-[var(--color-ink-muted)] font-normal"> 〜</span>
           </p>
         </div>

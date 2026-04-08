@@ -15,11 +15,11 @@ type Props = {
   params: Promise<{ locale: string; id: string }>;
 };
 
-function formatJpy(amount: string | undefined): string {
+function formatJpy(amount: string | undefined, locale: string): string {
   if (!amount) return "—";
   const n = Number(amount);
   if (!Number.isFinite(n)) return amount;
-  return new Intl.NumberFormat("ja-JP", {
+  return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "JPY",
     maximumFractionDigits: 0,
@@ -74,7 +74,7 @@ export default async function ProductPage({ params }: Props) {
             <FavoriteToggle productId={product.id} />
           </div>
           <p className="mt-2 text-base font-semibold text-[var(--color-primary)]">
-            {formatJpy(minPrice)}
+            {formatJpy(minPrice, locale)}
             <span className="text-sm text-[var(--color-ink-muted)] font-normal"> 〜 / 名</span>
           </p>
           {product.description && (

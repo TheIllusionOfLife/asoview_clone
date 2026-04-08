@@ -11,6 +11,9 @@ vi.mock("@/lib/api", () => ({
 vi.mock("@/lib/auth", () => ({
   useAuth: () => ({ user: { uid: "u1" }, ready: true }),
 }));
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string) => key,
+}));
 
 import { FavoriteToggle } from "../FavoriteToggle";
 

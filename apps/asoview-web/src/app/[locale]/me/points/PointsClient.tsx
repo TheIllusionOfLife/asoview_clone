@@ -3,6 +3,7 @@
 import { useRouter } from "@/i18n/navigation";
 import { ApiError, NetworkError, SignInRedirect, getPointsBalance } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 /**
@@ -11,6 +12,7 @@ import { useEffect, useState } from "react";
  * ledger section is a placeholder until PR #21 lands the read side.
  */
 export function PointsClient() {
+  const t = useTranslations("points");
   const router = useRouter();
   const { ready, user } = useAuth();
   const [balance, setBalance] = useState<number | null>(null);
@@ -37,18 +39,14 @@ export function PointsClient() {
           router.push(`/signin?next=${encodeURIComponent(e.next)}`);
           return;
         }
-        setError(
-          e instanceof ApiError || e instanceof NetworkError
-            ? e.message
-            : "ポイントの取得に失敗しました",
-        );
+        setError(e instanceof ApiError || e instanceof NetworkError ? e.message : t("loadError"));
       }
     })();
     return () => {
       cancelled = true;
       ctrl.abort();
     };
-  }, [ready, user, router]);
+  }, [ready, user, router, t]);
 
   if (error) {
     return (
@@ -58,19 +56,17 @@ export function PointsClient() {
     );
   }
   if (!ready || balance === null) {
-    return <p className="mt-6 text-sm text-[var(--color-ink-muted)]">読み込み中…</p>;
+    return <p className="mt-6 text-sm text-[var(--color-ink-muted)]">{t("loading")}</p>;
   }
   return (
     <div className="mt-6 space-y-6">
       <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-        <p className="text-sm text-[var(--color-ink-muted)]">保有ポイント</p>
+        <p className="text-sm text-[var(--color-ink-muted)]">{t("balance")}</p>
         <p className="mt-2 text-3xl font-bold text-[var(--color-primary)]">{balance} pt</p>
       </div>
       <section>
-        <h2 className="font-display text-xl font-semibold">履歴</h2>
-        <p className="mt-2 text-sm text-[var(--color-ink-muted)]">
-          ポイント履歴は近日公開予定です。
-        </p>
+        <h2 className="font-display text-xl font-semibold">{t("ledgerTitle")}</h2>
+        <p className="mt-2 text-sm text-[var(--color-ink-muted)]">{t("ledgerComingSoon")}</p>
       </section>
     </div>
   );

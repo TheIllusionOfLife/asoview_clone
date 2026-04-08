@@ -1,7 +1,7 @@
 "use client";
 
 import { ApiError, submitReview } from "@/lib/api";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 
 /**
@@ -15,6 +15,7 @@ export function ReviewForm({
   productId: string;
   onSubmitted?: () => void;
 }) {
+  const t = useTranslations("reviews");
   const locale = useLocale();
   const [rating, setRating] = useState<number>(5);
   const [body, setBody] = useState("");
@@ -23,7 +24,7 @@ export function ReviewForm({
   const [done, setDone] = useState(false);
 
   if (done) {
-    return <p className="text-sm text-[var(--color-ink-muted)]">レビューを投稿しました。</p>;
+    return <p className="text-sm text-[var(--color-ink-muted)]">{t("submitted")}</p>;
   }
 
   return (
@@ -37,16 +38,16 @@ export function ReviewForm({
           setDone(true);
           onSubmitted?.();
         } catch (e2) {
-          setErr(e2 instanceof ApiError ? e2.message : "投稿に失敗しました");
+          setErr(e2 instanceof ApiError ? e2.message : t("submitError"));
         } finally {
           setSubmitting(false);
         }
       }}
       className="space-y-3 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
     >
-      <h3 className="font-semibold text-sm">レビューを書く</h3>
+      <h3 className="font-semibold text-sm">{t("formTitle")}</h3>
       <label className="block text-xs">
-        評価
+        {t("rating")}
         <select
           value={rating}
           onChange={(e) => setRating(Number.parseInt(e.target.value, 10))}
@@ -60,12 +61,12 @@ export function ReviewForm({
         </select>
       </label>
       <label className="block text-xs">
-        感想
+        {t("bodyLabel")}
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
           rows={4}
-          placeholder="体験はいかがでしたか？"
+          placeholder={t("bodyPlaceholder")}
           className="mt-1 block w-full rounded-[var(--radius-sm)] border border-[var(--color-border)] px-2 py-1 text-sm"
         />
       </label>
@@ -79,7 +80,7 @@ export function ReviewForm({
         disabled={submitting}
         className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-60"
       >
-        {submitting ? "送信中…" : "投稿"}
+        {submitting ? t("submitting") : t("submit")}
       </button>
     </form>
   );

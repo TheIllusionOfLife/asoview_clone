@@ -1,6 +1,7 @@
 "use client";
 
 import { voteHelpful } from "@/lib/api";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 /**
@@ -15,6 +16,7 @@ export function HelpfulButton({
   reviewId: string;
   initialCount: number;
 }) {
+  const t = useTranslations("reviews");
   const [count, setCount] = useState(initialCount);
   const [voted, setVoted] = useState(false);
   const [pending, setPending] = useState(false);
@@ -45,7 +47,9 @@ export function HelpfulButton({
       className="inline-flex items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border)] px-2 py-1 text-xs hover:border-[var(--color-primary)] disabled:opacity-60"
     >
       <span aria-hidden="true">👍</span>
-      <span>参考になった ({count})</span>
+      <span>
+        {t("helpful")} ({count})
+      </span>
     </button>
   );
 }

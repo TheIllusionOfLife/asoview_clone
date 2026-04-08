@@ -5,9 +5,11 @@ import { Link } from "@/i18n/navigation";
 import { useRouter } from "@/i18n/navigation";
 import { ApiError, NetworkError, SignInRedirect, listFavorites } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 export function FavoritesClient() {
+  const t = useTranslations("favorites");
   const router = useRouter();
   const { ready, user } = useAuth();
   const [ids, setIds] = useState<string[] | null>(null);
@@ -34,18 +36,14 @@ export function FavoritesClient() {
           router.push(`/signin?next=${encodeURIComponent(e.next)}`);
           return;
         }
-        setError(
-          e instanceof ApiError || e instanceof NetworkError
-            ? e.message
-            : "お気に入りの取得に失敗しました",
-        );
+        setError(e instanceof ApiError || e instanceof NetworkError ? e.message : t("loadError"));
       }
     })();
     return () => {
       cancelled = true;
       ctrl.abort();
     };
-  }, [ready, user, router]);
+  }, [ready, user, router, t]);
 
   if (error) {
     return (
@@ -55,12 +53,10 @@ export function FavoritesClient() {
     );
   }
   if (!ready || ids === null) {
-    return <p className="mt-6 text-sm text-[var(--color-ink-muted)]">読み込み中…</p>;
+    return <p className="mt-6 text-sm text-[var(--color-ink-muted)]">{t("loading")}</p>;
   }
   if (ids.length === 0) {
-    return (
-      <p className="mt-6 text-sm text-[var(--color-ink-muted)]">お気に入りはまだありません。</p>
-    );
+    return <p className="mt-6 text-sm text-[var(--color-ink-muted)]">{t("empty")}</p>;
   }
   return (
     <ul className="mt-6 space-y-3">

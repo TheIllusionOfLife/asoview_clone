@@ -54,24 +54,50 @@
     }
   },
   "points": {
+    "pageTitle": "ポイント",
     "balance": "保有ポイント",
-    "ledgerTitle": "ポイント履歴",
+    "ledgerTitle": "履歴",
+    "ledgerComingSoon": "ポイント履歴は近日公開予定です。",
+    "loading": "読み込み中…",
+    "loadError": "ポイントの取得に失敗しました",
     "useLabel": "ポイントを使う",
-    "useHelper": "1ポイント = 1円として利用できます。"
+    "useHelper": "1ポイント = 1円として利用できます。",
+    "useStatus": "保有 {balance} pt / 上限 {max} pt",
+    "useInputLabel": "使用するポイント"
   },
   "favorites": {
     "title": "お気に入り",
     "empty": "お気に入りはまだありません。",
-    "remove": "削除"
+    "remove": "削除",
+    "loading": "読み込み中…",
+    "loadError": "お気に入りの取得に失敗しました",
+    "ariaAdd": "お気に入り追加",
+    "ariaRemove": "お気に入り解除"
+  },
+  "cart": {
+    "points": {
+      "label": "ポイントを使う",
+      "balanceHelp": "(保有 {balance} pt / 上限 {max} pt)",
+      "inputLabel": "使用するポイント",
+      "helper": "1ポイント = 1円として利用できます。"
+    }
   },
   "reviews": {
     "title": "レビュー",
     "formTitle": "レビューを書く",
     "rating": "評価",
+    "bodyLabel": "感想",
     "bodyPlaceholder": "体験はいかがでしたか？",
     "submit": "投稿",
+    "submitting": "送信中…",
+    "submitError": "投稿に失敗しました",
+    "submitted": "レビューを投稿しました。",
     "helpful": "参考になった",
-    "empty": "まだレビューはありません。"
+    "empty": "まだレビューはありません。",
+    "loading": "…",
+    "prev": "前へ",
+    "next": "次へ",
+    "starsLabel": "{r} / 5"
   },
   "recommendations": {
     "popular": "人気の体験",

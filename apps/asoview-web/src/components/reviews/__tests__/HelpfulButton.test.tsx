@@ -5,6 +5,9 @@ const voteHelpfulMock = vi.fn();
 vi.mock("@/lib/api", () => ({
   voteHelpful: (...args: unknown[]) => voteHelpfulMock(...args),
 }));
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string) => key,
+}));
 
 import { HelpfulButton } from "../HelpfulButton";
 

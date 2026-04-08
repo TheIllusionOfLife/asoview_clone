@@ -22,15 +22,14 @@ import { parseMinorUnits } from "@/lib/cart";
 import { clearIdempotencyKey, setOrderFingerprint } from "@/lib/idempotency";
 import type { CreateOrderRequest, OrderResponse } from "@/lib/types";
 import { useCart } from "@/lib/useCart";
+import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 
-function formatJpy(amount: number | string): string {
+function formatJpy(amount: number | string, locale: string): string {
   // Display-only formatter. Japanese retail uses integer yen, so Math.trunc
-  // here is the intentional rounding mode. The precise subtotal string is
-  // kept by cart.ts and passed untouched to the backend — this formatter
-  // is only used for the per-line UI label.
+  // here is the intentional rounding mode.
   const n = typeof amount === "number" ? amount : Number(amount); // money-parse-ok
-  return new Intl.NumberFormat("ja-JP", {
+  return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "JPY",
     maximumFractionDigits: 0,
@@ -63,6 +62,8 @@ function cartFingerprint(lines: { slotId: string; quantity: number }[]) {
 }
 
 export default function CartPage() {
+  const t = useTranslations("cart.points");
+  const locale = useLocale();
   const router = useRouter();
   const { cart, hydrated, subtotal, setQty, remove } = useCart();
   const { user, ready } = useAuth();
@@ -218,7 +219,7 @@ export default function CartPage() {
                   {formatSlotWindow(l.slotStartAt, l.slotEndAt)}
                 </p>
                 <p className="mt-1 text-sm font-semibold text-[var(--color-primary)]">
-                  {formatJpy(Number(l.unitPrice) /* money-parse-ok */)} × {l.quantity}名
+                  {formatJpy(Number(l.unitPrice) /* money-parse-ok */, locale)} × {l.quantity}名
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -268,9 +269,9 @@ export default function CartPage() {
         <div className="mt-6 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
           <label className="flex items-center justify-between gap-3 text-sm">
             <span>
-              ポイントを使う
+              {t("label")}
               <span className="ml-2 text-xs text-[var(--color-ink-muted)]">
-                (保有 {pointsBalance} pt / 上限 {maxPoints} pt)
+                {t("balanceHelp", { balance: pointsBalance, max: maxPoints })}
               </span>
             </span>
             <input
@@ -287,13 +288,11 @@ export default function CartPage() {
                   setPointsToUse(Math.max(0, Math.min(maxPoints, Math.trunc(v))));
                 }
               }}
-              aria-label="使用するポイント"
+              aria-label={t("inputLabel")}
               className="w-28 rounded-[var(--radius-sm)] border border-[var(--color-border)] px-2 py-1 text-right"
             />
           </label>
-          <p className="mt-2 text-xs text-[var(--color-ink-muted)]">
-            1ポイント = 1円として利用できます。
-          </p>
+          <p className="mt-2 text-xs text-[var(--color-ink-muted)]">{t("helper")}</p>
         </div>
       )}
 
@@ -301,13 +300,13 @@ export default function CartPage() {
         {clampedPoints > 0 && (
           <div className="flex items-center justify-between text-sm text-[var(--color-ink-muted)]">
             <span>ポイント</span>
-            <span>-{formatJpy(clampedPoints)}</span>
+            <span>-{formatJpy(clampedPoints, locale)}</span>
           </div>
         )}
         <div className="mt-1 flex items-center justify-between">
           <span className="text-sm text-[var(--color-ink-muted)]">合計</span>
           <span className="text-xl font-semibold text-[var(--color-primary)]">
-            {formatJpy(totalAfterPoints)}
+            {formatJpy(totalAfterPoints, locale)}
           </span>
         </div>
       </div>

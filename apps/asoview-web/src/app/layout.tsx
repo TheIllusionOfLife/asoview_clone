@@ -8,6 +8,7 @@
  */
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/lib/auth";
+import { getLocale } from "next-intl/server";
 import { Fraunces, Noto_Sans_JP } from "next/font/google";
 import "./globals.css";
 
@@ -30,10 +31,19 @@ export const metadata = {
   description: "日本のレジャー・体験予約",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // next-intl resolves the active locale from the [locale] segment via
+  // middleware. getLocale() throws outside a request scope (e.g. error
+  // boundary fallback prerender), so we fall back to the default.
+  let locale = "ja";
+  try {
+    locale = await getLocale();
+  } catch {
+    // fall back to default
+  }
   return (
     <html
-      lang="ja"
+      lang={locale}
       suppressHydrationWarning
       className={`${fraunces.variable} ${notoSansJp.variable}`}
     >

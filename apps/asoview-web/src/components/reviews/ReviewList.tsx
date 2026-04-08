@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReviewResponse, listReviews } from "@/lib/api";
-import { useFormatter } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { HelpfulButton } from "./HelpfulButton";
 
@@ -11,6 +11,7 @@ function Stars({ rating }: { rating: number }) {
   const r = Math.max(0, Math.min(5, Math.round(rating)));
   return (
     <span aria-label={`${r} / 5`} className="text-[var(--color-accent)]">
+      {/* numeric ratio safe across locales */}
       {"★".repeat(r)}
       <span className="text-[var(--color-border)]">{"★".repeat(5 - r)}</span>
     </span>
@@ -18,6 +19,7 @@ function Stars({ rating }: { rating: number }) {
 }
 
 export function ReviewList({ productId }: { productId: string }) {
+  const t = useTranslations("reviews");
   const format = useFormatter();
   const [page, setPage] = useState(0);
   const [data, setData] = useState<{
@@ -51,9 +53,9 @@ export function ReviewList({ productId }: { productId: string }) {
       </p>
     );
   }
-  if (!data) return <p className="text-sm text-[var(--color-ink-muted)]">…</p>;
+  if (!data) return <p className="text-sm text-[var(--color-ink-muted)]">{t("loading")}</p>;
   if (data.content.length === 0) {
-    return <p className="text-sm text-[var(--color-ink-muted)]">まだレビューはありません。</p>;
+    return <p className="text-sm text-[var(--color-ink-muted)]">{t("empty")}</p>;
   }
   const totalPages = Math.max(1, Math.ceil(data.totalElements / PAGE_SIZE));
   return (
@@ -86,7 +88,7 @@ export function ReviewList({ productId }: { productId: string }) {
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             className="rounded-[var(--radius-md)] border border-[var(--color-border)] px-3 py-1.5 disabled:opacity-40"
           >
-            前へ
+            {t("prev")}
           </button>
           <span className="text-[var(--color-ink-muted)]">
             {page + 1} / {totalPages}
@@ -97,7 +99,7 @@ export function ReviewList({ productId }: { productId: string }) {
             onClick={() => setPage((p) => p + 1)}
             className="rounded-[var(--radius-md)] border border-[var(--color-border)] px-3 py-1.5 disabled:opacity-40"
           >
-            次へ
+            {t("next")}
           </button>
         </nav>
       )}
