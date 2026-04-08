@@ -14,7 +14,21 @@
 FROM oven/bun:1 AS deps
 WORKDIR /repo
 COPY package.json bun.lock* bun.lockb* ./
+# Root package.json declares `workspaces: ["apps/*", ...]` and bun.lock
+# pins all 9 app workspaces + 2 libraries. bun install --frozen-lockfile
+# fails if the resolved workspace set doesn't match the lockfile, so
+# every app/*/package.json + libraries/*/package.json must be present
+# for deps resolution — even though the build stage below only uses
+# asoview-web. Keep this list in sync with the apps/ directory.
+COPY apps/ads-web/package.json apps/ads-web/package.json
+COPY apps/area-gate-web/package.json apps/area-gate-web/package.json
 COPY apps/asoview-web/package.json apps/asoview-web/package.json
+COPY apps/furusato-web/package.json apps/furusato-web/package.json
+COPY apps/gift-web/package.json apps/gift-web/package.json
+COPY apps/overseas-web/package.json apps/overseas-web/package.json
+COPY apps/scanner-app/package.json apps/scanner-app/package.json
+COPY apps/urakata-reservation-web/package.json apps/urakata-reservation-web/package.json
+COPY apps/urakata-ticket-web/package.json apps/urakata-ticket-web/package.json
 COPY libraries/frontend-shared/package.json libraries/frontend-shared/package.json
 COPY libraries/design-tokens/package.json libraries/design-tokens/package.json
 RUN bun install --frozen-lockfile
