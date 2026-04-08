@@ -1,17 +1,26 @@
-# Edge ingress prerequisites: a reserved global static IP that the GKE
-# Ingress (in the `edge` namespace) attaches to via the
-# `kubernetes.io/ingress.global-static-ip-name` annotation, plus an
-# optional Cloud DNS managed zone gated on var.domain.
+# Edge ingress prerequisites: a reserved REGIONAL static IP that the
+# ingress-nginx Service (type: LoadBalancer, in the `edge` namespace)
+# pins via `spec.loadBalancerIP` in its Helm values. The user does a
+# two-phase bootstrap: terraform apply → read the IP from
+# `terraform output static_ip` → sed-replace the `EDIT_ME_STATIC_IP`
+# placeholder in `infra/argocd/applications/ingress-nginx.yaml` →
+# commit + push. Argo CD then syncs ingress-nginx with the pinned IP.
 #
-# ManagedCertificate is created INSIDE the cluster (k8s manifest), not
-# from terraform — that resource lives in `infra/k8s/edge/` so Argo CD
-# manages it alongside the Ingress. Terraform's job ends at the static
-# IP and (optionally) the DNS zone.
+# Why regional (not global): ingress-nginx runs as a k8s Service
+# type=LoadBalancer, which provisions a GCP regional L4 TCP forwarding
+# rule. Global L7 addresses are for GCE Ingress, which we've removed.
+# The two address resources are not interchangeable.
+#
+# TLS is handled in-cluster by cert-manager + Let's Encrypt via HTTP-01,
+# not by Google ManagedCertificate. See infra/k8s/edge/clusterissuer.yaml
+# and the ingress-nginx Argo CD Application.
 
-resource "google_compute_global_address" "edge" {
-  name        = "asoview-clone-dev-edge"
-  project     = var.project_id
-  description = "Reserved global static IP for the dev cluster edge ingress"
+resource "google_compute_address" "edge" {
+  name         = "asoview-clone-dev-edge"
+  project      = var.project_id
+  region       = var.region
+  address_type = "EXTERNAL"
+  description  = "Reserved regional static IP for the ingress-nginx Service in the edge namespace"
 }
 
 resource "google_dns_managed_zone" "edge" {
@@ -33,5 +42,5 @@ resource "google_dns_record_set" "edge_a" {
   ttl          = 300
   managed_zone = google_dns_managed_zone.edge[0].name
   project      = var.project_id
-  rrdatas      = [google_compute_global_address.edge.address]
+  rrdatas      = [google_compute_address.edge.address]
 }

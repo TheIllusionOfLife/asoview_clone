@@ -22,6 +22,17 @@ variable "support_email" {
 
 variable "domain" {
   type        = string
-  description = "Public apex domain for the dev environment (e.g. dev.example.com). Leave empty to skip ManagedCertificate + Cloud DNS zone."
+  description = "Public apex domain for the dev environment (only if you own one). Leave empty to use DuckDNS instead."
   default     = ""
+}
+
+variable "duckdns_subdomain" {
+  type        = string
+  description = "DuckDNS subdomain (without the .duckdns.org suffix). The full hostname becomes <this>.duckdns.org. Used in the ingress.yaml host + TLS cert."
+  default     = "asoview-clone-dev"
+}
+
+variable "letsencrypt_email" {
+  type        = string
+  description = "Email address Let's Encrypt uses for ACME account registration + expiry warnings. Not committed — set this in your local terraform.tfvars. After apply, sed-replace EDIT_ME@example.com in infra/k8s/edge/clusterissuer.yaml with the same value."
 }
