@@ -1,0 +1,51 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/asoview
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  flyway:
+    enabled: true
+    placeholders:
+      seed_catalog: "true"
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: validate
+  data:
+    redis:
+      host: ${REDIS_HOST:redis.core-services.svc.cluster.local}
+      port: 6379
+  cloud:
+    gcp:
+      spanner:
+        project-id: ${GOOGLE_CLOUD_PROJECT:asoview-clone-dev}
+        instance-id: ${SPANNER_INSTANCE:asoview-clone-dev}
+        database: ${SPANNER_DATABASE:asoview}
+        emulator:
+          enabled: false
+
+opensearch:
+  url: ${OPENSEARCH_URL:http://opensearch.search.svc.cluster.local:9200}
+
+payments:
+  stripe:
+    secret-key: ${STRIPE_SECRET_KEY:}
+    webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+        liveness:
+          include: livenessState
+
+server:
+  port: 8081
