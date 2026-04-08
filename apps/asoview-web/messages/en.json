@@ -22,7 +22,13 @@
   },
   "nav": {
     "areas": "Browse by area",
-    "products": "Featured experiences"
+    "products": "Featured experiences",
+    "home": "Home",
+    "cart": "Cart",
+    "favorites": "Favorites",
+    "points": "Points",
+    "orders": "Bookings",
+    "signIn": "Sign in"
   },
   "search": {
     "placeholder": "Search experiences",

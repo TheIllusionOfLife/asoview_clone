@@ -42,7 +42,10 @@ test.describe("ticket validity", () => {
     const farFuture = new Date(Date.now() + 4 * 86_400_000).toISOString();
     await stubTickets(page, future, farFuture);
     await page.goto(`/ja/tickets/${ORDER_ID}`);
-    await expect(page.getByText(/から利用可能/)).toBeVisible();
+    // Multiple "から利用可能" labels exist on the page now (TicketCard
+    // header + Apple/Google wallet button captions). Any visible one
+    // proves the "before" phase is rendered.
+    await expect(page.getByText(/から利用可能/).first()).toBeVisible();
     await expect(page.locator('img[alt^="QR code"]')).toHaveCount(0);
   });
 
