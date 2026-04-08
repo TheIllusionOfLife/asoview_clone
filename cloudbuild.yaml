@@ -197,6 +197,14 @@ steps:
       - -c
       - |
         set -e
+        # SAFETY: only bump and push when this build is for `main`. Cloud
+        # Build's BRANCH_NAME substitution is the source branch of the
+        # trigger. Without this guard a feature-branch trigger would
+        # promote that branch's tip to main and clobber it.
+        if [ "$BRANCH_NAME" != "main" ]; then
+          echo "Skipping kustomize bump (BRANCH_NAME=$BRANCH_NAME, only runs on main)"
+          exit 0
+        fi
         git config user.email "cloudbuild@$PROJECT_ID.iam.gserviceaccount.com"
         git config user.name "Cloud Build"
         git add infra/k8s/*/overlays/dev/kustomization.yaml

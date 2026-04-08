@@ -12,13 +12,13 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              name: edge
+              kubernetes.io/metadata.name: edge
           podSelector:
             matchLabels:
               app: gateway
         - namespaceSelector:
             matchLabels:
-              name: core-services
+              kubernetes.io/metadata.name: core-services
       ports:
         - protocol: TCP
           port: 8081

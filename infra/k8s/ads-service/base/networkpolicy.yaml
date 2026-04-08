@@ -12,7 +12,7 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              name: edge
+              kubernetes.io/metadata.name: edge
       ports:
         - protocol: TCP
           port: 8084
