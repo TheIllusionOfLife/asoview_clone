@@ -23,6 +23,7 @@ type State =
   | { kind: "error" };
 
 let state: State = { kind: "idle" };
+let epoch = 0;
 const listeners = new Set<() => void>();
 
 function notify() {
@@ -37,6 +38,7 @@ export function subscribeFavorites(listener: () => void): () => void {
 }
 
 export function resetFavoritesCache(): void {
+  epoch += 1;
   state = { kind: "idle" };
   notify();
 }
@@ -53,14 +55,17 @@ export function resetFavoritesCache(): void {
 export function ensureFavoritesLoaded(): Promise<void> {
   if (state.kind === "ready" || state.kind === "error") return Promise.resolve();
   if (state.kind === "loading") return state.promise;
+  const capturedEpoch = epoch;
   const promise = (async () => {
     try {
       const ids = await listFavorites();
+      if (epoch !== capturedEpoch) return;
       state = { kind: "ready", ids: new Set(ids) };
     } catch {
+      if (epoch !== capturedEpoch) return;
       state = { kind: "error" };
     } finally {
-      notify();
+      if (epoch === capturedEpoch) notify();
     }
   })();
   state = { kind: "loading", promise };

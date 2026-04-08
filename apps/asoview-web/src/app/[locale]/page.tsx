@@ -26,9 +26,10 @@ async function loadFeatured(): Promise<ProductResponse[]> {
 }
 
 export default async function HomePage() {
-  const [areas, featured, tRec] = await Promise.all([
+  const [areas, featured, tLanding, tRec] = await Promise.all([
     loadAreas(),
     loadFeatured(),
+    getTranslations("landing"),
     getTranslations("recommendations"),
   ]);
 
@@ -36,11 +37,9 @@ export default async function HomePage() {
     <div className="mx-auto max-w-6xl px-4 py-10 sm:py-14">
       <section className="text-center max-w-2xl mx-auto">
         <h1 className="font-display text-4xl sm:text-5xl font-bold leading-tight">
-          体験を、もっと身近に。
+          {tLanding("hero.title")}
         </h1>
-        <p className="mt-4 text-[var(--color-ink-muted)]">
-          全国のレジャー・アクティビティ・体験をかんたん予約。
-        </p>
+        <p className="mt-4 text-[var(--color-ink-muted)]">{tLanding("hero.subtitle")}</p>
       </section>
 
       <section aria-labelledby="areas-heading" className="mt-14">

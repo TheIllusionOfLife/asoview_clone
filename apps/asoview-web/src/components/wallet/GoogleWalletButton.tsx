@@ -3,7 +3,6 @@
 import { useRouter } from "@/i18n/navigation";
 import { ApiError, NetworkError, SignInRedirect } from "@/lib/api";
 import { getGoogleWalletUrl } from "@/lib/wallet";
-import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 type Phase = "before" | "active" | "expired";
@@ -27,7 +26,6 @@ type Props = {
  */
 export function GoogleWalletButton({ ticketId, phase, validFromLabel, labels }: Props) {
   const router = useRouter();
-  const pathname = usePathname() ?? "/";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,9 +42,9 @@ export function GoogleWalletButton({ ticketId, phase, validFromLabel, labels }: 
       window.open(saveUrl, "_blank", "noopener,noreferrer");
     } catch (e) {
       if (e instanceof SignInRedirect) {
-        // next is locale-stripped by SignInRedirect via sanitizeNext; the
-        // Link/router from @/i18n/navigation will re-prefix the active locale.
-        router.push(`/signin?next=${encodeURIComponent(pathname)}`);
+        // e.next is already locale-stripped; the router from @/i18n/navigation
+        // will re-prefix the active locale.
+        router.push(`/signin?next=${encodeURIComponent(e.next)}`);
         return;
       }
       if (e instanceof ApiError || e instanceof NetworkError) {

@@ -17,6 +17,7 @@ import {
   useState,
 } from "react";
 import { setIdTokenGetter } from "./api";
+import { resetFavoritesCache } from "./favorites-cache";
 import { ensureFirebaseReady, getFirebase } from "./firebase";
 
 export type AuthState = {
@@ -55,7 +56,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { auth } = await ensureFirebaseReady();
         if (cancelled) return;
         unsub = onIdTokenChanged(auth, async (u) => {
-          setUser(u);
+          setUser((prev) => {
+            if (prev && !u) {
+              // User signed out: drop cached per-user state so the next
+              // signed-in user does not see the previous user's favorites.
+              resetFavoritesCache();
+            }
+            return u;
+          });
           try {
             if (u) {
               const token = await u.getIdToken();

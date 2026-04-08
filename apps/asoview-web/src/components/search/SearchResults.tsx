@@ -33,23 +33,28 @@ export function SearchResults(props: Props) {
     const maxNum = props.priceMax ? Number.parseInt(props.priceMax, 10) : undefined;
     const controller = new AbortController();
     setState({ kind: "loading" });
-    searchProducts(
-      {
-        q: props.q || undefined,
-        category: props.category || undefined,
-        priceMin: Number.isFinite(minNum) ? minNum : undefined,
-        priceMax: Number.isFinite(maxNum) ? maxNum : undefined,
-        sort: props.sort || undefined,
-        page: 0,
-        size: 20,
-      },
-      { signal: controller.signal },
-    )
-      .then((data) => setState({ kind: "ok", data }))
-      .catch((e) => {
-        if (e?.name === "NetworkError" && controller.signal.aborted) return;
+    (async () => {
+      try {
+        const data = await searchProducts(
+          {
+            q: props.q || undefined,
+            category: props.category || undefined,
+            priceMin: Number.isFinite(minNum) ? minNum : undefined,
+            priceMax: Number.isFinite(maxNum) ? maxNum : undefined,
+            sort: props.sort || undefined,
+            page: 0,
+            size: 20,
+          },
+          { signal: controller.signal },
+        );
+        if (controller.signal.aborted) return;
+        setState({ kind: "ok", data });
+      } catch (e) {
+        if (controller.signal.aborted) return;
+        if ((e as { name?: string } | null)?.name === "AbortError") return;
         setState({ kind: "error" });
-      });
+      }
+    })();
     return () => controller.abort();
   }, [props.q, props.category, props.priceMin, props.priceMax, props.sort]);
 

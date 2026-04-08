@@ -21,6 +21,8 @@ type Props = {
   searchParams: Promise<SearchParams>;
 };
 
+const ALLOWED_SORTS = ["relevance", "priceAsc", "priceDesc"] as const;
+
 function firstParam(v: Multi): string | undefined {
   if (v === undefined) return undefined;
   return Array.isArray(v) ? v[0] : v;
@@ -28,6 +30,10 @@ function firstParam(v: Multi): string | undefined {
 
 export default async function SearchPage({ searchParams }: Props) {
   const sp = await searchParams;
+  const rawSort = firstParam(sp.sort);
+  const validatedSort = ALLOWED_SORTS.includes(rawSort as (typeof ALLOWED_SORTS)[number])
+    ? (rawSort as string)
+    : "relevance";
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <SearchClient
@@ -35,7 +41,7 @@ export default async function SearchPage({ searchParams }: Props) {
         initialCategory={firstParam(sp.category) ?? ""}
         initialPriceMin={firstParam(sp.priceMin) ?? ""}
         initialPriceMax={firstParam(sp.priceMax) ?? ""}
-        initialSort={firstParam(sp.sort) ?? "relevance"}
+        initialSort={validatedSort}
       />
     </div>
   );

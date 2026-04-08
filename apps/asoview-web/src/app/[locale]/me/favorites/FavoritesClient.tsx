@@ -17,6 +17,8 @@ export function FavoritesClient() {
 
   useEffect(() => {
     if (!ready) return;
+    setIds(null);
+    setError(null);
     if (!user) {
       router.push("/signin?next=/me/favorites");
       return;
