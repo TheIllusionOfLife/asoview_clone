@@ -18,9 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
  * local/dev startup. Only activates under the {@code dev} profile — {@code local} skips the reindex
  * because OpenSearch isn't part of the default docker-compose stack.
  *
- * <p>CLAUDE.md PR #21 rule: a publisher method consumed by
+ * <p>Transactional boundary rule: a publisher method consumed by
  * {@code @TransactionalEventListener(AFTER_COMMIT)} MUST itself be {@code @Transactional}, even if
- * it has no JPA writes, otherwise the listener is silently dropped. {@link #reindexAll()} below
+ * it has no JPA writes, otherwise the listener is silently dropped. {@link #run(String...)} below
  * carries the empty JPA tx that the listener hangs AFTER_COMMIT off of.
  */
 @Component
