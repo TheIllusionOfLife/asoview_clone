@@ -113,11 +113,13 @@ git add infra/argocd/applications/ingress-nginx.yaml infra/k8s/edge/clusterissue
 git commit -m "chore(deploy): pin static IP + letsencrypt email for dev"
 git push origin main
 
-# 6. Set the DuckDNS A record. The token is a SECRET — keep it in a
-#    password manager, not in shell history. This command runs once.
-DUCKDNS_TOKEN="<from-your-password-manager>"
-curl "https://www.duckdns.org/update?domains=asoview-clone-dev&token=${DUCKDNS_TOKEN}&ip=${STATIC_IP}"
+# 6. Set the DuckDNS A record. The token is a SECRET — read it silently
+#    so it doesn't land in shell history, and unset it after use.
+DUCKDNS_SUBDOMAIN="asoview-clone-dev"  # <-- the subdomain you claimed
+read -rs -p "DuckDNS token: " DUCKDNS_TOKEN; echo
+curl "https://www.duckdns.org/update?domains=${DUCKDNS_SUBDOMAIN}&token=${DUCKDNS_TOKEN}&ip=${STATIC_IP}"
 #    Expect "OK".
+unset DUCKDNS_TOKEN
 
 # 7. Apply the Argo CD Applications in strict order. syncWave annotations
 #    do NOT order across separate Applications applied directly, so the
@@ -146,7 +148,7 @@ kubectl apply -f infra/argocd/applications/commerce-core.yaml \
 kubectl wait --for=condition=Ready certificate/asoview-clone-tls -n edge --timeout=10m
 kubectl describe certificate asoview-clone-tls -n edge  # inspect if stuck
 
-# 11. Visit https://asoview-clone-dev.duckdns.org/ja
+# 11. Visit https://${DUCKDNS_SUBDOMAIN}.duckdns.org/ja
 ```
 
 ### Let's Encrypt rate limits

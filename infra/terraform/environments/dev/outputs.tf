@@ -1,9 +1,11 @@
 output "web_url" {
-  # Precedence: a custom domain (if set) wins over the DuckDNS fallback,
-  # so operators who explicitly configure `domain` get an output that
-  # matches what they serve. DuckDNS is the default when `domain` is empty.
+  # Precedence must match the edge.tf condition that actually provisions
+  # Cloud DNS: the custom-domain URL is only reachable when duckdns is
+  # disabled (otherwise no DNS zone/A record is created for it). When
+  # duckdns_subdomain is set, report the DuckDNS URL regardless of
+  # var.domain so the output matches what the cluster actually serves.
   value = (
-    var.domain != "" ? "https://${var.domain}" :
+    var.domain != "" && var.duckdns_subdomain == "" ? "https://${var.domain}" :
     var.duckdns_subdomain != "" ? "https://${var.duckdns_subdomain}.duckdns.org" :
     "http://${google_compute_address.edge.address}"
   )

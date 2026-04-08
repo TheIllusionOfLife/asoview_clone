@@ -11,8 +11,10 @@
 # - loadBalancerIP: pin the Service to the terraform-reserved regional IP
 # - externalTrafficPolicy: Local: preserve client source IP (needed for
 #   nginx's real-ip + rate-limit logic and for correct proxy-forwarded-for)
-# - use-forwarded-headers: true: nginx trusts X-Forwarded-* from upstream
-#   (the GCP L4 LB passes these through)
+# - use-forwarded-headers is intentionally NOT set: on GKE L4 LB there
+#   is no trusted proxy inserting X-Forwarded-*, so trusting client
+#   headers would allow source-IP spoofing. See the inline note on the
+#   controller.config block below.
 # - ingressClass: nginx: the class name matches what our Ingresses
 #   (infra/k8s/edge/ingress.yaml) specify via spec.ingressClassName
 apiVersion: argoproj.io/v1alpha1
