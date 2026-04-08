@@ -4,11 +4,10 @@ region        = "asia-northeast1"
 zone          = "asia-northeast1-a"
 support_email = "you@example.com"
 
-# Let's Encrypt account registration email. You receive expiry warnings at
-# this address. REQUIRED. After `terraform apply`, also sed-replace
-# EDIT_ME@example.com in infra/k8s/edge/clusterissuer.yaml with the same
-# value so the ClusterIssuer manifest matches.
-letsencrypt_email = "you@example.com"
+# Let's Encrypt account registration email is NOT a terraform variable.
+# After `terraform apply`, sed-replace REPLACE_WITH_ACME_EMAIL in
+# infra/k8s/edge/clusterissuer.yaml with your real address (you receive
+# ACME expiry warnings there). See docs/demo.md for the exact command.
 
 # DuckDNS subdomain (the part before .duckdns.org). Claim one at
 # https://www.duckdns.org. The full host becomes <this>.duckdns.org.

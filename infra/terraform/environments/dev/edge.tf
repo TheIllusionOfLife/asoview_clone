@@ -24,7 +24,7 @@ resource "google_compute_address" "edge" {
 }
 
 resource "google_dns_managed_zone" "edge" {
-  count       = var.domain != "" ? 1 : 0
+  count       = var.domain != "" && var.duckdns_subdomain == "" ? 1 : 0
   name        = "asoview-clone-dev"
   dns_name    = "${var.domain}."
   project     = var.project_id
@@ -36,7 +36,7 @@ resource "google_dns_managed_zone" "edge" {
 # user prefers to keep DNS at their registrar, leave var.domain empty and
 # create the A record manually pointing at the `static_ip` output.
 resource "google_dns_record_set" "edge_a" {
-  count        = var.domain != "" ? 1 : 0
+  count        = var.domain != "" && var.duckdns_subdomain == "" ? 1 : 0
   name         = "${var.domain}."
   type         = "A"
   ttl          = 300

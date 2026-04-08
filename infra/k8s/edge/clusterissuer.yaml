@@ -3,9 +3,12 @@
 # creates a temporary sibling Ingress for the /.well-known/acme-challenge/
 # path under the hood.
 #
-# The email below is a placeholder. The two-phase deploy flow has the
-# user sed-replace EDIT_ME@example.com with their real email after
-# terraform apply. See docs/demo.md.
+# The email below is an intentionally-invalid sentinel. The two-phase
+# deploy flow has the user sed-replace REPLACE_WITH_ACME_EMAIL with
+# their real email after terraform apply. If someone misses the
+# substitution, ACME registration fails loudly rather than silently
+# creating an account under a bogus but syntactically-valid address.
+# See docs/demo.md.
 #
 # Field notes (cert-manager >= 1.14):
 # - `ingressClassName: nginx` is the modern field. The legacy `class`
@@ -19,7 +22,7 @@ metadata:
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: EDIT_ME@example.com
+    email: REPLACE_WITH_ACME_EMAIL
     privateKeySecretRef:
       name: letsencrypt-prod-account-key
     solvers:

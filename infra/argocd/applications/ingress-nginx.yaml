@@ -36,7 +36,13 @@ spec:
             loadBalancerIP: EDIT_ME_STATIC_IP
             externalTrafficPolicy: Local
           config:
-            use-forwarded-headers: "true"
+            # NOTE: use-forwarded-headers is intentionally NOT set. On
+            # GKE L4 LB there is no trusted proxy inserting
+            # X-Forwarded-* headers, so trusting them would let clients
+            # spoof their source IP (poisons logs, breaks rate limits).
+            # If a trusted proxy is added later, set
+            # use-forwarded-headers: "true" AND proxy-real-ip-cidr to
+            # the proxy's CIDR.
             proxy-body-size: "10m"
           ingressClassResource:
             name: nginx

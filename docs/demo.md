@@ -83,15 +83,12 @@ kubectl create secret generic firebase-config \
 #     output `commerce_core_gsa_email`. If you change the dev project
 #     id, sync that overlay patch + the terraform variable.
 
-# 4. Bootstrap Argo CD Applications (run from repo root)
-kubectl apply -f infra/argocd/applications/
-
-# 5. Install + log in to the argocd CLI
+# 4. Install + log in to the argocd CLI
 #    macOS: brew install argocd
 #    Linux: curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64 && chmod +x /usr/local/bin/argocd
 #
-#    The Argo CD API server is ClusterIP-only by default. Either expose
-#    it via port-forward (simplest) or via a LoadBalancer Service.
+#    The Argo CD API server is ClusterIP-only by default. Expose via
+#    port-forward for this bootstrap.
 kubectl port-forward -n argocd svc/argocd-server 8080:443 >/dev/null 2>&1 &
 sleep 3
 ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret \
@@ -101,31 +98,28 @@ argocd login localhost:8080 \
   --password "$ARGOCD_PASSWORD" \
   --insecure
 
-# 6. Wait for initial sync (~5 min). The selector matches the
-#    `app.kubernetes.io/part-of: asoview-clone-dev` label that every
-#    Application manifest under infra/argocd/applications/ carries.
-argocd app sync -l app.kubernetes.io/part-of=asoview-clone-dev
-argocd app wait -l app.kubernetes.io/part-of=asoview-clone-dev --health
-
-# 7. Bootstrap phase 1: read the reserved static IP from terraform and
-#    patch it into the committed ingress-nginx Helm values + ClusterIssuer
-#    (this is the explicit Terraform → GitOps bridge).
+# 5. Bootstrap phase 1: patch the committed placeholders BEFORE any Argo
+#    CD Application is applied. Argo CD auto-syncs on Application
+#    creation, so applying ingress-nginx.yaml with EDIT_ME_STATIC_IP in
+#    place provisions a LoadBalancer against an invalid IP and wedges
+#    the stack. Patch-then-apply is the explicit Terraform → GitOps bridge.
 STATIC_IP=$(terraform -chdir=infra/terraform/environments/dev output -raw static_ip)
 echo "Static IP: $STATIC_IP"
+LETSENCRYPT_EMAIL="<your-email@example.com>"  # <-- edit before running
 sed -i.bak "s|EDIT_ME_STATIC_IP|$STATIC_IP|" infra/argocd/applications/ingress-nginx.yaml
-sed -i.bak "s|EDIT_ME@example.com|mukaiyuya@gmail.com|" infra/k8s/edge/clusterissuer.yaml
+sed -i.bak "s|REPLACE_WITH_ACME_EMAIL|$LETSENCRYPT_EMAIL|" infra/k8s/edge/clusterissuer.yaml
 rm infra/argocd/applications/ingress-nginx.yaml.bak infra/k8s/edge/clusterissuer.yaml.bak
 git add infra/argocd/applications/ingress-nginx.yaml infra/k8s/edge/clusterissuer.yaml
 git commit -m "chore(deploy): pin static IP + letsencrypt email for dev"
 git push origin main
 
-# 8. Set the DuckDNS A record. The token is a SECRET — keep it in a
+# 6. Set the DuckDNS A record. The token is a SECRET — keep it in a
 #    password manager, not in shell history. This command runs once.
 DUCKDNS_TOKEN="<from-your-password-manager>"
 curl "https://www.duckdns.org/update?domains=asoview-clone-dev&token=${DUCKDNS_TOKEN}&ip=${STATIC_IP}"
 #    Expect "OK".
 
-# 9. Apply the Argo CD Applications in strict order. syncWave annotations
+# 7. Apply the Argo CD Applications in strict order. syncWave annotations
 #    do NOT order across separate Applications applied directly, so the
 #    ordering is enforced manually here: cert-manager first (installs
 #    CRDs), then ingress-nginx (provides the Service on the static IP),

@@ -32,7 +32,3 @@ variable "duckdns_subdomain" {
   default     = "asoview-clone-dev"
 }
 
-variable "letsencrypt_email" {
-  type        = string
-  description = "Email address Let's Encrypt uses for ACME account registration + expiry warnings. Not committed — set this in your local terraform.tfvars. After apply, sed-replace EDIT_ME@example.com in infra/k8s/edge/clusterissuer.yaml with the same value."
-}

@@ -1,7 +1,10 @@
 output "web_url" {
+  # Precedence: a custom domain (if set) wins over the DuckDNS fallback,
+  # so operators who explicitly configure `domain` get an output that
+  # matches what they serve. DuckDNS is the default when `domain` is empty.
   value = (
-    var.duckdns_subdomain != "" ? "https://${var.duckdns_subdomain}.duckdns.org" :
     var.domain != "" ? "https://${var.domain}" :
+    var.duckdns_subdomain != "" ? "https://${var.duckdns_subdomain}.duckdns.org" :
     "http://${google_compute_address.edge.address}"
   )
   description = "Consumer-facing asoview-web URL (HTTPS once the Let's Encrypt cert is Ready)"
