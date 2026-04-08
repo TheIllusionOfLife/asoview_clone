@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReviewResponse, listReviews } from "@/lib/api";
+import { useFormatter } from "next-intl";
 import { useEffect, useState } from "react";
 import { HelpfulButton } from "./HelpfulButton";
 
@@ -17,6 +18,7 @@ function Stars({ rating }: { rating: number }) {
 }
 
 export function ReviewList({ productId }: { productId: string }) {
+  const format = useFormatter();
   const [page, setPage] = useState(0);
   const [data, setData] = useState<{
     content: ReviewResponse[];
@@ -27,6 +29,7 @@ export function ReviewList({ productId }: { productId: string }) {
   useEffect(() => {
     let cancelled = false;
     const ctrl = new AbortController();
+    setErr(null);
     (async () => {
       try {
         const resp = await listReviews(productId, page, PAGE_SIZE, { signal: ctrl.signal });
@@ -64,7 +67,7 @@ export function ReviewList({ productId }: { productId: string }) {
             <div className="flex items-center justify-between">
               <Stars rating={r.rating} />
               <time className="text-xs text-[var(--color-ink-muted)]">
-                {new Date(r.createdAt).toLocaleDateString()}
+                {format.dateTime(new Date(r.createdAt), { dateStyle: "medium" })}
               </time>
             </div>
             {r.title && <p className="mt-2 font-semibold text-sm">{r.title}</p>}

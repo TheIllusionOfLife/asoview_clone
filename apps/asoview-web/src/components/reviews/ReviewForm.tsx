@@ -1,6 +1,7 @@
 "use client";
 
 import { ApiError, submitReview } from "@/lib/api";
+import { useLocale } from "next-intl";
 import { useState } from "react";
 
 /**
@@ -14,6 +15,7 @@ export function ReviewForm({
   productId: string;
   onSubmitted?: () => void;
 }) {
+  const locale = useLocale();
   const [rating, setRating] = useState<number>(5);
   const [body, setBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -31,7 +33,7 @@ export function ReviewForm({
         setErr(null);
         setSubmitting(true);
         try {
-          await submitReview({ productId, rating, body, language: "ja" });
+          await submitReview({ productId, rating, body, language: locale });
           setDone(true);
           onSubmitted?.();
         } catch (e2) {

@@ -22,14 +22,25 @@ export async function downloadApplePass(ticketId: string): Promise<Blob> {
   const token = await getCurrentIdToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
+  // 30s timeout, mirroring the payments-path timeout in src/lib/api.ts.
+  // Without an explicit AbortController the fetch can hang indefinitely
+  // on a wedged backend, leaving the spinner stuck.
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 30_000);
   let res: Response;
   try {
     res = await fetch(`${baseUrl()}/v1/me/tickets/${encodeURIComponent(ticketId)}/apple-pass`, {
       headers,
+      signal: ctrl.signal,
     });
   } catch (e) {
+    clearTimeout(timer);
+    if (e instanceof Error && e.name === "AbortError") {
+      throw new NetworkError("Apple Wallet download timed out");
+    }
     throw new NetworkError(e instanceof Error ? e.message : "Network error");
   }
+  clearTimeout(timer);
   if (res.status === 401) throw new SignInRedirect("/");
   if (!res.ok) {
     throw new ApiError(res.status, `${res.status} ${res.statusText}`);

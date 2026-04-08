@@ -20,10 +20,13 @@ export function Facets({ category, priceMin, priceMax, sort, onChange }: Props) 
   const t = useTranslations("search");
 
   // Integer yen only — strings from URL / inputs are validated to digits.
+  // Japanese IMEs commonly emit full-width digits (０-９); normalize to
+  // ASCII before stripping non-digit characters so a user typing 1500 in
+  // full-width does not silently lose the bound.
   // money-parse-ok: bounds only, integer yen
   const sanitizeYen = (raw: string): string => {
-    const digits = raw.replace(/[^0-9]/g, "");
-    return digits;
+    const ascii = raw.replace(/[０-９]/g, (d) => String.fromCharCode(d.charCodeAt(0) - 0xfee0));
+    return ascii.replace(/[^0-9]/g, "");
   };
 
   return (

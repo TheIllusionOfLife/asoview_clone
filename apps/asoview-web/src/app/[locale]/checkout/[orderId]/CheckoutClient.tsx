@@ -230,7 +230,8 @@ export function CheckoutClient({
         setOrder(fetched);
         if (fetched.status === "PAID") {
           stopped = true;
-          if (user) clearOrderLinesFromCart(user.uid, fetched);
+          const u = userRef.current;
+          if (u) clearOrderLinesFromCart(u.uid, fetched);
           clearIdempotencyForOrder(orderId);
           setPhase("succeeded");
           router.replace(`/tickets/${orderId}`);
@@ -274,7 +275,7 @@ export function CheckoutClient({
       }
       ctrl.abort();
     };
-  }, [phase, orderId, router, user]);
+  }, [phase, orderId, router]);
 
   // ---------- UI ----------
 

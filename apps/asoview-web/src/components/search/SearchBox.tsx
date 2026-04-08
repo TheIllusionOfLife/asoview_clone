@@ -21,6 +21,7 @@ export function SearchBox({ value, onSubmit }: Props) {
   const [suggestions, setSuggestions] = useState<AutosuggestResponse["suggestions"]>([]);
   const [open, setOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Resync from parent (URL) when user navigates back/forward.
   useEffect(() => {
@@ -34,15 +35,29 @@ export function SearchBox({ value, onSubmit }: Props) {
       setSuggestions([]);
       return;
     }
-    timerRef.current = setTimeout(() => {
-      searchSuggest(q)
-        .then((r) => setSuggestions(r.suggestions ?? []))
-        .catch(() => setSuggestions([]));
+    let cancelled = false;
+    timerRef.current = setTimeout(async () => {
+      try {
+        const r = await searchSuggest(q);
+        if (cancelled) return;
+        setSuggestions(r.suggestions ?? []);
+      } catch {
+        if (cancelled) return;
+        setSuggestions([]);
+      }
     }, 250);
     return () => {
+      cancelled = true;
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [draft]);
+
+  // Clear any pending blur-close timer on unmount.
+  useEffect(() => {
+    return () => {
+      if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
+    };
+  }, []);
 
   return (
     <form
@@ -61,7 +76,10 @@ export function SearchBox({ value, onSubmit }: Props) {
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onBlur={() => {
+          if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
+          blurTimerRef.current = setTimeout(() => setOpen(false), 150);
+        }}
         placeholder={t("placeholder")}
         aria-label={t("placeholder")}
         className="w-full rounded-lg border border-[var(--color-border)] px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"

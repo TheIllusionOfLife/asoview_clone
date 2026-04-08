@@ -6,6 +6,10 @@ const removeMock = vi.fn();
 vi.mock("@/lib/api", () => ({
   addFavorite: (...a: unknown[]) => addMock(...a),
   removeFavorite: (...a: unknown[]) => removeMock(...a),
+  listFavorites: vi.fn().mockResolvedValue([]),
+}));
+vi.mock("@/lib/auth", () => ({
+  useAuth: () => ({ user: { uid: "u1" }, ready: true }),
 }));
 
 import { FavoriteToggle } from "../FavoriteToggle";

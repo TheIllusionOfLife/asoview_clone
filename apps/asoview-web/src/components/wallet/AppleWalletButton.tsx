@@ -48,7 +48,10 @@ export function AppleWalletButton({ ticketId, phase, validFromLabel, labels }: P
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(url);
+      // Some browsers cancel the in-flight download if the object URL is
+      // revoked synchronously after click(). Defer revoke briefly so the
+      // browser has time to commit the navigation to the blob: URL.
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {
       if (e instanceof SignInRedirect) {
         setError(labels.error);

@@ -18,6 +18,7 @@ import {
   getPointsBalance,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { parseMinorUnits } from "@/lib/cart";
 import { clearIdempotencyKey, setOrderFingerprint } from "@/lib/idempotency";
 import type { CreateOrderRequest, OrderResponse } from "@/lib/types";
 import { useCart } from "@/lib/useCart";
@@ -92,11 +93,14 @@ export default function CartPage() {
   }, [ready, user]);
 
   // Clamp 0 <= pointsToUse <= min(balance, subtotal). Yen integer minor units.
-  const subtotalYen = Math.trunc(Number(subtotal)); // money-parse-ok: display clamp only
+  // NUMERIC string subtotal -> integer yen via parseMinorUnits (sen / 100).
+  const subtotalYen = Math.trunc(parseMinorUnits(subtotal) / 100);
   const maxPoints = Math.max(
     0,
     Math.min(Number.isFinite(subtotalYen) ? subtotalYen : 0, pointsBalance ?? 0),
   );
+  const clampedPoints = Math.max(0, Math.min(maxPoints, Math.trunc(pointsToUse || 0)));
+  const totalAfterPoints = Math.max(0, subtotalYen - clampedPoints);
 
   const onCheckout = useCallback(async () => {
     if (cart.lines.length === 0) return;
@@ -107,7 +111,6 @@ export default function CartPage() {
       return;
     }
     const fp = cartFingerprint(cart.lines);
-    const clampedPoints = Math.max(0, Math.min(maxPoints, Math.trunc(pointsToUse || 0)));
     const body: CreateOrderRequest = {
       items: cart.lines.map((l) => ({
         productVariantId: l.productVariantId,
@@ -155,7 +158,7 @@ export default function CartPage() {
           : "予約処理中にエラーが発生しました",
       );
     }
-  }, [cart.lines, router, user, maxPoints, pointsToUse]);
+  }, [cart.lines, router, user, clampedPoints]);
 
   if (!hydrated || !ready) {
     return (
@@ -294,11 +297,19 @@ export default function CartPage() {
         </div>
       )}
 
-      <div className="mt-6 flex items-center justify-between rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-        <span className="text-sm text-[var(--color-ink-muted)]">合計</span>
-        <span className="text-xl font-semibold text-[var(--color-primary)]">
-          {formatJpy(subtotal)}
-        </span>
+      <div className="mt-6 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+        {clampedPoints > 0 && (
+          <div className="flex items-center justify-between text-sm text-[var(--color-ink-muted)]">
+            <span>ポイント</span>
+            <span>-{formatJpy(clampedPoints)}</span>
+          </div>
+        )}
+        <div className="mt-1 flex items-center justify-between">
+          <span className="text-sm text-[var(--color-ink-muted)]">合計</span>
+          <span className="text-xl font-semibold text-[var(--color-primary)]">
+            {formatJpy(totalAfterPoints)}
+          </span>
+        </div>
       </div>
 
       <div className="mt-4 text-right">
