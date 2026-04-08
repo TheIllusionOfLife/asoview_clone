@@ -103,22 +103,5 @@ module "identity_platform" {
   support_email = var.support_email
 }
 
-variable "support_email" {
-  type    = string
-  default = "ops@asoview-clone.invalid"
-}
-
-variable "project_id" {
-  type    = string
-  default = "asoview-clone"
-}
-
-variable "region" {
-  type    = string
-  default = "asia-northeast1"
-}
-
-variable "zone" {
-  type    = string
-  default = "asia-northeast1-a"
-}
+# Variables, outputs, and the edge (static IP + managed cert prerequisites)
+# live in sibling files: variables.tf, outputs.tf, edge.tf.
