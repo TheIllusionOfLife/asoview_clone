@@ -56,6 +56,7 @@
   "points": {
     "pageTitle": "Points",
     "balance": "Points balance",
+    "balanceValue": "{balance} pt",
     "ledgerTitle": "History",
     "ledgerComingSoon": "Points history coming soon.",
     "loading": "Loading…",
@@ -75,6 +76,24 @@
     "ariaRemove": "Remove from favorites"
   },
   "cart": {
+    "title": "Cart",
+    "loading": "Loading…",
+    "empty": "Your cart is empty.",
+    "browseExperiences": "Browse experiences",
+    "checkout": "Checkout",
+    "checkingOut": "Processing…",
+    "signInToCheckout": "Sign in to checkout",
+    "pointsLabel": "Points",
+    "total": "Total",
+    "peopleSuffix": "{n} people",
+    "lineQuantity": "× {n} people",
+    "changeQuantityAria": "Change quantity",
+    "quantityForAria": "Quantity for {name}",
+    "removeAria": "Remove {name} from cart",
+    "removeLabel": "Remove",
+    "slotTakenLine": "This time slot is sold out. Please pick another.",
+    "slotTakenGeneral": "Some slots in your cart are sold out. Please reselect them.",
+    "checkoutError": "An error occurred during checkout",
     "points": {
       "label": "Use points",
       "balanceHelp": "(Balance {balance} pt / Max {max} pt)",

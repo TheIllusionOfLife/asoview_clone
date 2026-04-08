@@ -6,17 +6,19 @@ import { useState } from "react";
 
 type Phase = "before" | "active" | "expired";
 
-type Props = {
+interface AppleWalletLabels {
+  add: string;
+  unavailableFrom: string; // e.g. "Available from {date}"
+  downloading: string;
+  error: string;
+}
+
+interface Props {
   ticketId: string;
   phase: Phase;
   validFromLabel?: string;
-  labels: {
-    add: string;
-    unavailableFrom: string; // e.g. "Available from {date}"
-    downloading: string;
-    error: string;
-  };
-};
+  labels: AppleWalletLabels;
+}
 
 /**
  * Apple Wallet button. Fetches the signed .pkpass from the gateway

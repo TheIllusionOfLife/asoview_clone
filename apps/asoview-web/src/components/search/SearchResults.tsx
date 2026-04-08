@@ -5,13 +5,13 @@ import { type ProductSearchResponse, searchProducts } from "@/lib/api";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
-type Props = {
+interface Props {
   q: string;
   category: string;
   priceMin: string;
   priceMax: string;
   sort: string;
-};
+}
 
 /**
  * Fetches `/v1/search` with the current facets on every change. Shows

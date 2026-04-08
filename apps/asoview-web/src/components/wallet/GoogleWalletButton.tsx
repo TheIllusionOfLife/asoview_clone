@@ -7,17 +7,19 @@ import { useState } from "react";
 
 type Phase = "before" | "active" | "expired";
 
-type Props = {
+interface GoogleWalletLabels {
+  add: string;
+  unavailableFrom: string;
+  loading: string;
+  error: string;
+}
+
+interface Props {
   ticketId: string;
   phase: Phase;
   validFromLabel?: string;
-  labels: {
-    add: string;
-    unavailableFrom: string;
-    loading: string;
-    error: string;
-  };
-};
+  labels: GoogleWalletLabels;
+}
 
 /**
  * Google Wallet button. Fetches the save URL

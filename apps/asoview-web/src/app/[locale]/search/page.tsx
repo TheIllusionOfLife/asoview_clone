@@ -9,17 +9,17 @@ import { SearchClient } from "./SearchClient";
 export const dynamic = "force-dynamic";
 
 type Multi = string | string[] | undefined;
-type SearchParams = {
+interface SearchParams {
   q?: Multi;
   category?: Multi;
   priceMin?: Multi;
   priceMax?: Multi;
   sort?: Multi;
-};
+}
 
-type Props = {
+interface Props {
   searchParams: Promise<SearchParams>;
-};
+}
 
 const ALLOWED_SORTS = ["relevance", "priceAsc", "priceDesc"] as const;
 

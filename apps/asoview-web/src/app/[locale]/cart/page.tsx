@@ -62,7 +62,8 @@ function cartFingerprint(lines: { slotId: string; quantity: number }[]) {
 }
 
 export default function CartPage() {
-  const t = useTranslations("cart.points");
+  const t = useTranslations("cart");
+  const tPoints = useTranslations("cart.points");
   const locale = useLocale();
   const router = useRouter();
   const { cart, hydrated, subtotal, setQty, remove } = useCart();
@@ -144,28 +145,24 @@ export default function CartPage() {
         const matched = cart.lines.find((l) => e.message.includes(l.slotId));
         if (matched) {
           setLineErrors({
-            [matched.slotId]: "この時間帯は満席になりました。別の時間帯を選んでください。",
+            [matched.slotId]: t("slotTakenLine"),
           });
         } else {
-          setGeneralError(
-            "カート内の一部の時間帯が満席になりました。該当する枠を選び直してください。",
-          );
+          setGeneralError(t("slotTakenGeneral"));
         }
         return;
       }
       setGeneralError(
-        e instanceof ApiError || e instanceof NetworkError
-          ? e.message
-          : "予約処理中にエラーが発生しました",
+        e instanceof ApiError || e instanceof NetworkError ? e.message : t("checkoutError"),
       );
     }
-  }, [cart.lines, router, user, clampedPoints]);
+  }, [cart.lines, router, user, clampedPoints, t]);
 
   if (!hydrated || !ready) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-10">
-        <h1 className="font-display text-3xl font-bold">カート</h1>
-        <p className="mt-4 text-sm text-[var(--color-ink-muted)]">読み込み中…</p>
+        <h1 className="font-display text-3xl font-bold">{t("title")}</h1>
+        <p className="mt-4 text-sm text-[var(--color-ink-muted)]">{t("loading")}</p>
       </div>
     );
   }
@@ -173,13 +170,13 @@ export default function CartPage() {
   if (cart.lines.length === 0) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-10">
-        <h1 className="font-display text-3xl font-bold">カート</h1>
-        <p className="mt-6 text-sm text-[var(--color-ink-muted)]">カートには何も入っていません。</p>
+        <h1 className="font-display text-3xl font-bold">{t("title")}</h1>
+        <p className="mt-6 text-sm text-[var(--color-ink-muted)]">{t("empty")}</p>
         <Link
           href="/"
           className="mt-6 inline-block rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 py-2 text-sm hover:border-[var(--color-primary)]"
         >
-          体験を探す
+          {t("browseExperiences")}
         </Link>
       </div>
     );
@@ -187,7 +184,7 @@ export default function CartPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
-      <h1 className="font-display text-3xl font-bold">カート</h1>
+      <h1 className="font-display text-3xl font-bold">{t("title")}</h1>
 
       {generalError && (
         <p
@@ -219,12 +216,13 @@ export default function CartPage() {
                   {formatSlotWindow(l.slotStartAt, l.slotEndAt)}
                 </p>
                 <p className="mt-1 text-sm font-semibold text-[var(--color-primary)]">
-                  {formatJpy(Number(l.unitPrice) /* money-parse-ok */, locale)} × {l.quantity}名
+                  {formatJpy(Number(l.unitPrice) /* money-parse-ok */, locale)}{" "}
+                  {t("lineQuantity", { n: l.quantity })}
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <label className="text-sm">
-                  <span className="sr-only">人数を変更</span>
+                  <span className="sr-only">{t("changeQuantityAria")}</span>
                   <select
                     value={l.quantity}
                     onChange={(e) =>
@@ -233,12 +231,12 @@ export default function CartPage() {
                         Number(e.target.value) /* money-parse-ok: quantity, not money */,
                       )
                     }
-                    aria-label={`${l.productSnapshot.name} の人数`}
+                    aria-label={t("quantityForAria", { name: l.productSnapshot.name })}
                     className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]"
                   >
                     {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
                       <option key={n} value={n}>
-                        {n}名
+                        {t("peopleSuffix", { n })}
                       </option>
                     ))}
                   </select>
@@ -246,10 +244,10 @@ export default function CartPage() {
                 <button
                   type="button"
                   onClick={() => remove(l.slotId)}
-                  aria-label={`${l.productSnapshot.name} をカートから削除`}
+                  aria-label={t("removeAria", { name: l.productSnapshot.name })}
                   className="rounded-[var(--radius-md)] border border-[var(--color-border)] px-3 py-1.5 text-sm hover:border-[var(--color-danger)] hover:text-[var(--color-danger)] focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]"
                 >
-                  削除
+                  {t("removeLabel")}
                 </button>
               </div>
             </div>
@@ -269,9 +267,9 @@ export default function CartPage() {
         <div className="mt-6 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
           <label className="flex items-center justify-between gap-3 text-sm">
             <span>
-              {t("label")}
+              {tPoints("label")}
               <span className="ml-2 text-xs text-[var(--color-ink-muted)]">
-                {t("balanceHelp", { balance: pointsBalance, max: maxPoints })}
+                {tPoints("balanceHelp", { balance: pointsBalance, max: maxPoints })}
               </span>
             </span>
             <input
@@ -288,23 +286,23 @@ export default function CartPage() {
                   setPointsToUse(Math.max(0, Math.min(maxPoints, Math.trunc(v))));
                 }
               }}
-              aria-label={t("inputLabel")}
+              aria-label={tPoints("inputLabel")}
               className="w-28 rounded-[var(--radius-sm)] border border-[var(--color-border)] px-2 py-1 text-right"
             />
           </label>
-          <p className="mt-2 text-xs text-[var(--color-ink-muted)]">{t("helper")}</p>
+          <p className="mt-2 text-xs text-[var(--color-ink-muted)]">{tPoints("helper")}</p>
         </div>
       )}
 
       <div className="mt-6 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
         {clampedPoints > 0 && (
           <div className="flex items-center justify-between text-sm text-[var(--color-ink-muted)]">
-            <span>ポイント</span>
+            <span>{t("pointsLabel")}</span>
             <span>-{formatJpy(clampedPoints, locale)}</span>
           </div>
         )}
         <div className="mt-1 flex items-center justify-between">
-          <span className="text-sm text-[var(--color-ink-muted)]">合計</span>
+          <span className="text-sm text-[var(--color-ink-muted)]">{t("total")}</span>
           <span className="text-xl font-semibold text-[var(--color-primary)]">
             {formatJpy(totalAfterPoints, locale)}
           </span>
@@ -319,14 +317,14 @@ export default function CartPage() {
             disabled={submitting}
             className="rounded-[var(--radius-md)] bg-[var(--color-primary)] px-5 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] focus-visible:outline-2 focus-visible:outline-[var(--color-primary)] disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {submitting ? "処理中…" : "購入手続きへ"}
+            {submitting ? t("checkingOut") : t("checkout")}
           </button>
         ) : (
           <Link
             href="/signin?next=/cart"
             className="inline-block rounded-[var(--radius-md)] bg-[var(--color-primary)] px-5 py-2.5 text-sm font-semibold text-white hover:shadow-[var(--shadow-md)]"
           >
-            ログインして購入手続き
+            {t("signInToCheckout")}
           </Link>
         )}
       </div>

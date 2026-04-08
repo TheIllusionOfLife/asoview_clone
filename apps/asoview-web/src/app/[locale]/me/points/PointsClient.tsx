@@ -62,7 +62,9 @@ export function PointsClient() {
     <div className="mt-6 space-y-6">
       <div className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
         <p className="text-sm text-[var(--color-ink-muted)]">{t("balance")}</p>
-        <p className="mt-2 text-3xl font-bold text-[var(--color-primary)]">{balance} pt</p>
+        <p className="mt-2 text-3xl font-bold text-[var(--color-primary)]">
+          {t("balanceValue", { balance })}
+        </p>
       </div>
       <section>
         <h2 className="font-display text-xl font-semibold">{t("ledgerTitle")}</h2>

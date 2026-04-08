@@ -8,13 +8,12 @@ import { useState } from "react";
  * Minimal review-submission form. Shown on order detail after PAID.
  * Backend endpoint: POST /v1/reviews (NOT nested under productId).
  */
-export function ReviewForm({
-  productId,
-  onSubmitted,
-}: {
+interface ReviewFormProps {
   productId: string;
   onSubmitted?: () => void;
-}) {
+}
+
+export function ReviewForm({ productId, onSubmitted }: ReviewFormProps) {
   const t = useTranslations("reviews");
   const locale = useLocale();
   const [rating, setRating] = useState<number>(5);
