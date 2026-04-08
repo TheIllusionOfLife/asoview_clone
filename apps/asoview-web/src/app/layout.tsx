@@ -7,6 +7,7 @@
  */
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/lib/auth";
 import { Fraunces, Noto_Sans_JP } from "next/font/google";
 import "./globals.css";
@@ -32,13 +33,19 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ja" className={`${fraunces.variable} ${notoSansJp.variable}`}>
+    <html
+      lang="ja"
+      suppressHydrationWarning
+      className={`${fraunces.variable} ${notoSansJp.variable}`}
+    >
       <body className="min-h-screen flex flex-col">
-        <AuthProvider>
-          <Header />
-          <main className="flex-1">{children}</main>
-          <Footer />
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <Header />
+            <main className="flex-1">{children}</main>
+            <Footer />
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -1,5 +1,6 @@
 import { Link } from "@/i18n/navigation";
 import { CartBadge } from "./CartBadge";
+import { ThemeToggle } from "./ThemeToggle";
 import { PointsBalance } from "./points/PointsBalance";
 
 export function Header() {
@@ -33,6 +34,7 @@ export function Header() {
           <Link href="/me/orders" className="hover:text-[var(--color-primary)]">
             予約履歴
           </Link>
+          <ThemeToggle />
         </nav>
       </div>
     </header>

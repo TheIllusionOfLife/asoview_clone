@@ -5,7 +5,14 @@
     "cart": "Cart",
     "search": "Search",
     "myPage": "My page",
-    "language": "Language"
+    "language": "Language",
+    "skipToContent": "Skip to main content"
+  },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System",
+    "toggleLabel": "Toggle theme"
   },
   "landing": {
     "hero": {

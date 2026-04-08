@@ -5,7 +5,14 @@
     "cart": "カート",
     "search": "検索",
     "myPage": "マイページ",
-    "language": "言語"
+    "language": "言語",
+    "skipToContent": "メインコンテンツへスキップ"
+  },
+  "theme": {
+    "light": "ライト",
+    "dark": "ダーク",
+    "system": "システム",
+    "toggleLabel": "テーマを切り替え"
   },
   "landing": {
     "hero": {
