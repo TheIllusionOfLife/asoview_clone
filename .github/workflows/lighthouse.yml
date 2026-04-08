@@ -46,8 +46,16 @@ jobs:
         working-directory: apps/asoview-web
         env:
           NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+          HOSTNAME: 0.0.0.0
+          PORT: "3000"
         run: |
-          bun run start &
+          # The web app is configured with `output: "standalone"`, which
+          # `next start` does not serve correctly. Run the standalone
+          # server directly. Copy static + public so the standalone tree
+          # is self-contained per Next.js docs.
+          cp -r .next/static .next/standalone/.next/static
+          cp -r public .next/standalone/public 2>/dev/null || true
+          node .next/standalone/server.js &
           echo $! > /tmp/web.pid
 
       - name: Wait for :3000

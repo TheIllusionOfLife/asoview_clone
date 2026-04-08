@@ -35,9 +35,7 @@ async function stubSearch(page: import("@playwright/test").Page, hits: Hit[]) {
 
 test.describe("search URL state", () => {
   test("query typing updates ?q= and reload preserves it", async ({ page }) => {
-    await stubSearch(page, [
-      { productId: "p-kayak", name: "カヤック体験", minPrice: 3500 },
-    ]);
+    await stubSearch(page, [{ productId: "p-kayak", name: "カヤック体験", minPrice: 3500 }]);
     await page.goto("/ja/search");
 
     const input = page.getByRole("searchbox");
@@ -52,9 +50,7 @@ test.describe("search URL state", () => {
   });
 
   test("category facet appends ?category= alongside ?q=", async ({ page }) => {
-    await stubSearch(page, [
-      { productId: "p-bbq", name: "BBQプラン", minPrice: 2500 },
-    ]);
+    await stubSearch(page, [{ productId: "p-bbq", name: "BBQプラン", minPrice: 2500 }]);
     await page.goto("/ja/search?q=bbq");
 
     const categorySelect = page.locator("select").first();
