@@ -1,0 +1,28 @@
+# Let's Encrypt production issuer. HTTP-01 challenge is solved by the
+# ingress-nginx controller running in the same cluster — cert-manager
+# creates a temporary sibling Ingress for the /.well-known/acme-challenge/
+# path under the hood.
+#
+# The email below is a placeholder. The two-phase deploy flow has the
+# user sed-replace EDIT_ME@example.com with their real email after
+# terraform apply. See docs/demo.md.
+#
+# Field notes (cert-manager >= 1.14):
+# - `ingressClassName: nginx` is the modern field. The legacy `class`
+#   field is specific to GCE Ingress and WILL NOT WORK here.
+# - `privateKeySecretRef` is the Secret that holds the ACME account
+#   private key (cert-manager auto-creates it).
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: EDIT_ME@example.com
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: nginx

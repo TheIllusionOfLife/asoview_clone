@@ -1,0 +1,70 @@
+# ingress-nginx controller installed from the upstream Helm chart.
+# Version pinned to 4.11.x (check https://github.com/kubernetes/
+# ingress-nginx/releases for chart version → controller version mapping).
+#
+# Two-phase deploy: after `terraform apply`, the user reads the regional
+# static IP from `terraform output static_ip` and sed-replaces
+# EDIT_ME_STATIC_IP below with that literal value, then commits + pushes.
+# Argo CD then syncs ingress-nginx with the pinned IP.
+#
+# We set:
+# - loadBalancerIP: pin the Service to the terraform-reserved regional IP
+# - externalTrafficPolicy: Local: preserve client source IP (needed for
+#   nginx's real-ip + rate-limit logic and for correct proxy-forwarded-for)
+# - use-forwarded-headers: true: nginx trusts X-Forwarded-* from upstream
+#   (the GCP L4 LB passes these through)
+# - ingressClass: nginx: the class name matches what our Ingresses
+#   (infra/k8s/edge/ingress.yaml) specify via spec.ingressClassName
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress-nginx
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: asoview-clone-dev
+spec:
+  project: default
+  source:
+    repoURL: https://kubernetes.github.io/ingress-nginx
+    chart: ingress-nginx
+    targetRevision: 4.11.3
+    helm:
+      releaseName: ingress-nginx
+      values: |
+        controller:
+          service:
+            loadBalancerIP: EDIT_ME_STATIC_IP
+            externalTrafficPolicy: Local
+          config:
+            use-forwarded-headers: "true"
+            proxy-body-size: "10m"
+          ingressClassResource:
+            name: nginx
+            enabled: true
+            default: false
+          ingressClass: nginx
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          metrics:
+            enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: edge
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

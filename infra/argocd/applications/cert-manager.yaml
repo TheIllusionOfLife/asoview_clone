@@ -1,0 +1,58 @@
+# cert-manager installed from the upstream Helm chart.
+# Version pinned to v1.16.x (check https://cert-manager.io/docs/releases/
+# before bumping).
+#
+# SkipDryRunOnMissingResource=true on the sync options lets the
+# ClusterIssuer in infra/k8s/edge/ apply even if cert-manager's CRDs
+# haven't installed yet on the very first sync. Argo CD retries and
+# self-heals once CRDs exist. Without this flag the first sync fails
+# with "no matches for kind ClusterIssuer" and has to be retried
+# manually.
+#
+# ServerSideApply is required for cert-manager's CRDs which are large
+# enough to hit the client-side apply annotation size limit.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: asoview-clone-dev
+spec:
+  project: default
+  source:
+    repoURL: https://charts.jetstack.io
+    chart: cert-manager
+    targetRevision: v1.16.2
+    helm:
+      releaseName: cert-manager
+      values: |
+        crds:
+          enabled: true
+        global:
+          leaderElection:
+            namespace: cert-manager
+        resources:
+          requests:
+            cpu: 20m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m
