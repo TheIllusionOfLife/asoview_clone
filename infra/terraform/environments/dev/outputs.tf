@@ -1,12 +1,12 @@
 output "web_url" {
-  # Precedence must match the edge.tf condition that actually provisions
-  # Cloud DNS: the custom-domain URL is only reachable when duckdns is
-  # disabled (otherwise no DNS zone/A record is created for it). When
-  # duckdns_subdomain is set, report the DuckDNS URL regardless of
-  # var.domain so the output matches what the cluster actually serves.
+  # The DuckDNS hostname is hardcoded in infra/k8s/edge/ingress.yaml
+  # (host + TLS). var.duckdns_subdomain is a gate, not a source-of-truth
+  # substitution — do NOT interpolate it here or the output will drift
+  # from what the cluster actually serves. Precedence matches edge.tf:
+  # custom domain only when duckdns is explicitly disabled.
   value = (
     var.domain != "" && var.duckdns_subdomain == "" ? "https://${var.domain}" :
-    var.duckdns_subdomain != "" ? "https://${var.duckdns_subdomain}.duckdns.org" :
+    var.duckdns_subdomain != "" ? "https://asoview-clone-dev.duckdns.org" :
     "http://${google_compute_address.edge.address}"
   )
   description = "Consumer-facing asoview-web URL (HTTPS once the Let's Encrypt cert is Ready)"

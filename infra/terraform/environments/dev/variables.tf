@@ -28,7 +28,7 @@ variable "domain" {
 
 variable "duckdns_subdomain" {
   type        = string
-  description = "DuckDNS subdomain (without the .duckdns.org suffix). The full hostname becomes <this>.duckdns.org. Used in the ingress.yaml host + TLS cert."
+  description = "DuckDNS subdomain (without the .duckdns.org suffix). NOTE: this variable is informational only — it gates the Cloud DNS resources in edge.tf and is reflected in the web_url output, but the actual hostname in infra/k8s/edge/ingress.yaml is hardcoded. If you change this, you MUST also sed-replace asoview-clone-dev.duckdns.org in ingress.yaml (host + TLS hosts)."
   default     = "asoview-clone-dev"
 }
 
