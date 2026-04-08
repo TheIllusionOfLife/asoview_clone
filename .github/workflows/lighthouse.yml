@@ -1,0 +1,77 @@
+# Lighthouse CI for apps/asoview-web.
+#
+# Mobile-form-factor audit with pinned category thresholds
+# (perf 0.85, a11y 0.95, seo 0.90, best-practices 0.90). Runs on PRs
+# that touch the web app, the rc file, or this workflow itself.
+#
+# Currently collects only `/ja` (landing). Additional routes planned
+# once a seeded backend is available in CI:
+#   - /ja/areas/tokyo
+#   - /ja/products/<seed-id>
+#   - /ja/checkout/<seed-order-id>
+name: Lighthouse
+
+on:
+  pull_request:
+    paths:
+      - "apps/asoview-web/**"
+      - "lighthouserc.json"
+      - ".github/workflows/lighthouse.yml"
+
+jobs:
+  lhci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install web workspace deps
+        working-directory: apps/asoview-web
+        run: bun install --frozen-lockfile
+
+      - name: Build web app
+        working-directory: apps/asoview-web
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+        run: bun run build
+
+      - name: Start web server
+        working-directory: apps/asoview-web
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+        run: |
+          bun run start &
+          echo $! > /tmp/web.pid
+
+      - name: Wait for :3000
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3000/healthz >/dev/null; then
+              echo "web up"; exit 0
+            fi
+            sleep 1
+          done
+          echo "web did not come up"; exit 1
+
+      - name: Run Lighthouse CI
+        run: bunx @lhci/cli@0.14.x autorun --config=./lighthouserc.json
+
+      - name: Stop web server
+        if: always()
+        run: |
+          if [ -f /tmp/web.pid ]; then kill "$(cat /tmp/web.pid)" || true; fi
+
+      - name: Upload Lighthouse report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report
+          path: .lighthouseci
+          if-no-files-found: ignore
