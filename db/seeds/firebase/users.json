@@ -1,0 +1,94 @@
+{
+  "users": [
+    {
+      "localId": "demo01",
+      "email": "demo01@example.com",
+      "emailVerified": true,
+      "displayName": "Demo User 1",
+      "providerUserInfo": [
+        { "providerId": "password", "email": "demo01@example.com", "rawId": "demo01" }
+      ]
+    },
+    {
+      "localId": "demo02",
+      "email": "demo02@example.com",
+      "emailVerified": true,
+      "displayName": "Demo User 2",
+      "providerUserInfo": [
+        { "providerId": "password", "email": "demo02@example.com", "rawId": "demo02" }
+      ]
+    },
+    {
+      "localId": "demo03",
+      "email": "demo03@example.com",
+      "emailVerified": true,
+      "displayName": "Demo User 3",
+      "providerUserInfo": [
+        { "providerId": "password", "email": "demo03@example.com", "rawId": "demo03" }
+      ]
+    },
+    {
+      "localId": "demo04",
+      "email": "demo04@example.com",
+      "emailVerified": true,
+      "displayName": "Demo User 4",
+      "providerUserInfo": [
+        { "providerId": "password", "email": "demo04@example.com", "rawId": "demo04" }
+      ]
+    },
+    {
+      "localId": "demo05",
+      "email": "demo05@example.com",
+      "emailVerified": true,
+      "displayName": "Demo User 5",
+      "providerUserInfo": [
+        { "providerId": "password", "email": "demo05@example.com", "rawId": "demo05" }
+      ]
+    },
+    {
+      "localId": "demo06",
+      "email": "demo06@example.com",
+      "emailVerified": true,
+      "displayName": "Demo User 6",
+      "providerUserInfo": [
+        { "providerId": "password", "email": "demo06@example.com", "rawId": "demo06" }
+      ]
+    },
+    {
+      "localId": "demo07",
+      "email": "demo07@example.com",
+      "emailVerified": true,
+      "displayName": "Demo User 7",
+      "providerUserInfo": [
+        { "providerId": "password", "email": "demo07@example.com", "rawId": "demo07" }
+      ]
+    },
+    {
+      "localId": "demo08",
+      "email": "demo08@example.com",
+      "emailVerified": true,
+      "displayName": "Demo User 8",
+      "providerUserInfo": [
+        { "providerId": "password", "email": "demo08@example.com", "rawId": "demo08" }
+      ]
+    },
+    {
+      "localId": "demo09",
+      "email": "demo09@example.com",
+      "emailVerified": true,
+      "displayName": "Demo User 9",
+      "providerUserInfo": [
+        { "providerId": "password", "email": "demo09@example.com", "rawId": "demo09" }
+      ]
+    },
+    {
+      "localId": "demo10",
+      "email": "demo10@example.com",
+      "emailVerified": true,
+      "displayName": "Demo User 10",
+      "providerUserInfo": [
+        { "providerId": "password", "email": "demo10@example.com", "rawId": "demo10" }
+      ]
+    }
+  ]
+}
