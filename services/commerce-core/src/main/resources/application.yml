@@ -11,6 +11,8 @@ spring:
     open-in-view: false
   flyway:
     locations: classpath:db/migration
+    placeholders:
+      seed_catalog: "false"
   data:
     redis:
       host: ${REDIS_HOST:localhost}
