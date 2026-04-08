@@ -59,6 +59,22 @@ public class CatalogServiceImpl implements CatalogService {
   @Override
   public Page<Product> listProducts(
       UUID categoryId, UUID venueId, ProductStatus status, Pageable pageable) {
+    Page<Product> page = dispatchListQuery(categoryId, venueId, status, pageable);
+    // Force-load the lazy variants collection while the read-only
+    // transaction is still open. With @BatchSize(20) on Product.variants
+    // this issues at most one extra query per page-size/20. Without this,
+    // controller-layer serialization (which runs AFTER the service method
+    // returns and the persistence context closes) triggers
+    // LazyInitializationException because Boot 4 defaults
+    // spring.jpa.open-in-view to false.
+    for (Product p : page.getContent()) {
+      p.getVariants().size();
+    }
+    return page;
+  }
+
+  private Page<Product> dispatchListQuery(
+      UUID categoryId, UUID venueId, ProductStatus status, Pageable pageable) {
     if (categoryId != null && venueId != null && status != null) {
       return productRepository.findByCategoryIdAndVenueIdAndStatus(
           categoryId, venueId, status, pageable);

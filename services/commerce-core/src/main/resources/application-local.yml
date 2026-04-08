@@ -8,12 +8,6 @@ spring:
       seed_catalog: "true"
   jpa:
     show-sql: true
-    # Local-only: enable OSIV so the seeded Page<ProductResponse> can lazily
-    # serialize variants without a LazyInitializationException. Production
-    # keeps open-in-view=false (see application.yml); the real fix lives in
-    # CatalogServiceImpl (fetch variants eagerly on list) and is deferred to
-    # a follow-up (Group A gap discovered by seed-smoke).
-    open-in-view: true
   data:
     redis:
       host: localhost
