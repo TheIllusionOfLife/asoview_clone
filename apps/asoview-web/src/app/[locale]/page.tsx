@@ -44,12 +44,10 @@ export default async function HomePage() {
 
       <section aria-labelledby="areas-heading" className="mt-14">
         <h2 id="areas-heading" className="font-display text-2xl font-semibold">
-          エリアから探す
+          {tLanding("areas.heading")}
         </h2>
         {areas.length === 0 ? (
-          <p className="mt-4 text-sm text-[var(--color-ink-muted)]">
-            エリア情報を読み込めませんでした。
-          </p>
+          <p className="mt-4 text-sm text-[var(--color-ink-muted)]">{tLanding("areas.empty")}</p>
         ) : (
           <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {areas.slice(0, 24).map((a) => (
@@ -61,12 +59,10 @@ export default async function HomePage() {
 
       <section aria-labelledby="featured-heading" className="mt-14">
         <h2 id="featured-heading" className="font-display text-2xl font-semibold">
-          注目の体験
+          {tLanding("featured.heading")}
         </h2>
         {featured.length === 0 ? (
-          <p className="mt-4 text-sm text-[var(--color-ink-muted)]">
-            おすすめ商品を読み込めませんでした。
-          </p>
+          <p className="mt-4 text-sm text-[var(--color-ink-muted)]">{tLanding("featured.empty")}</p>
         ) : (
           <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {featured.map((p) => (

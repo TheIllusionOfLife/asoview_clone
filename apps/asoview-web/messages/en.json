@@ -18,6 +18,14 @@
     "hero": {
       "title": "Experiences, closer to you.",
       "subtitle": "Book leisure, activities, and experiences across Japan with ease."
+    },
+    "areas": {
+      "heading": "Browse by area",
+      "empty": "Could not load area information."
+    },
+    "featured": {
+      "heading": "Featured experiences",
+      "empty": "Could not load featured products."
     }
   },
   "nav": {

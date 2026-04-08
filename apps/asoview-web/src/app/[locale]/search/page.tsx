@@ -21,7 +21,10 @@ interface Props {
   searchParams: Promise<SearchParams>;
 }
 
-const ALLOWED_SORTS = ["relevance", "priceAsc", "priceDesc"] as const;
+// Must match the <option value=...> emitted by Facets.tsx. Hyphenated
+// URL-canonical form. A mismatch would silently lose the user's sort on
+// reload because validation falls back to "relevance" (Devin PR #24 finding).
+const ALLOWED_SORTS = ["relevance", "price-asc", "price-desc"] as const;
 
 function firstParam(v: Multi): string | undefined {
   if (v === undefined) return undefined;

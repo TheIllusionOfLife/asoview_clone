@@ -26,14 +26,17 @@ import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 
 function formatJpy(amount: number | string, locale: string): string {
-  // Display-only formatter. Japanese retail uses integer yen, so Math.trunc
-  // here is the intentional rounding mode.
-  const n = typeof amount === "number" ? amount : Number(amount); // money-parse-ok
+  // Display-only formatter. Japanese retail is integer yen, so Math.trunc
+  // is the intentional rounding mode. NUMERIC money strings (e.g. "1500.00")
+  // go through parseMinorUnits (integer minor units) / 100 so no Number()
+  // coercion crosses the money boundary (CLAUDE.md NUMERIC rule).
+  const yen =
+    typeof amount === "number" ? Math.trunc(amount) : Math.trunc(parseMinorUnits(amount) / 100);
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "JPY",
     maximumFractionDigits: 0,
-  }).format(Number.isFinite(n) ? Math.trunc(n) : 0);
+  }).format(Number.isFinite(yen) ? yen : 0);
 }
 
 function formatSlotWindow(start: string, end: string): string {
@@ -103,6 +106,14 @@ export default function CartPage() {
   );
   const clampedPoints = Math.max(0, Math.min(maxPoints, Math.trunc(pointsToUse || 0)));
   const totalAfterPoints = Math.max(0, subtotalYen - clampedPoints);
+
+  // Keep the visible input in sync with the derived clamp: if maxPoints
+  // shrinks (balance refetch, line removed) the user should not see a
+  // stale higher value that conflicts with the submitted amount. Do NOT
+  // depend on `pointsToUse` itself — that would loop.
+  useEffect(() => {
+    setPointsToUse((cur) => Math.max(0, Math.min(maxPoints, Math.trunc(cur || 0))));
+  }, [maxPoints]);
 
   const onCheckout = useCallback(async () => {
     if (cart.lines.length === 0) return;
@@ -216,8 +227,7 @@ export default function CartPage() {
                   {formatSlotWindow(l.slotStartAt, l.slotEndAt)}
                 </p>
                 <p className="mt-1 text-sm font-semibold text-[var(--color-primary)]">
-                  {formatJpy(Number(l.unitPrice) /* money-parse-ok */, locale)}{" "}
-                  {t("lineQuantity", { n: l.quantity })}
+                  {formatJpy(l.unitPrice, locale)} {t("lineQuantity", { n: l.quantity })}
                 </p>
               </div>
               <div className="flex items-center gap-2">

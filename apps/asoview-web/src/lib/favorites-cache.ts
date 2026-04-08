@@ -16,11 +16,21 @@
 
 import { listFavorites } from "./api";
 
-type State =
-  | { kind: "idle" }
-  | { kind: "loading"; promise: Promise<void> }
-  | { kind: "ready"; ids: Set<string> }
-  | { kind: "error" };
+interface IdleState {
+  kind: "idle";
+}
+interface LoadingState {
+  kind: "loading";
+  promise: Promise<void>;
+}
+interface ReadyState {
+  kind: "ready";
+  ids: Set<string>;
+}
+interface ErrorState {
+  kind: "error";
+}
+type State = IdleState | LoadingState | ReadyState | ErrorState;
 
 let state: State = { kind: "idle" };
 let epoch = 0;
@@ -95,8 +105,13 @@ export function markUnfavorited(productId: string): void {
   notify();
 }
 
-/** Test-only: seed the cache directly. */
+/**
+ * Test-only: seed the cache directly. Bumps `epoch` so any in-flight
+ * `ensureFavoritesLoaded()` continuation that started under a previous
+ * epoch drops its result on completion instead of overwriting the seed.
+ */
 export function __seedFavoritesCacheForTest(ids: string[] | null): void {
+  epoch += 1;
   if (ids === null) {
     state = { kind: "idle" };
   } else {

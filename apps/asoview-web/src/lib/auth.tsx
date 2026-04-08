@@ -57,9 +57,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         unsub = onIdTokenChanged(auth, async (u) => {
           setUser((prev) => {
-            if (prev && !u) {
-              // User signed out: drop cached per-user state so the next
-              // signed-in user does not see the previous user's favorites.
+            // Reset per-user cached state on every identity transition:
+            // sign-in (null → user), sign-out (user → null), and account
+            // switch (userA → userB). `prev?.uid !== u?.uid` covers all
+            // three cases and is a no-op on the unchanged case (identical
+            // uid object refreshed via token rotation).
+            if (prev?.uid !== u?.uid) {
               resetFavoritesCache();
             }
             return u;
