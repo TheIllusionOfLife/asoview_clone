@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: ticketing-service
   namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: asoview-clone-dev
 spec:
   project: default
   source:

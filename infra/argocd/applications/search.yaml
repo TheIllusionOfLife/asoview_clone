@@ -7,6 +7,8 @@ kind: Application
 metadata:
   name: search
   namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: asoview-clone-dev
 spec:
   project: default
   source:

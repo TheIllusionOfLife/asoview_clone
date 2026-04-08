@@ -23,3 +23,8 @@ output "spanner_instance_id" {
 output "artifact_registry_repo" {
   value = module.artifact_registry.repository_url
 }
+
+output "commerce_core_gsa_email" {
+  value       = google_service_account.commerce_core.email
+  description = "GSA email to patch into infra/k8s/commerce-core/overlays/dev kustomize annotation."
+}

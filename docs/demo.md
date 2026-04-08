@@ -70,43 +70,47 @@ kubectl create secret generic firebase-config \
   --from-literal=api-key='...' \
   --from-literal=project-id='asoview-clone-dev'
 
-# 3b. Create the Workload Identity binding for commerce-core.
-#     The k8s ServiceAccount (infra/k8s/commerce-core/base/serviceaccount.yaml)
-#     is annotated with iam.gke.io/gcp-service-account =
-#     commerce-core@asoview-clone-dev.iam.gserviceaccount.com.
-#     The matching GSA must exist and have the WorkloadIdentityUser
-#     role binding before pods can mint tokens.
-gcloud iam service-accounts create commerce-core \
-  --display-name='commerce-core workload identity' \
-  --project=asoview-clone-dev || true
-
-gcloud projects add-iam-policy-binding asoview-clone-dev \
-  --member='serviceAccount:commerce-core@asoview-clone-dev.iam.gserviceaccount.com' \
-  --role='roles/cloudsql.client'
-gcloud projects add-iam-policy-binding asoview-clone-dev \
-  --member='serviceAccount:commerce-core@asoview-clone-dev.iam.gserviceaccount.com' \
-  --role='roles/spanner.databaseUser'
-
-gcloud iam service-accounts add-iam-policy-binding \
-  commerce-core@asoview-clone-dev.iam.gserviceaccount.com \
-  --role='roles/iam.workloadIdentityUser' \
-  --member='serviceAccount:asoview-clone-dev.svc.id.goog[core-services/commerce-core]' \
-  --project=asoview-clone-dev
+# 3b. Workload Identity for commerce-core is created by terraform
+#     (infra/terraform/environments/dev/workload-identity.tf): GSA,
+#     project IAM bindings (cloudsql.client + spanner.databaseUser),
+#     and the workloadIdentityUser binding linking the KSA
+#     `core-services/commerce-core` to the GSA. The kustomize dev
+#     overlay then patches the iam.gke.io/gcp-service-account
+#     annotation on the KSA with the email exposed by the terraform
+#     output `commerce_core_gsa_email`. If you change the dev project
+#     id, sync that overlay patch + the terraform variable.
 
 # 4. Bootstrap Argo CD Applications (run from repo root)
 kubectl apply -f infra/argocd/applications/
 
-# 5. Wait for initial sync (~5 min)
-argocd app sync -l argocd.argoproj.io/instance=default
-argocd app wait -l argocd.argoproj.io/instance=default --health
+# 5. Install + log in to the argocd CLI
+#    macOS: brew install argocd
+#    Linux: curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64 && chmod +x /usr/local/bin/argocd
+#
+#    The Argo CD API server is ClusterIP-only by default. Either expose
+#    it via port-forward (simplest) or via a LoadBalancer Service.
+kubectl port-forward -n argocd svc/argocd-server 8080:443 >/dev/null 2>&1 &
+sleep 3
+ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath='{.data.password}' | base64 -d)
+argocd login localhost:8080 \
+  --username admin \
+  --password "$ARGOCD_PASSWORD" \
+  --insecure
 
-# 6. Configure DNS
+# 6. Wait for initial sync (~5 min). The selector matches the
+#    `app.kubernetes.io/part-of: asoview-clone-dev` label that every
+#    Application manifest under infra/argocd/applications/ carries.
+argocd app sync -l app.kubernetes.io/part-of=asoview-clone-dev
+argocd app wait -l app.kubernetes.io/part-of=asoview-clone-dev --health
+
+# 7. Configure DNS
 #    Get the static IP:
 terraform -chdir=infra/terraform/environments/dev output static_ip
 #    Create an A record in your DNS provider:
 #      <your-domain>.  300  IN  A  <static-ip>
 
-# 7. Activate the edge ingress with your real domain
+# 8. Activate the edge ingress with your real domain
 #    The base infra/k8s/edge/ directory ships EMPTY (kustomization.yaml
 #    has resources: []) so Argo CD does NOT sync the example.com
 #    placeholder. To activate:
@@ -124,14 +128,31 @@ terraform -chdir=infra/terraform/environments/dev output static_ip
 
 ## Redeploy (after code changes)
 
+`cloudbuild.yaml` is **trigger-only**. Local `gcloud builds submit`
+will not work because it doesn't populate `$SHORT_SHA` or `$BRANCH_NAME`
+and uploads a tarball without `.git` metadata. Create a GitHub trigger
+once, then redeploys are automatic on every push to `main`.
+
 ```bash
-gcloud builds submit --config cloudbuild.yaml \
-  --substitutions=_DOMAIN=<your-domain>,_FIREBASE_API_KEY=...,_FIREBASE_AUTH_DOMAIN=...,_FIREBASE_PROJECT_ID=asoview-clone-dev,_FIREBASE_APP_ID=...,_STRIPE_PUBLISHABLE_KEY=pk_test_...
+# One-time trigger setup. Sensitive substitutions (FIREBASE_API_KEY,
+# STRIPE_PUBLISHABLE_KEY) should live in Secret Manager and be wired
+# in via the Cloud Console UI or `gcloud builds triggers update` with
+# --substitutions referencing $$SECRET notation. Plain --substitutions
+# below is shown for brevity; do NOT use the literal command in CI
+# logs because the values land in shell history + build logs.
+gcloud builds triggers create github \
+  --name=asoview-clone-deploy \
+  --repo-name=asoview_clone --repo-owner=TheIllusionOfLife \
+  --branch-pattern='^main$' \
+  --build-config=cloudbuild.yaml \
+  --substitutions=_DOMAIN=<your-domain>,_FIREBASE_PROJECT_ID=asoview-clone-dev
 ```
 
-Cloud Build builds 7 images in parallel, pushes them to Artifact
-Registry, bumps the image tags in `infra/k8s/*/overlays/dev/kustomization.yaml`,
-and commits back to `main`. Argo CD reconciles within its sync window.
+Every push to `main` then fires the trigger, builds and pushes 7
+images in parallel to Artifact Registry, bumps the image tags in
+`infra/k8s/*/overlays/dev/kustomization.yaml`, and commits back to
+`main` (with `[skip ci]` so the bump itself doesn't loop). Argo CD
+reconciles within its sync window.
 
 ## Stripe Test Cards
 

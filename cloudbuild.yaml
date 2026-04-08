@@ -5,16 +5,32 @@
 # main. Argo CD picks up the commit within its sync interval and
 # rolls out the new revision.
 #
-# Substitutions:
+# RUN MODE: this config is **trigger-only**. It depends on
+# $SHORT_SHA and $BRANCH_NAME (built-in trigger substitutions
+# auto-populated by Cloud Build only when invoked from a trigger
+# linked to a git source) and on the .git directory present in the
+# trigger workspace for the git-commit-bump step. Local
+# `gcloud builds submit` is NOT supported because it tarballs the
+# working directory (no .git, no $SHORT_SHA, no $BRANCH_NAME).
+#
+# Setup (one-time):
+#   gcloud builds triggers create github \
+#     --name=asoview-clone-deploy \
+#     --repo-name=asoview_clone --repo-owner=TheIllusionOfLife \
+#     --branch-pattern='^main$' \
+#     --build-config=cloudbuild.yaml \
+#     --substitutions=_DOMAIN=<domain>,_FIREBASE_API_KEY=...,...
+#
+# Required substitutions (set on the trigger, NOT in the file):
 #   _REGION       (default asia-northeast1)
 #   _REPO         (default asoview-clone)
-#   _DOMAIN       (required for web build args, e.g. example.com)
+#   _DOMAIN       e.g. asoview-clone.dev
 #   _FIREBASE_API_KEY, _FIREBASE_AUTH_DOMAIN, _FIREBASE_PROJECT_ID,
-#   _FIREBASE_APP_ID, _STRIPE_PUBLISHABLE_KEY (required for web)
+#   _FIREBASE_APP_ID, _STRIPE_PUBLISHABLE_KEY
 #
-# Usage:
-#   gcloud builds submit --config cloudbuild.yaml \
-#     --substitutions=_DOMAIN=example.com,_FIREBASE_API_KEY=...,...
+# Sensitive values (Firebase API key, Stripe publishable key) should
+# live in Secret Manager and be wired via availableSecrets at the
+# trigger level rather than passed in as plaintext substitutions.
 substitutions:
   _REGION: asia-northeast1
   _REPO: asoview-clone
@@ -207,19 +223,31 @@ steps:
         fi
         git config user.email "cloudbuild@$PROJECT_ID.iam.gserviceaccount.com"
         git config user.name "Cloud Build"
-        git add infra/k8s/*/overlays/dev/kustomization.yaml
-        if git diff --cached --quiet; then
+        # Snapshot the bumped kustomization files so we can re-apply them
+        # on every retry. The bump step (`bump-kustomize`) ran yq -i so
+        # the changes are in the working tree but unstaged.
+        if git diff --quiet infra/k8s/*/overlays/dev/kustomization.yaml; then
           echo "No kustomize changes to commit"
           exit 0
         fi
-        git commit -m "chore(deploy): bump image tags to $SHORT_SHA [skip ci]"
+        cp -r infra/k8s /tmp/k8s-bumped
         # Two main builds racing each other will fight over the push.
-        # Retry up to 3 times with fetch+rebase to absorb a winner's
-        # commit. --force-with-lease guards against accidental
-        # rewriting of an unexpected upstream tip.
+        # Retry up to 3 times with fresh fetch+reset+reapply+commit so
+        # the bump commit is always built on top of the latest origin/main.
+        # --force-with-lease guards against clobbering an unexpected tip.
         for attempt in 1 2 3; do
           git fetch origin main
-          git rebase origin/main || { git rebase --abort; exit 1; }
+          # Reset hard to origin/main to drop any prior attempt's commit,
+          # then re-stage the bumped files from the snapshot.
+          git reset --hard origin/main
+          rm -rf infra/k8s
+          cp -r /tmp/k8s-bumped infra/k8s
+          git add infra/k8s/*/overlays/dev/kustomization.yaml
+          if git diff --cached --quiet; then
+            echo "Working tree clean after rebase (someone else bumped already)"
+            exit 0
+          fi
+          git commit -m "chore(deploy): bump image tags to $SHORT_SHA [skip ci]"
           if git push --force-with-lease origin HEAD:main; then
             echo "Push succeeded on attempt $attempt"
             exit 0
