@@ -14,6 +14,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { setIdTokenGetter } from "./api";
@@ -47,6 +48,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Google OAuth via signInWithPopup. Real persistence-backed session
   // restore lives on the server via ID-token cookies in a later PR.
   const [ready, setReady] = useState(true);
+  // Tracks the last uid we observed from Firebase, OUTSIDE of React state so
+  // the identity-change detection runs exactly once per transition even under
+  // Strict Mode (which double-invokes state updaters in dev). Keeping the
+  // side-effect (`resetFavoritesCache`) out of `setUser`'s updater keeps the
+  // updater pure.
+  const lastUidRef = useRef<string | null>(null);
 
   useEffect(() => {
     let unsub: (() => void) | undefined;
@@ -56,17 +63,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { auth } = await ensureFirebaseReady();
         if (cancelled) return;
         unsub = onIdTokenChanged(auth, async (u) => {
-          setUser((prev) => {
-            // Reset per-user cached state on every identity transition:
-            // sign-in (null → user), sign-out (user → null), and account
-            // switch (userA → userB). `prev?.uid !== u?.uid` covers all
-            // three cases and is a no-op on the unchanged case (identical
-            // uid object refreshed via token rotation).
-            if (prev?.uid !== u?.uid) {
-              resetFavoritesCache();
-            }
-            return u;
-          });
+          // Reset per-user cached state on every identity transition:
+          // sign-in (null → user), sign-out (user → null), and account
+          // switch (userA → userB). The check uses an external ref so
+          // it fires exactly once per real transition, not once per
+          // Strict Mode updater invocation.
+          const nextUid = u?.uid ?? null;
+          if (lastUidRef.current !== nextUid) {
+            resetFavoritesCache();
+            lastUidRef.current = nextUid;
+          }
+          setUser(u);
           try {
             if (u) {
               const token = await u.getIdToken();

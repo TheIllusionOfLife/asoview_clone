@@ -28,7 +28,7 @@ import { useCallback, useEffect, useState } from "react";
 function formatJpy(amount: number | string, locale: string): string {
   // Display-only formatter. Japanese retail is integer yen, so Math.trunc
   // is the intentional rounding mode. NUMERIC money strings (e.g. "1500.00")
-  // go through parseMinorUnits (integer minor units) / 100 so no Number()
+  // go through parseMinorUnits (integer minor units) / 100 so no numeric
   // coercion crosses the money boundary (CLAUDE.md NUMERIC rule).
   const yen =
     typeof amount === "number" ? Math.trunc(amount) : Math.trunc(parseMinorUnits(amount) / 100);
@@ -79,8 +79,15 @@ export default function CartPage() {
 
   // Fetch the user's points balance once they are signed in. Fail silent —
   // points are optional and a fetch failure should not block checkout.
+  // Sign-out path: drop `pointsBalance` and `pointsToUse` so a refreshed
+  // maxPoints derivation treats logged-out renders as 0 (no stale totals).
   useEffect(() => {
-    if (!ready || !user) return;
+    if (!ready) return;
+    if (!user) {
+      setPointsBalance(null);
+      setPointsToUse(0);
+      return;
+    }
     let cancelled = false;
     const ctrl = new AbortController();
     (async () => {
