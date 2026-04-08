@@ -34,7 +34,16 @@
 substitutions:
   _REGION: asia-northeast1
   _REPO: asoview-clone
-  _DOMAIN: example.com
+  # _DOMAIN must be provided by the trigger. Defaulting to a placeholder
+  # like "example.com" would silently produce a valid-looking
+  # NEXT_PUBLIC_API_BASE_URL=https://example.com and slip past the
+  # buildCsp() production fail-fast check in
+  # apps/asoview-web/src/lib/csp.ts — the resulting image would serve a
+  # CSP that allows https://example.com as a connect-src origin and
+  # point every API call at example.com. Empty forces
+  # NEXT_PUBLIC_API_BASE_URL=https:// which the CSP builder rejects,
+  # failing the web build loudly instead of shipping a broken image.
+  _DOMAIN: ""
   _FIREBASE_API_KEY: ""
   _FIREBASE_AUTH_DOMAIN: ""
   _FIREBASE_PROJECT_ID: ""

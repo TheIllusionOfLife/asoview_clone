@@ -44,13 +44,18 @@ spec:
             capabilities:
               drop: ["ALL"]
           volumeMounts:
-            - name: tmp
+            - name: tmp-app
               mountPath: /tmp
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: dev
-            - name: SPANNER_EMULATOR_HOST
-              value: ""
+            # SPANNER_EMULATOR_HOST is intentionally NOT set. SpannerConfig
+            # checks `System.getenv("SPANNER_EMULATOR_HOST") != null` and
+            # would treat an empty string as a request to enter emulator
+            # mode with host="" — the Spanner client would then bypass
+            # Workload Identity and fail to reach real Cloud Spanner.
+            # Leaving the var absent makes getenv() return null and the
+            # normal production path wins.
             - name: SPRING_DATASOURCE_URL
               value: jdbc:postgresql://localhost:5432/asoview
             - name: SPRING_DATASOURCE_USERNAME
@@ -122,11 +127,13 @@ spec:
               drop: ["ALL"]
           # Cloud SQL Auth Proxy 2.x writes its UNIX socket and ephemeral
           # state under /tmp. With readOnlyRootFilesystem we must mount an
-          # emptyDir at /tmp or the proxy crash-loops at startup. Volume
-          # mounts are per-container, so even though the app container has
-          # /tmp, the sidecar needs its own mount.
+          # emptyDir at /tmp. Use a SEPARATE emptyDir (tmp-proxy) from the
+          # app container (tmp-app) so the JVM's /tmp (Tomcat work dirs,
+          # multipart uploads) and the proxy's /tmp (UNIX socket, state)
+          # don't share a filesystem. Same volume name = shared storage;
+          # different names keeps them isolated.
           volumeMounts:
-            - name: tmp
+            - name: tmp-proxy
               mountPath: /tmp
           resources:
             requests:
@@ -136,5 +143,7 @@ spec:
               cpu: "200m"
               memory: "128Mi"
       volumes:
-        - name: tmp
+        - name: tmp-app
+          emptyDir: {}
+        - name: tmp-proxy
           emptyDir: {}

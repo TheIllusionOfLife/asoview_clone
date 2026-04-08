@@ -1,7 +1,7 @@
 # asoview-clone Dev Environment — Demo Guide
 
 One-page walkthrough for standing up the full `asoview-clone-dev`
-environment on GCP and exercising the Asoview! consumer flow end to end.
+environment on GCP and exercising the Asoview! consumer flow end-to-end.
 
 ## Overview
 
@@ -123,7 +123,7 @@ terraform -chdir=infra/terraform/environments/dev output static_ip
 #      e. Commit and push — Argo CD picks it up
 #    Wait ~15 min for ManagedCertificate to provision the cert.
 
-# 8. Visit https://<your-domain>/ja
+# 9. Visit https://<your-domain>/ja
 ```
 
 ## Redeploy (after code changes)
@@ -167,8 +167,7 @@ Any future expiry, any 3-digit CVC, any postal code.
 ## Tear Down
 
 ```bash
-cd infra/terraform/environments/dev
-terraform destroy
+terraform -chdir=infra/terraform/environments/dev destroy
 ```
 
 This removes the GKE cluster, Cloud SQL, Spanner, Memorystore, and the
@@ -185,5 +184,11 @@ static IP. DNS A records must be deleted manually from your DNS provider.
 | Load Balancer + static IP | \$20 |
 | **Total** | **\~\$200/mo** |
 
-Scale Spanner to 0 PU or pause the cluster when not in active use to cut
-roughly half the cost.
+Cost-saving options when the demo is idle: Cloud Spanner's minimum is
+100 PU and instances cannot be paused, so the only way to stop Spanner
+charges is to `terraform destroy` the instance (or delete it via
+`gcloud spanner instances delete`) and re-create it for the next demo
+session. Autoscaling is an option for variable workloads but its own
+minimum is 1 node / 1000 PU, which is more expensive than the 100 PU
+floor we use here. The full ~$200/mo figure above assumes the stack
+runs continuously.
