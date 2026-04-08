@@ -1,10 +1,12 @@
 import { SlotPicker } from "@/components/SlotPicker";
 import { FavoriteToggle } from "@/components/favorites/FavoriteToggle";
+import { SimilarProducts } from "@/components/recommendations/SimilarProducts";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
 import { ReviewList } from "@/components/reviews/ReviewList";
 import { Link } from "@/i18n/navigation";
 import { ServerFetchError, serverGet } from "@/lib/server-api";
 import type { ProductResponse } from "@/lib/types";
+import { getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 
 export const revalidate = 60;
@@ -44,7 +46,10 @@ async function loadProduct(id: string, lang: string): Promise<ProductResponse | 
 
 export default async function ProductPage({ params }: Props) {
   const { locale, id } = await params;
-  const product = await loadProduct(id, locale);
+  const [product, tRec] = await Promise.all([
+    loadProduct(id, locale),
+    getTranslations("recommendations"),
+  ]);
   // Visibility gate: never render non-ACTIVE products on the public detail page.
   if (!product || product.status !== "ACTIVE") {
     notFound();
@@ -88,6 +93,12 @@ export default async function ProductPage({ params }: Props) {
           <ReviewForm productId={product.id} />
         </div>
       </section>
+
+      <SimilarProducts
+        title={tRec("similar")}
+        categoryId={product.categoryId ?? undefined}
+        excludeProductId={product.id}
+      />
     </div>
   );
 }

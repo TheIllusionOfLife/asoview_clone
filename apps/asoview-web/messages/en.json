@@ -60,6 +60,10 @@
     "helpful": "Helpful",
     "empty": "No reviews yet."
   },
+  "recommendations": {
+    "popular": "Popular experiences",
+    "similar": "Similar experiences"
+  },
   "wallet": {
     "apple": {
       "add": "Add to Apple Wallet",

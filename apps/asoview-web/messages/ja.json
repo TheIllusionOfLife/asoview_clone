@@ -60,6 +60,10 @@
     "helpful": "参考になった",
     "empty": "まだレビューはありません。"
   },
+  "recommendations": {
+    "popular": "人気の体験",
+    "similar": "似た体験"
+  },
   "wallet": {
     "apple": {
       "add": "Apple Wallet に追加",

@@ -1,7 +1,9 @@
 import { AreaCard } from "@/components/AreaCard";
 import { ProductCard } from "@/components/ProductCard";
+import { SimilarProducts } from "@/components/recommendations/SimilarProducts";
 import { serverGet } from "@/lib/server-api";
 import type { AreaResponse, Page, ProductResponse } from "@/lib/types";
+import { getTranslations } from "next-intl/server";
 
 export const revalidate = 60;
 
@@ -24,7 +26,11 @@ async function loadFeatured(): Promise<ProductResponse[]> {
 }
 
 export default async function HomePage() {
-  const [areas, featured] = await Promise.all([loadAreas(), loadFeatured()]);
+  const [areas, featured, tRec] = await Promise.all([
+    loadAreas(),
+    loadFeatured(),
+    getTranslations("recommendations"),
+  ]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:py-14">
@@ -70,6 +76,8 @@ export default async function HomePage() {
           </div>
         )}
       </section>
+
+      <SimilarProducts title={tRec("popular")} />
     </div>
   );
 }
