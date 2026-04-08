@@ -17,7 +17,7 @@ COPY package.json bun.lock* bun.lockb* ./
 COPY apps/asoview-web/package.json apps/asoview-web/package.json
 COPY libraries/frontend-shared/package.json libraries/frontend-shared/package.json
 COPY libraries/design-tokens/package.json libraries/design-tokens/package.json
-RUN bun install --frozen-lockfile || bun install
+RUN bun install --frozen-lockfile
 
 # ---------- build ----------
 FROM oven/bun:1 AS build

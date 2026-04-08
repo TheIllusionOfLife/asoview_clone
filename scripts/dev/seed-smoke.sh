@@ -8,8 +8,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
-LOG=/tmp/commerce.log
-PID_FILE=/tmp/commerce.pid
+RUN_ID="$(date +%s)-$$"
+LOG="/tmp/seed-smoke-${RUN_ID}.log"
+PID_FILE="/tmp/seed-smoke-${RUN_ID}.pid"
 
 cleanup() {
   if [[ -f "$PID_FILE" ]]; then
@@ -18,8 +19,14 @@ cleanup() {
     if [[ -n "${pid:-}" ]] && kill -0 "$pid" 2>/dev/null; then
       echo "seed-smoke: stopping commerce-core (pid=$pid)"
       kill "$pid" 2>/dev/null || true
-      sleep 2
-      kill -9 "$pid" 2>/dev/null || true
+      for _ in 1 2 3 4 5; do
+        sleep 1
+        kill -0 "$pid" 2>/dev/null || break
+      done
+      if kill -0 "$pid" 2>/dev/null; then
+        echo "seed-smoke: SIGTERM didn't take, escalating to SIGKILL"
+        kill -9 "$pid" 2>/dev/null || true
+      fi
     fi
     rm -f "$PID_FILE"
   fi

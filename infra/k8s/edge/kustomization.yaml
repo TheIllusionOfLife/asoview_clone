@@ -1,6 +1,17 @@
+# The edge directory is intentionally empty until the user provides a real
+# domain. The Ingress + ManagedCertificate templates live under `template/`
+# and contain `example.com` placeholders that would render as a permanently-
+# unhealthy ManagedCertificate if Argo CD synced them as-is.
+#
+# To activate the edge:
+#   1. Copy template/ingress.yaml + template/managed-certificate.yaml here
+#   2. Replace `example.com` with the domain you registered
+#   3. Add both filenames back to `resources:` below
+#   4. Add the host: field to the Ingress rules to match the cert domain
+#   5. Commit and push — Argo CD picks it up
+#
+# See docs/demo.md for the full walkthrough.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: edge
-resources:
-  - managed-certificate.yaml
-  - ingress.yaml
+resources: []

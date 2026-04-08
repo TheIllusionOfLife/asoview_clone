@@ -33,12 +33,15 @@ Platform, Cloud Build.
 
 ## First-time Deploy
 
+All commands below run from the **repo root**. The terraform commands
+use `-chdir=...` so they don't change the shell's working directory.
+
 ```bash
 # 1. Provision infrastructure
-cd infra/terraform/environments/dev
-cp terraform.tfvars.example terraform.tfvars   # edit project_id, region, domain
-terraform init
-terraform apply
+cp infra/terraform/environments/dev/terraform.tfvars.example \
+   infra/terraform/environments/dev/terraform.tfvars   # edit project_id, region, domain
+terraform -chdir=infra/terraform/environments/dev init
+terraform -chdir=infra/terraform/environments/dev apply
 
 # 2. Wire kubectl to the new cluster
 gcloud container clusters get-credentials asoview-clone-dev \
@@ -67,7 +70,7 @@ kubectl create secret generic firebase-config \
   --from-literal=api-key='...' \
   --from-literal=project-id='asoview-clone-dev'
 
-# 4. Bootstrap Argo CD Applications
+# 4. Bootstrap Argo CD Applications (run from repo root)
 kubectl apply -f infra/argocd/applications/
 
 # 5. Wait for initial sync (~5 min)
@@ -76,14 +79,22 @@ argocd app wait -l argocd.argoproj.io/instance=default --health
 
 # 6. Configure DNS
 #    Get the static IP:
-terraform output static_ip
+terraform -chdir=infra/terraform/environments/dev output static_ip
 #    Create an A record in your DNS provider:
 #      <your-domain>.  300  IN  A  <static-ip>
 
-# 7. Update the ManagedCertificate + Ingress to use your domain
-#    Edit infra/k8s/edge/managed-certificate.yaml (replace example.com),
-#    commit and push. Argo CD picks up the change. Wait ~15 min for
-#    Google to issue the cert.
+# 7. Activate the edge ingress with your real domain
+#    The base infra/k8s/edge/ directory ships EMPTY (kustomization.yaml
+#    has resources: []) so Argo CD does NOT sync the example.com
+#    placeholder. To activate:
+#      a. Copy infra/k8s/edge/template/ingress.yaml + managed-certificate.yaml
+#         into infra/k8s/edge/
+#      b. Replace `example.com` with your real domain in both files
+#      c. Add `host: <your-domain>` to the Ingress rules
+#      d. List both filenames in infra/k8s/edge/kustomization.yaml's
+#         resources: array
+#      e. Commit and push — Argo CD picks it up
+#    Wait ~15 min for ManagedCertificate to provision the cert.
 
 # 8. Visit https://<your-domain>/ja
 ```

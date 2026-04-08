@@ -39,13 +39,14 @@ public class DevSearchReindexer implements CommandLineRunner {
     this.publisher = publisher;
   }
 
+  // CLAUDE.md self-call rule: this entry method (called by Spring's
+  // CommandLineRunner pipeline) is the proxy boundary. The
+  // @Transactional must live HERE, not on a `reindexAll()` helper that
+  // run() invokes via `this.reindexAll()` — that bypasses the proxy and
+  // the AFTER_COMMIT listener silently drops every publishUpsert call.
   @Override
-  public void run(String... args) {
-    reindexAll();
-  }
-
   @Transactional
-  public void reindexAll() {
+  public void run(String... args) {
     List<Product> all = productRepository.findAll();
     for (Product p : all) {
       if (p.getId() != null) {

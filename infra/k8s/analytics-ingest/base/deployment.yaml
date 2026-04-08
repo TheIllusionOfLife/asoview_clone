@@ -35,7 +35,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: analytics-ingest
-          image: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/analytics-ingestatest
+          image: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/analytics-ingest:latest
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false

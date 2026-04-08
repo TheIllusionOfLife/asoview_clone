@@ -35,7 +35,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: ticketing-service
-          image: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/ticketing-serviceatest
+          image: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/ticketing-service:latest
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false

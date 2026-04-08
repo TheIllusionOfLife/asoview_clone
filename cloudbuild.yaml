@@ -134,18 +134,53 @@ steps:
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/web:latest
       - .
 
-  # ---- Bump kustomize image tags and commit ----
+  # ---- Push images BEFORE the kustomize bump + git commit. The
+  # top-level `images:` block at the bottom only runs after ALL steps
+  # complete, which means git-commit-bump would push the new tag to main
+  # and Argo CD would try to pull a tag that doesn't exist in Artifact
+  # Registry yet (ImagePullBackOff). Pushing in dedicated steps fixes
+  # the ordering.
+  - id: push-commerce-core
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['build-commerce-core']
+    args: ['push', '--all-tags', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/commerce-core']
+  - id: push-gateway
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['build-gateway']
+    args: ['push', '--all-tags', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/gateway']
+  - id: push-ticketing
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['build-ticketing']
+    args: ['push', '--all-tags', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/ticketing-service']
+  - id: push-reservation
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['build-reservation']
+    args: ['push', '--all-tags', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/reservation-service']
+  - id: push-ads
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['build-ads']
+    args: ['push', '--all-tags', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/ads-service']
+  - id: push-analytics
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['build-analytics']
+    args: ['push', '--all-tags', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/analytics-ingest']
+  - id: push-web
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['build-web']
+    args: ['push', '--all-tags', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/web']
+
+  # ---- Bump kustomize image tags and commit (only after all pushes succeed) ----
   - id: bump-kustomize
     name: mikefarah/yq:4
     entrypoint: sh
     waitFor:
-      - build-commerce-core
-      - build-gateway
-      - build-ticketing
-      - build-reservation
-      - build-ads
-      - build-analytics
-      - build-web
+      - push-commerce-core
+      - push-gateway
+      - push-ticketing
+      - push-reservation
+      - push-ads
+      - push-analytics
+      - push-web
     args:
       - -c
       - |
@@ -162,7 +197,7 @@ steps:
       - -c
       - |
         set -e
-        git config user.email "cloudbuild@asoview-clone-dev.iam.gserviceaccount.com"
+        git config user.email "cloudbuild@$PROJECT_ID.iam.gserviceaccount.com"
         git config user.name "Cloud Build"
         git add infra/k8s/*/overlays/dev/kustomization.yaml
         if git diff --cached --quiet; then
