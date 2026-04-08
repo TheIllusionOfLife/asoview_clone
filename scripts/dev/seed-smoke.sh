@@ -27,7 +27,13 @@ cleanup() {
 trap cleanup EXIT
 
 echo "seed-smoke: bringing up docker-compose infra"
-docker compose up -d postgres redis spanner-emulator spanner-init
+docker compose up -d postgres redis spanner-emulator
+
+echo "seed-smoke: running spanner-init synchronously"
+# Run as a one-shot foreground container so the database exists BEFORE
+# bootRun starts. Re-running on a primed emulator is a fast no-op because
+# spanner-init.sh treats `ALREADY_EXISTS` as success.
+docker compose run --rm spanner-init
 
 echo "seed-smoke: waiting for postgres"
 for i in $(seq 1 60); do
