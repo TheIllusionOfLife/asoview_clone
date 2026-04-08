@@ -39,23 +39,38 @@ jobs:
       - name: Build web app
         working-directory: apps/asoview-web
         env:
-          NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:3999
         run: bun run build
+
+      - name: Start stub backend on :3999
+        run: |
+          # Minimal stub so SSR pages render with empty lists instead of
+          # 500ing on ECONNREFUSED. Real backend gateway + seeded data
+          # would live behind a testcontainers harness; until that lands
+          # the Lighthouse job only targets /ja (landing) which needs
+          # nothing more than /v1/areas and /v1/products returning [].
+          python3 -u scripts/ci/lhci-stub-backend.py &
+          echo $! > /tmp/stub.pid
+          for i in $(seq 1 20); do
+            if curl -sf http://localhost:3999/v1/areas >/dev/null; then
+              echo "stub up"; break
+            fi
+            sleep 0.5
+          done
 
       - name: Start web server
         working-directory: apps/asoview-web
         env:
-          NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:3999
           HOSTNAME: 0.0.0.0
           PORT: "3000"
         run: |
-          # The web app is configured with `output: "standalone"`, which
-          # `next start` does not serve correctly. Run the standalone
-          # server directly. Copy static + public so the standalone tree
-          # is self-contained per Next.js docs.
-          cp -r .next/static .next/standalone/.next/static
-          cp -r public .next/standalone/public 2>/dev/null || true
-          node .next/standalone/server.js &
+          # `output: "standalone"` is a monorepo build, so the server
+          # lives at .next/standalone/apps/asoview-web/server.js. Copy
+          # static + public into the standalone tree per Next.js docs.
+          cp -r .next/static .next/standalone/apps/asoview-web/.next/static
+          cp -r public .next/standalone/apps/asoview-web/public 2>/dev/null || true
+          node .next/standalone/apps/asoview-web/server.js &
           echo $! > /tmp/web.pid
 
       - name: Wait for :3000
@@ -71,10 +86,11 @@ jobs:
       - name: Run Lighthouse CI
         run: bunx @lhci/cli@0.14.x autorun --config=./lighthouserc.json
 
-      - name: Stop web server
+      - name: Stop web server + stub backend
         if: always()
         run: |
           if [ -f /tmp/web.pid ]; then kill "$(cat /tmp/web.pid)" || true; fi
+          if [ -f /tmp/stub.pid ]; then kill "$(cat /tmp/stub.pid)" || true; fi
 
       - name: Upload Lighthouse report
         if: always()
