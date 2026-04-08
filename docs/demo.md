@@ -70,6 +70,29 @@ kubectl create secret generic firebase-config \
   --from-literal=api-key='...' \
   --from-literal=project-id='asoview-clone-dev'
 
+# 3b. Create the Workload Identity binding for commerce-core.
+#     The k8s ServiceAccount (infra/k8s/commerce-core/base/serviceaccount.yaml)
+#     is annotated with iam.gke.io/gcp-service-account =
+#     commerce-core@asoview-clone-dev.iam.gserviceaccount.com.
+#     The matching GSA must exist and have the WorkloadIdentityUser
+#     role binding before pods can mint tokens.
+gcloud iam service-accounts create commerce-core \
+  --display-name='commerce-core workload identity' \
+  --project=asoview-clone-dev || true
+
+gcloud projects add-iam-policy-binding asoview-clone-dev \
+  --member='serviceAccount:commerce-core@asoview-clone-dev.iam.gserviceaccount.com' \
+  --role='roles/cloudsql.client'
+gcloud projects add-iam-policy-binding asoview-clone-dev \
+  --member='serviceAccount:commerce-core@asoview-clone-dev.iam.gserviceaccount.com' \
+  --role='roles/spanner.databaseUser'
+
+gcloud iam service-accounts add-iam-policy-binding \
+  commerce-core@asoview-clone-dev.iam.gserviceaccount.com \
+  --role='roles/iam.workloadIdentityUser' \
+  --member='serviceAccount:asoview-clone-dev.svc.id.goog[core-services/commerce-core]' \
+  --project=asoview-clone-dev
+
 # 4. Bootstrap Argo CD Applications (run from repo root)
 kubectl apply -f infra/argocd/applications/
 
