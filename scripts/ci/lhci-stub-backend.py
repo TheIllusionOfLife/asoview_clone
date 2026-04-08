@@ -38,7 +38,9 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         self.send_response(200)
         self.end_headers()
 
-    def log_message(self, *args: object, **kwargs: object) -> None:
+    def log_message(  # pyright: ignore[reportIncompatibleMethodOverride]
+        self, *_args: object, **_kwargs: object
+    ) -> None:
         return None
 
 
