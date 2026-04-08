@@ -31,7 +31,7 @@ test.describe("checkout error paths", () => {
         }),
       }),
     );
-    await page.goto("/checkout/ord-failed");
+    await page.goto("/ja/checkout/ord-failed");
     await expect(page.getByText("決済に失敗しました。")).toBeVisible();
     await expect(page.getByRole("link", { name: "予約履歴を見る" })).toBeVisible();
     await expect(page.getByRole("link", { name: "もう一度試す" })).toBeVisible();
@@ -52,7 +52,7 @@ test.describe("checkout error paths", () => {
         }),
       }),
     );
-    await page.goto("/checkout/ord-cancelled");
+    await page.goto("/ja/checkout/ord-cancelled");
     await expect(page.getByText("決済に失敗しました。")).toBeVisible();
   });
 });

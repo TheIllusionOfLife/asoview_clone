@@ -1,0 +1,146 @@
+{
+  "common": {
+    "siteName": "Asoview!",
+    "signIn": "Sign in",
+    "cart": "Cart",
+    "search": "Search",
+    "myPage": "My page",
+    "language": "Language",
+    "skipToContent": "Skip to main content"
+  },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System",
+    "toggleLabel": "Toggle theme"
+  },
+  "landing": {
+    "hero": {
+      "title": "Experiences, closer to you.",
+      "subtitle": "Book leisure, activities, and experiences across Japan with ease."
+    },
+    "areas": {
+      "heading": "Browse by area",
+      "empty": "Could not load area information."
+    },
+    "featured": {
+      "heading": "Featured experiences",
+      "empty": "Could not load featured products."
+    }
+  },
+  "nav": {
+    "areas": "Browse by area",
+    "products": "Featured experiences",
+    "home": "Home",
+    "cart": "Cart",
+    "favorites": "Favorites",
+    "points": "Points",
+    "orders": "Bookings",
+    "signIn": "Sign in"
+  },
+  "search": {
+    "placeholder": "Search experiences",
+    "noResults": "No results for '{q}'",
+    "error": "Failed to load search results.",
+    "facets": {
+      "category": "Category",
+      "priceMin": "Min price (JPY)",
+      "priceMax": "Max price (JPY)",
+      "sort": "Sort",
+      "any": "Any",
+      "categories": {
+        "outdoor": "Outdoor",
+        "indoor": "Indoor",
+        "food": "Food",
+        "culture": "Culture"
+      }
+    },
+    "sort": {
+      "relevance": "Relevance",
+      "priceAsc": "Price: low to high",
+      "priceDesc": "Price: high to low"
+    }
+  },
+  "points": {
+    "pageTitle": "Points",
+    "balance": "Points balance",
+    "balanceValue": "{balance} pt",
+    "ledgerTitle": "History",
+    "ledgerComingSoon": "Points history coming soon.",
+    "loading": "Loading…",
+    "loadError": "Failed to load points",
+    "useLabel": "Use points",
+    "useHelper": "1 point = 1 yen.",
+    "useStatus": "Balance {balance} pt / Max {max} pt",
+    "useInputLabel": "Points to use"
+  },
+  "favorites": {
+    "title": "Favorites",
+    "empty": "You have no favorites yet.",
+    "remove": "Remove",
+    "loading": "Loading…",
+    "loadError": "Failed to load favorites",
+    "ariaAdd": "Add to favorites",
+    "ariaRemove": "Remove from favorites"
+  },
+  "cart": {
+    "title": "Cart",
+    "loading": "Loading…",
+    "empty": "Your cart is empty.",
+    "browseExperiences": "Browse experiences",
+    "checkout": "Checkout",
+    "checkingOut": "Processing…",
+    "signInToCheckout": "Sign in to checkout",
+    "pointsLabel": "Points",
+    "total": "Total",
+    "peopleSuffix": "{n} people",
+    "lineQuantity": "× {n} people",
+    "changeQuantityAria": "Change quantity",
+    "quantityForAria": "Quantity for {name}",
+    "removeAria": "Remove {name} from cart",
+    "removeLabel": "Remove",
+    "slotTakenLine": "This time slot is sold out. Please pick another.",
+    "slotTakenGeneral": "Some slots in your cart are sold out. Please reselect them.",
+    "checkoutError": "An error occurred during checkout",
+    "points": {
+      "label": "Use points",
+      "balanceHelp": "(Balance {balance} pt / Max {max} pt)",
+      "inputLabel": "Points to use",
+      "helper": "1 point = 1 yen."
+    }
+  },
+  "reviews": {
+    "title": "Reviews",
+    "formTitle": "Write a review",
+    "rating": "Rating",
+    "bodyLabel": "Comments",
+    "bodyPlaceholder": "How was the experience?",
+    "submit": "Submit",
+    "submitting": "Submitting…",
+    "submitError": "Failed to submit",
+    "submitted": "Review submitted.",
+    "helpful": "Helpful",
+    "empty": "No reviews yet.",
+    "loading": "…",
+    "prev": "Previous",
+    "next": "Next",
+    "starsLabel": "{r} / 5"
+  },
+  "recommendations": {
+    "popular": "Popular experiences",
+    "similar": "Similar experiences"
+  },
+  "wallet": {
+    "apple": {
+      "add": "Add to Apple Wallet",
+      "downloading": "Downloading..."
+    },
+    "google": {
+      "add": "Add to Google Wallet",
+      "loading": "Loading..."
+    },
+    "unavailableFrom": "Available from {date}",
+    "expired": "Expired",
+    "error": "Could not add to wallet. Please try again."
+  }
+}

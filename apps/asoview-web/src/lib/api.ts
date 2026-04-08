@@ -67,6 +67,16 @@ export function setIdTokenGetter(getter: IdTokenGetter): void {
   idTokenGetter = getter;
 }
 
+/**
+ * Returns the current id token (or null) using the same getter the JSON
+ * api uses. Exposed so helpers that must call `fetch` directly (e.g. the
+ * binary .pkpass download in `wallet.ts`) attach `Authorization` without
+ * registering a second token getter.
+ */
+export function getCurrentIdToken(forceRefresh?: boolean): Promise<string | null> {
+  return idTokenGetter(forceRefresh).catch(() => null);
+}
+
 function baseUrl(): string {
   const u = process.env.NEXT_PUBLIC_API_BASE_URL;
   if (!u) {
@@ -231,6 +241,174 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       attempt += 1;
     }
   }
+}
+
+// ---------- Search helpers ----------
+
+export type SearchHit = {
+  productId: string;
+  name: string;
+  description: string | null;
+  minPrice: number | null;
+  areaId: string | null;
+  categoryId: string | null;
+};
+
+export type ProductSearchResponse = {
+  content: SearchHit[];
+  totalElements: number;
+  number: number;
+  size: number;
+};
+
+export type SearchSuggestion = { productId: string; name: string };
+export type AutosuggestResponse = { suggestions: SearchSuggestion[] };
+
+export type SearchParams = {
+  q?: string;
+  category?: string;
+  area?: string;
+  priceMin?: number;
+  priceMax?: number;
+  sort?: string;
+  page?: number;
+  size?: number;
+};
+
+/**
+ * Calls search-service via the gateway. The backend already filters on
+ * visibility, but per CLAUDE.md PR #21 rule we still pass status=ACTIVE
+ * as defense in depth — though the current backend shape ignores unknown
+ * params so it is harmless if removed.
+ */
+export function searchProducts(
+  params: SearchParams,
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<ProductSearchResponse> {
+  const sp = new URLSearchParams();
+  if (params.q) sp.set("q", params.q);
+  if (params.category) sp.set("category", params.category);
+  if (params.area) sp.set("area", params.area);
+  if (params.priceMin !== undefined && Number.isFinite(params.priceMin)) {
+    sp.set("minPrice", String(params.priceMin));
+  }
+  if (params.priceMax !== undefined && Number.isFinite(params.priceMax)) {
+    sp.set("maxPrice", String(params.priceMax));
+  }
+  if (params.sort) sp.set("sort", params.sort);
+  if (params.page !== undefined) sp.set("page", String(params.page));
+  if (params.size !== undefined) sp.set("size", String(params.size));
+  const qs = sp.toString();
+  return apiRequest<ProductSearchResponse>(`/v1/search${qs ? `?${qs}` : ""}`, {
+    ...options,
+    method: "GET",
+  });
+}
+
+export function searchSuggest(
+  q: string,
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<AutosuggestResponse> {
+  const sp = new URLSearchParams({ q });
+  return apiRequest<AutosuggestResponse>(`/v1/search/suggest?${sp.toString()}`, {
+    ...options,
+    method: "GET",
+  });
+}
+
+// ---------- Reviews ----------
+
+export type ReviewResponse = {
+  id: string;
+  userId: string;
+  productId: string;
+  rating: number;
+  title: string | null;
+  body: string | null;
+  language: string | null;
+  status: string;
+  helpfulCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** Spring Page<ReviewResponse> from GET /v1/products/{productId}/reviews. */
+export function listReviews(
+  productId: string,
+  page = 0,
+  size = 10,
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<{ content: ReviewResponse[]; totalElements: number; number: number; size: number }> {
+  return apiRequest(
+    `/v1/products/${encodeURIComponent(productId)}/reviews?page=${page}&size=${size}`,
+    { ...options, method: "GET" },
+  );
+}
+
+export function submitReview(
+  input: { productId: string; rating: number; title?: string; body?: string; language?: string },
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<ReviewResponse> {
+  return apiRequest("/v1/reviews", {
+    ...options,
+    method: "POST",
+    body: {
+      productId: input.productId,
+      rating: input.rating,
+      title: input.title ?? "",
+      body: input.body ?? "",
+      language: input.language ?? "ja",
+    },
+  });
+}
+
+export function voteHelpful(
+  reviewId: string,
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<void> {
+  return apiRequest<void>(`/v1/reviews/${encodeURIComponent(reviewId)}/helpful`, {
+    ...options,
+    method: "POST",
+    body: {},
+  });
+}
+
+// ---------- Favorites ----------
+
+/** Backend returns a flat List<UUID> of favorited product ids. */
+export function listFavorites(
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<string[]> {
+  return apiRequest<string[]>("/v1/me/favorites", { ...options, method: "GET" });
+}
+
+export function addFavorite(
+  productId: string,
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<void> {
+  return apiRequest<void>(`/v1/me/favorites/${encodeURIComponent(productId)}`, {
+    ...options,
+    method: "PUT",
+  });
+}
+
+export function removeFavorite(
+  productId: string,
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<void> {
+  return apiRequest<void>(`/v1/me/favorites/${encodeURIComponent(productId)}`, {
+    ...options,
+    method: "DELETE",
+  });
+}
+
+// ---------- Points ----------
+
+/** Backend returns {balance: long}. No ledger endpoint exists yet. */
+export function getPointsBalance(
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<{ balance: number }> {
+  return apiRequest<{ balance: number }>("/v1/me/points", { ...options, method: "GET" });
 }
 
 export const api = {

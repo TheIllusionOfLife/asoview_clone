@@ -1,5 +1,5 @@
+import { Link } from "@/i18n/navigation";
 import type { AreaResponse } from "@/lib/types";
-import Link from "next/link";
 
 export function AreaCard({ area }: { area: AreaResponse }) {
   return (

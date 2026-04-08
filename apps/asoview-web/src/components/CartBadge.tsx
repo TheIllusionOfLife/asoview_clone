@@ -10,6 +10,7 @@ export function CartBadge() {
   return (
     <span
       aria-label={`${count}件カートに入っています`}
+      aria-live="polite"
       className="ml-1 inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-[var(--color-primary)] text-white text-[11px] font-semibold"
     >
       {count}

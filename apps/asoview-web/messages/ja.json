@@ -1,0 +1,146 @@
+{
+  "common": {
+    "siteName": "アソビュー!",
+    "signIn": "ログイン",
+    "cart": "カート",
+    "search": "検索",
+    "myPage": "マイページ",
+    "language": "言語",
+    "skipToContent": "メインコンテンツへスキップ"
+  },
+  "theme": {
+    "light": "ライト",
+    "dark": "ダーク",
+    "system": "システム",
+    "toggleLabel": "テーマを切り替え"
+  },
+  "landing": {
+    "hero": {
+      "title": "体験を、もっと身近に。",
+      "subtitle": "全国のレジャー・アクティビティ・体験をかんたん予約。"
+    },
+    "areas": {
+      "heading": "エリアから探す",
+      "empty": "エリア情報を読み込めませんでした。"
+    },
+    "featured": {
+      "heading": "注目の体験",
+      "empty": "おすすめ商品を読み込めませんでした。"
+    }
+  },
+  "nav": {
+    "areas": "エリアから探す",
+    "products": "注目の体験",
+    "home": "ホーム",
+    "cart": "カート",
+    "favorites": "お気に入り",
+    "points": "ポイント",
+    "orders": "予約履歴",
+    "signIn": "ログイン"
+  },
+  "search": {
+    "placeholder": "体験を検索",
+    "noResults": "「{q}」に一致する結果はありません",
+    "error": "検索結果の読み込みに失敗しました。",
+    "facets": {
+      "category": "カテゴリ",
+      "priceMin": "下限価格（円）",
+      "priceMax": "上限価格（円）",
+      "sort": "並び替え",
+      "any": "すべて",
+      "categories": {
+        "outdoor": "アウトドア",
+        "indoor": "インドア",
+        "food": "グルメ",
+        "culture": "文化"
+      }
+    },
+    "sort": {
+      "relevance": "おすすめ順",
+      "priceAsc": "価格が安い順",
+      "priceDesc": "価格が高い順"
+    }
+  },
+  "points": {
+    "pageTitle": "ポイント",
+    "balance": "保有ポイント",
+    "balanceValue": "{balance} pt",
+    "ledgerTitle": "履歴",
+    "ledgerComingSoon": "ポイント履歴は近日公開予定です。",
+    "loading": "読み込み中…",
+    "loadError": "ポイントの取得に失敗しました",
+    "useLabel": "ポイントを使う",
+    "useHelper": "1ポイント = 1円として利用できます。",
+    "useStatus": "保有 {balance} pt / 上限 {max} pt",
+    "useInputLabel": "使用するポイント"
+  },
+  "favorites": {
+    "title": "お気に入り",
+    "empty": "お気に入りはまだありません。",
+    "remove": "削除",
+    "loading": "読み込み中…",
+    "loadError": "お気に入りの取得に失敗しました",
+    "ariaAdd": "お気に入り追加",
+    "ariaRemove": "お気に入り解除"
+  },
+  "cart": {
+    "title": "カート",
+    "loading": "読み込み中…",
+    "empty": "カートには何も入っていません。",
+    "browseExperiences": "体験を探す",
+    "checkout": "購入手続きへ",
+    "checkingOut": "処理中…",
+    "signInToCheckout": "ログインして購入手続き",
+    "pointsLabel": "ポイント",
+    "total": "合計",
+    "peopleSuffix": "{n}名",
+    "lineQuantity": "× {n}名",
+    "changeQuantityAria": "人数を変更",
+    "quantityForAria": "{name} の人数",
+    "removeAria": "{name} をカートから削除",
+    "removeLabel": "削除",
+    "slotTakenLine": "この時間帯は満席になりました。別の時間帯を選んでください。",
+    "slotTakenGeneral": "カート内の一部の時間帯が満席になりました。該当する枠を選び直してください。",
+    "checkoutError": "予約処理中にエラーが発生しました",
+    "points": {
+      "label": "ポイントを使う",
+      "balanceHelp": "(保有 {balance} pt / 上限 {max} pt)",
+      "inputLabel": "使用するポイント",
+      "helper": "1ポイント = 1円として利用できます。"
+    }
+  },
+  "reviews": {
+    "title": "レビュー",
+    "formTitle": "レビューを書く",
+    "rating": "評価",
+    "bodyLabel": "感想",
+    "bodyPlaceholder": "体験はいかがでしたか？",
+    "submit": "投稿",
+    "submitting": "送信中…",
+    "submitError": "投稿に失敗しました",
+    "submitted": "レビューを投稿しました。",
+    "helpful": "参考になった",
+    "empty": "まだレビューはありません。",
+    "loading": "…",
+    "prev": "前へ",
+    "next": "次へ",
+    "starsLabel": "{r} / 5"
+  },
+  "recommendations": {
+    "popular": "人気の体験",
+    "similar": "似た体験"
+  },
+  "wallet": {
+    "apple": {
+      "add": "Apple Wallet に追加",
+      "downloading": "ダウンロード中..."
+    },
+    "google": {
+      "add": "Google Wallet に追加",
+      "loading": "読み込み中..."
+    },
+    "unavailableFrom": "{date} から利用可能",
+    "expired": "期限切れ",
+    "error": "ウォレットに追加できませんでした。"
+  }
+}

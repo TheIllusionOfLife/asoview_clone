@@ -41,8 +41,11 @@ test.describe("ticket validity", () => {
     const future = new Date(Date.now() + 3 * 86_400_000).toISOString();
     const farFuture = new Date(Date.now() + 4 * 86_400_000).toISOString();
     await stubTickets(page, future, farFuture);
-    await page.goto(`/tickets/${ORDER_ID}`);
-    await expect(page.getByText(/から利用可能/)).toBeVisible();
+    await page.goto(`/ja/tickets/${ORDER_ID}`);
+    // Multiple "から利用可能" labels exist on the page now (TicketCard
+    // header + Apple/Google wallet button captions). Any visible one
+    // proves the "before" phase is rendered.
+    await expect(page.getByText(/から利用可能/).first()).toBeVisible();
     await expect(page.locator('img[alt^="QR code"]')).toHaveCount(0);
   });
 
@@ -50,7 +53,7 @@ test.describe("ticket validity", () => {
     const past = new Date(Date.now() - 86_400_000).toISOString();
     const future = new Date(Date.now() + 86_400_000).toISOString();
     await stubTickets(page, past, future);
-    await page.goto(`/tickets/${ORDER_ID}`);
+    await page.goto(`/ja/tickets/${ORDER_ID}`);
     await expect(page.locator('img[alt^="QR code"]')).toBeVisible();
   });
 
@@ -58,7 +61,7 @@ test.describe("ticket validity", () => {
     const farPast = new Date(Date.now() - 4 * 86_400_000).toISOString();
     const past = new Date(Date.now() - 3 * 86_400_000).toISOString();
     await stubTickets(page, farPast, past);
-    await page.goto(`/tickets/${ORDER_ID}`);
+    await page.goto(`/ja/tickets/${ORDER_ID}`);
     await expect(page.getByText("期限切れ")).toBeVisible();
     await expect(page.locator('img[alt^="QR code"]')).toHaveCount(0);
   });

@@ -13,6 +13,7 @@
  * `role="radio"` with `aria-checked`, keyboard activation via space/enter.
  */
 
+import { useRouter } from "@/i18n/navigation";
 import { ApiError, NetworkError, SignInRedirect, SlotTakenError, api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { clearIdempotencyKey, setOrderFingerprint } from "@/lib/idempotency";
@@ -24,7 +25,6 @@ import type {
   ProductResponse,
 } from "@/lib/types";
 import { useCart } from "@/lib/useCart";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 const WINDOW_DAYS = 14;
@@ -226,7 +226,7 @@ export function SlotPicker({ product }: { product: ProductResponse }) {
             <div
               // biome-ignore lint/suspicious/noArrayIndexKey: skeleton placeholders
               key={i}
-              className="h-12 rounded-[var(--radius-md)] bg-[var(--color-border)]/40 animate-pulse"
+              className="h-12 rounded-[var(--radius-md)] bg-[var(--color-border)]/40 motion-safe:animate-pulse"
             />
           ))}
         </div>
@@ -266,7 +266,7 @@ export function SlotPicker({ product }: { product: ProductResponse }) {
                         setQuantity((q) => Math.min(q, Math.max(1, s.remaining)));
                       }}
                       className={[
-                        "rounded-[var(--radius-md)] border px-3 py-2 text-sm text-left transition",
+                        "rounded-[var(--radius-md)] border px-3 py-2 text-sm text-left motion-safe:transition",
                         "focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]",
                         disabled
                           ? "border-[var(--color-border)] bg-[var(--color-border)]/20 text-[var(--color-ink-muted)] cursor-not-allowed"
