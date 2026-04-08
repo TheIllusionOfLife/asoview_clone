@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ads-service
+  namespace: ads-services
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: ads-service
