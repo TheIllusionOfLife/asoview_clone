@@ -1,20 +1,191 @@
-# Cloud Build config stub for GKE delivery pipeline.
-# Expand as services are deployed.
-steps:
-  - id: build-java
-    name: eclipse-temurin:21-jdk
-    entrypoint: ./gradlew
-    args: ["build", "--no-daemon"]
+# Cloud Build pipeline for asoview-clone-dev.
+#
+# Builds and pushes 7 container images in parallel, then bumps the
+# image tag in each service's kustomize overlay and commits back to
+# main. Argo CD picks up the commit within its sync interval and
+# rolls out the new revision.
+#
+# Substitutions:
+#   _REGION       (default asia-northeast1)
+#   _REPO         (default asoview-clone)
+#   _DOMAIN       (required for web build args, e.g. example.com)
+#   _FIREBASE_API_KEY, _FIREBASE_AUTH_DOMAIN, _FIREBASE_PROJECT_ID,
+#   _FIREBASE_APP_ID, _STRIPE_PUBLISHABLE_KEY (required for web)
+#
+# Usage:
+#   gcloud builds submit --config cloudbuild.yaml \
+#     --substitutions=_DOMAIN=example.com,_FIREBASE_API_KEY=...,...
+substitutions:
+  _REGION: asia-northeast1
+  _REPO: asoview-clone
+  _DOMAIN: example.com
+  _FIREBASE_API_KEY: ""
+  _FIREBASE_AUTH_DOMAIN: ""
+  _FIREBASE_PROJECT_ID: ""
+  _FIREBASE_APP_ID: ""
+  _STRIPE_PUBLISHABLE_KEY: ""
 
-  - id: build-images
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  # ---- Backend builds (parallel via waitFor: ['-']) ----
+  - id: build-commerce-core
     name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args:
+      - build
+      - -f
+      - services/commerce-core/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/commerce-core:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/commerce-core:latest
+      - .
+
+  - id: build-gateway
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args:
+      - build
+      - -f
+      - services/gateway/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/gateway:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/gateway:latest
+      - .
+
+  - id: build-ticketing
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args:
+      - build
+      - -f
+      - services/ticketing-service/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/ticketing-service:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/ticketing-service:latest
+      - .
+
+  - id: build-reservation
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args:
+      - build
+      - -f
+      - services/reservation-service/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/reservation-service:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/reservation-service:latest
+      - .
+
+  - id: build-ads
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args:
+      - build
+      - -f
+      - services/ads-service/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/ads-service:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/ads-service:latest
+      - .
+
+  - id: build-analytics
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args:
+      - build
+      - -f
+      - services/analytics-ingest/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/analytics-ingest:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/analytics-ingest:latest
+      - .
+
+  - id: build-web
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args:
+      - build
+      - -f
+      - apps/asoview-web/Dockerfile
+      - --build-arg
+      - NEXT_PUBLIC_API_BASE_URL=https://${_DOMAIN}
+      - --build-arg
+      - NEXT_PUBLIC_FIREBASE_API_KEY=${_FIREBASE_API_KEY}
+      - --build-arg
+      - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${_FIREBASE_AUTH_DOMAIN}
+      - --build-arg
+      - NEXT_PUBLIC_FIREBASE_PROJECT_ID=${_FIREBASE_PROJECT_ID}
+      - --build-arg
+      - NEXT_PUBLIC_FIREBASE_APP_ID=${_FIREBASE_APP_ID}
+      - --build-arg
+      - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${_STRIPE_PUBLISHABLE_KEY}
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/web:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/web:latest
+      - .
+
+  # ---- Bump kustomize image tags and commit ----
+  - id: bump-kustomize
+    name: mikefarah/yq:4
+    entrypoint: sh
+    waitFor:
+      - build-commerce-core
+      - build-gateway
+      - build-ticketing
+      - build-reservation
+      - build-ads
+      - build-analytics
+      - build-web
+    args:
+      - -c
+      - |
+        set -e
+        for svc in commerce-core gateway web ticketing-service reservation-service ads-service analytics-ingest; do
+          yq eval -i ".images[0].newTag = \"$SHORT_SHA\"" infra/k8s/$svc/overlays/dev/kustomization.yaml
+        done
+
+  - id: git-commit-bump
+    name: gcr.io/cloud-builders/git
+    waitFor: ['bump-kustomize']
     entrypoint: bash
     args:
       - -c
       - |
-        for svc in gateway commerce-core ticketing-service reservation-service ads-service analytics-ingest; do
-          docker build -f "services/$${svc}/Dockerfile" -t "$_REGION-docker.pkg.dev/$PROJECT_ID/asoview-clone/$${svc}:$SHORT_SHA" .
-        done
+        set -e
+        git config user.email "cloudbuild@asoview-clone-dev.iam.gserviceaccount.com"
+        git config user.name "Cloud Build"
+        git add infra/k8s/*/overlays/dev/kustomization.yaml
+        if git diff --cached --quiet; then
+          echo "No kustomize changes to commit"
+          exit 0
+        fi
+        git commit -m "chore(deploy): bump image tags to $SHORT_SHA [skip ci]"
+        git push origin HEAD:main
 
-substitutions:
-  _REGION: asia-northeast1
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/commerce-core:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/commerce-core:latest
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/gateway:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/gateway:latest
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/web:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/web:latest
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/ticketing-service:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/ticketing-service:latest
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/reservation-service:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/reservation-service:latest
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/ads-service:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/ads-service:latest
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/analytics-ingest:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/analytics-ingest:latest
+
+timeout: 2400s
