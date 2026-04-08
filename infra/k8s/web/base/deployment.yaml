@@ -36,7 +36,7 @@ spec:
       containers:
         - name: web
           image: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/web:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

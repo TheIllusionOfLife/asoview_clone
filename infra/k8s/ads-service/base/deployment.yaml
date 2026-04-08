@@ -36,7 +36,7 @@ spec:
       containers:
         - name: ads-service
           image: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/ads-service:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

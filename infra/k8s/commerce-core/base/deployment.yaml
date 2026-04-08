@@ -37,7 +37,7 @@ spec:
       containers:
         - name: commerce-core
           image: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/commerce-core:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

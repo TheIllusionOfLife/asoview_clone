@@ -36,7 +36,7 @@ spec:
       containers:
         - name: ticketing-service
           image: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/ticketing-service:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

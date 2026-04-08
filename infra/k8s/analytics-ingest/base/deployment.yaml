@@ -36,7 +36,7 @@ spec:
       containers:
         - name: analytics-ingest
           image: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/analytics-ingest:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

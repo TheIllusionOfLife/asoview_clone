@@ -213,7 +213,22 @@ steps:
           exit 0
         fi
         git commit -m "chore(deploy): bump image tags to $SHORT_SHA [skip ci]"
-        git push origin HEAD:main
+        # Two main builds racing each other will fight over the push.
+        # Retry up to 3 times with fetch+rebase to absorb a winner's
+        # commit. --force-with-lease guards against accidental
+        # rewriting of an unexpected upstream tip.
+        for attempt in 1 2 3; do
+          git fetch origin main
+          git rebase origin/main || { git rebase --abort; exit 1; }
+          if git push --force-with-lease origin HEAD:main; then
+            echo "Push succeeded on attempt $attempt"
+            exit 0
+          fi
+          echo "Push attempt $attempt failed, retrying..."
+          sleep $((attempt * 5))
+        done
+        echo "git push failed after 3 attempts"
+        exit 1
 
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/commerce-core:$SHORT_SHA
