@@ -144,11 +144,11 @@ kubectl apply -f infra/argocd/applications/commerce-core.yaml \
                -f infra/argocd/applications/analytics-ingest.yaml \
                -f infra/argocd/applications/search.yaml
 
-# 10. Wait for Let's Encrypt to issue the TLS cert (usually ~2 min).
+# 8. Wait for Let's Encrypt to issue the TLS cert (usually ~2 min).
 kubectl wait --for=condition=Ready certificate/asoview-clone-tls -n edge --timeout=10m
 kubectl describe certificate asoview-clone-tls -n edge  # inspect if stuck
 
-# 11. Visit https://${DUCKDNS_SUBDOMAIN}.duckdns.org/ja
+# 9. Visit https://${DUCKDNS_SUBDOMAIN}.duckdns.org/ja
 ```
 
 ### Let's Encrypt rate limits
