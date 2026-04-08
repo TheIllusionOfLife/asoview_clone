@@ -1,0 +1,105 @@
+{
+  "_comment": "Demo Firebase auth records used as foreign-key targets for the seeded orders/reviews in R__seed_catalog.sql. Real users sign in via Google (signInWithPopup); these records are NOT meant to be signed in to via password. The records exist so that the SQL seed's `firebase_uid` references resolve to a real Identity Platform record. To import: `firebase auth:import db/seeds/firebase/users.json --hash-algo=BCRYPT --hash-key=demo`. The pre-computed BCRYPT hash below corresponds to the password 'demo-pass-1234' so emergency demo sign-in is possible if Google sign-in is unavailable, but the funnel does not depend on it.",
+  "users": [
+    {
+      "localId": "demo01",
+      "email": "demo01@example.com",
+      "emailVerified": true,
+      "displayName": "Demo User 1",
+      "passwordHash": "JDJiJDEwJEYzN3NoR3kvb2hSWUJyaXJ4Y0F1Yk9pVDhzaG9zZWtNcExjQXM1RzhxVDhBSlJBR3BtTUNH",
+      "providerUserInfo": [
+        { "providerId": "password", "email": "demo01@example.com", "rawId": "demo01" }
+      ]
+    },
+    {
+      "localId": "demo02",
+      "email": "demo02@example.com",
+      "emailVerified": true,
+      "displayName": "Demo User 2",
+      "passwordHash": "JDJiJDEwJEYzN3NoR3kvb2hSWUJyaXJ4Y0F1Yk9pVDhzaG9zZWtNcExjQXM1RzhxVDhBSlJBR3BtTUNH",
+      "providerUserInfo": [
+        { "providerId": "password", "email": "demo02@example.com", "rawId": "demo02" }
+      ]
+    },
+    {
+      "localId": "demo03",
+      "email": "demo03@example.com",
+      "emailVerified": true,
+      "displayName": "Demo User 3",
+      "passwordHash": "JDJiJDEwJEYzN3NoR3kvb2hSWUJyaXJ4Y0F1Yk9pVDhzaG9zZWtNcExjQXM1RzhxVDhBSlJBR3BtTUNH",
+      "providerUserInfo": [
+        { "providerId": "password", "email": "demo03@example.com", "rawId": "demo03" }
+      ]
+    },
+    {
+      "localId": "demo04",
+      "email": "demo04@example.com",
+      "emailVerified": true,
+      "displayName": "Demo User 4",
+      "passwordHash": "JDJiJDEwJEYzN3NoR3kvb2hSWUJyaXJ4Y0F1Yk9pVDhzaG9zZWtNcExjQXM1RzhxVDhBSlJBR3BtTUNH",
+      "providerUserInfo": [
+        { "providerId": "password", "email": "demo04@example.com", "rawId": "demo04" }
+      ]
+    },
+    {
+      "localId": "demo05",
+      "email": "demo05@example.com",
+      "emailVerified": true,
+      "displayName": "Demo User 5",
+      "passwordHash": "JDJiJDEwJEYzN3NoR3kvb2hSWUJyaXJ4Y0F1Yk9pVDhzaG9zZWtNcExjQXM1RzhxVDhBSlJBR3BtTUNH",
+      "providerUserInfo": [
+        { "providerId": "password", "email": "demo05@example.com", "rawId": "demo05" }
+      ]
+    },
+    {
+      "localId": "demo06",
+      "email": "demo06@example.com",
+      "emailVerified": true,
+      "displayName": "Demo User 6",
+      "passwordHash": "JDJiJDEwJEYzN3NoR3kvb2hSWUJyaXJ4Y0F1Yk9pVDhzaG9zZWtNcExjQXM1RzhxVDhBSlJBR3BtTUNH",
+      "providerUserInfo": [
+        { "providerId": "password", "email": "demo06@example.com", "rawId": "demo06" }
+      ]
+    },
+    {
+      "localId": "demo07",
+      "email": "demo07@example.com",
+      "emailVerified": true,
+      "displayName": "Demo User 7",
+      "passwordHash": "JDJiJDEwJEYzN3NoR3kvb2hSWUJyaXJ4Y0F1Yk9pVDhzaG9zZWtNcExjQXM1RzhxVDhBSlJBR3BtTUNH",
+      "providerUserInfo": [
+        { "providerId": "password", "email": "demo07@example.com", "rawId": "demo07" }
+      ]
+    },
+    {
+      "localId": "demo08",
+      "email": "demo08@example.com",
+      "emailVerified": true,
+      "displayName": "Demo User 8",
+      "passwordHash": "JDJiJDEwJEYzN3NoR3kvb2hSWUJyaXJ4Y0F1Yk9pVDhzaG9zZWtNcExjQXM1RzhxVDhBSlJBR3BtTUNH",
+      "providerUserInfo": [
+        { "providerId": "password", "email": "demo08@example.com", "rawId": "demo08" }
+      ]
+    },
+    {
+      "localId": "demo09",
+      "email": "demo09@example.com",
+      "emailVerified": true,
+      "displayName": "Demo User 9",
+      "passwordHash": "JDJiJDEwJEYzN3NoR3kvb2hSWUJyaXJ4Y0F1Yk9pVDhzaG9zZWtNcExjQXM1RzhxVDhBSlJBR3BtTUNH",
+      "providerUserInfo": [
+        { "providerId": "password", "email": "demo09@example.com", "rawId": "demo09" }
+      ]
+    },
+    {
+      "localId": "demo10",
+      "email": "demo10@example.com",
+      "emailVerified": true,
+      "displayName": "Demo User 10",
+      "passwordHash": "JDJiJDEwJEYzN3NoR3kvb2hSWUJyaXJ4Y0F1Yk9pVDhzaG9zZWtNcExjQXM1RzhxVDhBSlJBR3BtTUNH",
+      "providerUserInfo": [
+        { "providerId": "password", "email": "demo10@example.com", "rawId": "demo10" }
+      ]
+    }
+  ]
+}

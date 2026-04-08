@@ -1,0 +1,149 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: commerce-core
+  namespace: core-services
+spec:
+  selector:
+    app: commerce-core
+  ports:
+    - name: http
+      port: 8081
+      targetPort: 8081
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: commerce-core
+  namespace: core-services
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: commerce-core
+  template:
+    metadata:
+      labels:
+        app: commerce-core
+    spec:
+      serviceAccountName: commerce-core
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: commerce-core
+          image: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/commerce-core:latest
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp-app
+              mountPath: /tmp
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: dev
+            # SPANNER_EMULATOR_HOST is intentionally NOT set. SpannerConfig
+            # checks `System.getenv("SPANNER_EMULATOR_HOST") != null` and
+            # would treat an empty string as a request to enter emulator
+            # mode with host="" — the Spanner client would then bypass
+            # Workload Identity and fail to reach real Cloud Spanner.
+            # Leaving the var absent makes getenv() return null and the
+            # normal production path wins.
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:postgresql://localhost:5432/asoview
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-creds
+                  key: username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-creds
+                  key: password
+            - name: SPANNER_INSTANCE
+              value: asoview-clone-dev
+            - name: SPANNER_DATABASE
+              value: asoview
+            - name: REDIS_HOST
+              value: redis.core-services.svc.cluster.local
+            - name: OPENSEARCH_URL
+              value: http://opensearch.search.svc.cluster.local:9200
+            - name: STRIPE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: stripe-test
+                  key: secret-key
+            - name: STRIPE_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: stripe-test
+                  key: webhook-secret
+          ports:
+            - name: http
+              containerPort: 8081
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8081
+            initialDelaySeconds: 90
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+        - name: cloud-sql-proxy
+          image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.13.0
+          args:
+            - "--structured-logs"
+            - "--port=5432"
+            - "$(CLOUDSQL_CONNECTION_NAME)"
+          env:
+            - name: CLOUDSQL_CONNECTION_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: cloudsql-config
+                  key: connection-name
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          # Cloud SQL Auth Proxy 2.x writes its UNIX socket and ephemeral
+          # state under /tmp. With readOnlyRootFilesystem we must mount an
+          # emptyDir at /tmp. Use a SEPARATE emptyDir (tmp-proxy) from the
+          # app container (tmp-app) so the JVM's /tmp (Tomcat work dirs,
+          # multipart uploads) and the proxy's /tmp (UNIX socket, state)
+          # don't share a filesystem. Same volume name = shared storage;
+          # different names keeps them isolated.
+          volumeMounts:
+            - name: tmp-proxy
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+      volumes:
+        - name: tmp-app
+          emptyDir: {}
+        - name: tmp-proxy
+          emptyDir: {}

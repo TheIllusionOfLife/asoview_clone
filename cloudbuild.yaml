@@ -1,20 +1,286 @@
-# Cloud Build config stub for GKE delivery pipeline.
-# Expand as services are deployed.
-steps:
-  - id: build-java
-    name: eclipse-temurin:21-jdk
-    entrypoint: ./gradlew
-    args: ["build", "--no-daemon"]
+# Cloud Build pipeline for asoview-clone-dev.
+#
+# Builds and pushes 7 container images in parallel, then bumps the
+# image tag in each service's kustomize overlay and commits back to
+# main. Argo CD picks up the commit within its sync interval and
+# rolls out the new revision.
+#
+# RUN MODE: this config is **trigger-only**. It depends on
+# $SHORT_SHA and $BRANCH_NAME (built-in trigger substitutions
+# auto-populated by Cloud Build only when invoked from a trigger
+# linked to a git source) and on the .git directory present in the
+# trigger workspace for the git-commit-bump step. Local
+# `gcloud builds submit` is NOT supported because it tarballs the
+# working directory (no .git, no $SHORT_SHA, no $BRANCH_NAME).
+#
+# Setup (one-time):
+#   gcloud builds triggers create github \
+#     --name=asoview-clone-deploy \
+#     --repo-name=asoview_clone --repo-owner=TheIllusionOfLife \
+#     --branch-pattern='^main$' \
+#     --build-config=cloudbuild.yaml \
+#     --substitutions=_DOMAIN=<domain>,_FIREBASE_API_KEY=...,...
+#
+# Required substitutions (set on the trigger, NOT in the file):
+#   _REGION       (default asia-northeast1)
+#   _REPO         (default asoview-clone)
+#   _DOMAIN       e.g. asoview-clone.dev
+#   _FIREBASE_API_KEY, _FIREBASE_AUTH_DOMAIN, _FIREBASE_PROJECT_ID,
+#   _FIREBASE_APP_ID, _STRIPE_PUBLISHABLE_KEY
+#
+# Sensitive values (Firebase API key, Stripe publishable key) should
+# live in Secret Manager and be wired via availableSecrets at the
+# trigger level rather than passed in as plaintext substitutions.
+substitutions:
+  _REGION: asia-northeast1
+  _REPO: asoview-clone
+  # _DOMAIN must be provided by the trigger. Defaulting to a placeholder
+  # like "example.com" would silently produce a valid-looking
+  # NEXT_PUBLIC_API_BASE_URL=https://example.com and slip past the
+  # buildCsp() production fail-fast check in
+  # apps/asoview-web/src/lib/csp.ts — the resulting image would serve a
+  # CSP that allows https://example.com as a connect-src origin and
+  # point every API call at example.com. Empty forces
+  # NEXT_PUBLIC_API_BASE_URL=https:// which the CSP builder rejects,
+  # failing the web build loudly instead of shipping a broken image.
+  _DOMAIN: ""
+  _FIREBASE_API_KEY: ""
+  _FIREBASE_AUTH_DOMAIN: ""
+  _FIREBASE_PROJECT_ID: ""
+  _FIREBASE_APP_ID: ""
+  _STRIPE_PUBLISHABLE_KEY: ""
 
-  - id: build-images
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  # ---- Backend builds (parallel via waitFor: ['-']) ----
+  - id: build-commerce-core
     name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args:
+      - build
+      - -f
+      - services/commerce-core/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/commerce-core:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/commerce-core:latest
+      - .
+
+  - id: build-gateway
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args:
+      - build
+      - -f
+      - services/gateway/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/gateway:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/gateway:latest
+      - .
+
+  - id: build-ticketing
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args:
+      - build
+      - -f
+      - services/ticketing-service/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/ticketing-service:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/ticketing-service:latest
+      - .
+
+  - id: build-reservation
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args:
+      - build
+      - -f
+      - services/reservation-service/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/reservation-service:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/reservation-service:latest
+      - .
+
+  - id: build-ads
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args:
+      - build
+      - -f
+      - services/ads-service/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/ads-service:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/ads-service:latest
+      - .
+
+  - id: build-analytics
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args:
+      - build
+      - -f
+      - services/analytics-ingest/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/analytics-ingest:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/analytics-ingest:latest
+      - .
+
+  - id: build-web
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args:
+      - build
+      - -f
+      - apps/asoview-web/Dockerfile
+      - --build-arg
+      - NEXT_PUBLIC_API_BASE_URL=https://${_DOMAIN}
+      - --build-arg
+      - NEXT_PUBLIC_FIREBASE_API_KEY=${_FIREBASE_API_KEY}
+      - --build-arg
+      - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${_FIREBASE_AUTH_DOMAIN}
+      - --build-arg
+      - NEXT_PUBLIC_FIREBASE_PROJECT_ID=${_FIREBASE_PROJECT_ID}
+      - --build-arg
+      - NEXT_PUBLIC_FIREBASE_APP_ID=${_FIREBASE_APP_ID}
+      - --build-arg
+      - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${_STRIPE_PUBLISHABLE_KEY}
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/web:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/web:latest
+      - .
+
+  # ---- Push images BEFORE the kustomize bump + git commit. The
+  # top-level `images:` block at the bottom only runs after ALL steps
+  # complete, which means git-commit-bump would push the new tag to main
+  # and Argo CD would try to pull a tag that doesn't exist in Artifact
+  # Registry yet (ImagePullBackOff). Pushing in dedicated steps fixes
+  # the ordering.
+  - id: push-commerce-core
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['build-commerce-core']
+    args: ['push', '--all-tags', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/commerce-core']
+  - id: push-gateway
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['build-gateway']
+    args: ['push', '--all-tags', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/gateway']
+  - id: push-ticketing
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['build-ticketing']
+    args: ['push', '--all-tags', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/ticketing-service']
+  - id: push-reservation
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['build-reservation']
+    args: ['push', '--all-tags', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/reservation-service']
+  - id: push-ads
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['build-ads']
+    args: ['push', '--all-tags', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/ads-service']
+  - id: push-analytics
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['build-analytics']
+    args: ['push', '--all-tags', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/analytics-ingest']
+  - id: push-web
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['build-web']
+    args: ['push', '--all-tags', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/web']
+
+  # ---- Bump kustomize image tags and commit (only after all pushes succeed) ----
+  - id: bump-kustomize
+    name: mikefarah/yq:4
+    entrypoint: sh
+    waitFor:
+      - push-commerce-core
+      - push-gateway
+      - push-ticketing
+      - push-reservation
+      - push-ads
+      - push-analytics
+      - push-web
+    args:
+      - -c
+      - |
+        set -e
+        for svc in commerce-core gateway web ticketing-service reservation-service ads-service analytics-ingest; do
+          yq eval -i ".images[0].newTag = \"$SHORT_SHA\"" infra/k8s/$svc/overlays/dev/kustomization.yaml
+        done
+
+  - id: git-commit-bump
+    name: gcr.io/cloud-builders/git
+    waitFor: ['bump-kustomize']
     entrypoint: bash
     args:
       - -c
       - |
-        for svc in gateway commerce-core ticketing-service reservation-service ads-service analytics-ingest; do
-          docker build -f "services/$${svc}/Dockerfile" -t "$_REGION-docker.pkg.dev/$PROJECT_ID/asoview-clone/$${svc}:$SHORT_SHA" .
+        set -e
+        # SAFETY: only bump and push when this build is for `main`. Cloud
+        # Build's BRANCH_NAME substitution is the source branch of the
+        # trigger. Without this guard a feature-branch trigger would
+        # promote that branch's tip to main and clobber it.
+        if [ "$BRANCH_NAME" != "main" ]; then
+          echo "Skipping kustomize bump (BRANCH_NAME=$BRANCH_NAME, only runs on main)"
+          exit 0
+        fi
+        git config user.email "cloudbuild@$PROJECT_ID.iam.gserviceaccount.com"
+        git config user.name "Cloud Build"
+        # Snapshot the bumped kustomization files so we can re-apply them
+        # on every retry. The bump step (`bump-kustomize`) ran yq -i so
+        # the changes are in the working tree but unstaged.
+        if git diff --quiet infra/k8s/*/overlays/dev/kustomization.yaml; then
+          echo "No kustomize changes to commit"
+          exit 0
+        fi
+        cp -r infra/k8s /tmp/k8s-bumped
+        # Two main builds racing each other will fight over the push.
+        # Retry up to 3 times with fresh fetch+reset+reapply+commit so
+        # the bump commit is always built on top of the latest origin/main.
+        # --force-with-lease guards against clobbering an unexpected tip.
+        for attempt in 1 2 3; do
+          git fetch origin main
+          # Reset hard to origin/main to drop any prior attempt's commit,
+          # then re-stage the bumped files from the snapshot.
+          git reset --hard origin/main
+          rm -rf infra/k8s
+          cp -r /tmp/k8s-bumped infra/k8s
+          git add infra/k8s/*/overlays/dev/kustomization.yaml
+          if git diff --cached --quiet; then
+            echo "Working tree clean after rebase (someone else bumped already)"
+            exit 0
+          fi
+          git commit -m "chore(deploy): bump image tags to $SHORT_SHA [skip ci]"
+          if git push --force-with-lease origin HEAD:main; then
+            echo "Push succeeded on attempt $attempt"
+            exit 0
+          fi
+          echo "Push attempt $attempt failed, retrying..."
+          sleep $((attempt * 5))
         done
+        echo "git push failed after 3 attempts"
+        exit 1
 
-substitutions:
-  _REGION: asia-northeast1
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/commerce-core:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/commerce-core:latest
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/gateway:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/gateway:latest
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/web:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/web:latest
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/ticketing-service:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/ticketing-service:latest
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/reservation-service:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/reservation-service:latest
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/ads-service:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/ads-service:latest
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/analytics-ingest:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/analytics-ingest:latest
+
+timeout: 2400s

@@ -1,0 +1,33 @@
+# GKE Ingress routing external traffic to the gateway (API) and web (UI).
+#
+# DOMAIN PLACEHOLDER: replace `example.com` below with the actual domain
+# you registered, then point an A record at the static IP created by
+# terraform (`terraform output static_ip`). The ManagedCertificate will
+# provision automatically in ~15 minutes once DNS resolves.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: asoview-clone-edge
+  namespace: edge
+  annotations:
+    kubernetes.io/ingress.class: gce
+    kubernetes.io/ingress.global-static-ip-name: asoview-clone-dev-edge
+    networking.gke.io/managed-certificates: asoview-clone-dev-cert
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 3000

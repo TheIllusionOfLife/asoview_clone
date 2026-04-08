@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars and fill in.
+project_id    = "asoview-clone-dev"
+region        = "asia-northeast1"
+zone          = "asia-northeast1-a"
+support_email = "you@example.com"
+
+# Optional: provide a domain you own (e.g. "asoview-clone.dev").
+# When set, terraform creates a Cloud DNS zone + A record pointing at the
+# reserved static IP. When empty, you create the A record manually at
+# whatever registrar/DNS provider you use, pointing at the `static_ip`
+# output.
+domain = ""

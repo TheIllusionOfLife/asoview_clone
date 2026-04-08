@@ -3,6 +3,9 @@ spring:
     url: jdbc:postgresql://localhost:5432/asoview
     username: asoview
     password: asoview
+  flyway:
+    placeholders:
+      seed_catalog: "true"
   jpa:
     show-sql: true
   data:

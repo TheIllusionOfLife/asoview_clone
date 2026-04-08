@@ -1,0 +1,12 @@
+# Google-managed TLS certificate provisioned for the edge ingress.
+#
+# DOMAIN PLACEHOLDER: replace `example.com` with your registered domain
+# before applying. Provisioning takes ~15 min after DNS A record resolves.
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: asoview-clone-dev-cert
+  namespace: edge
+spec:
+  domains:
+    - example.com

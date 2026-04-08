@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ads-services
+resources:
+  - ../../base
+images:
+  - name: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/ads-service
+    newTag: latest
