@@ -4,7 +4,7 @@
 #
 # Two-phase deploy: after `terraform apply`, the user reads the regional
 # static IP from `terraform output static_ip` and sed-replaces
-# EDIT_ME_STATIC_IP below with that literal value, then commits + pushes.
+# 34.104.197.44 below with that literal value, then commits + pushes.
 # Argo CD then syncs ingress-nginx with the pinned IP.
 #
 # We set:
@@ -35,7 +35,7 @@ spec:
       values: |
         controller:
           service:
-            loadBalancerIP: EDIT_ME_STATIC_IP
+            loadBalancerIP: 34.104.197.44
             externalTrafficPolicy: Local
           config:
             # NOTE: use-forwarded-headers is intentionally NOT set. On
