@@ -52,6 +52,7 @@ module "cloudsql" {
   region        = var.region
   instance_name = "asoview-clone-dev-pg"
   network_id    = module.networking.network_id
+  depends_on    = [module.networking]
 }
 
 module "redis" {
@@ -59,6 +60,7 @@ module "redis" {
   project_id = var.project_id
   region     = var.region
   network_id = module.networking.network_id
+  depends_on = [module.networking]
 }
 
 module "pubsub" {
