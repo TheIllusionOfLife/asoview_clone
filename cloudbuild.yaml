@@ -51,7 +51,11 @@ substitutions:
   _STRIPE_PUBLISHABLE_KEY: ""
 
 options:
-  machineType: E2_HIGHCPU_8
+  # E2_HIGHCPU_32 (32 vCPU / 32 GB RAM): the 6 parallel Gradle builds
+  # OOM-killed the daemon on E2_HIGHCPU_8 (8 GB). Each service's
+  # Gradle daemon peaks at ~3-4 GB with Spring Boot 4 + Kotlin DSL,
+  # so 32 GB / 6 ≈ 5 GB headroom per build is the minimum for parallel.
+  machineType: E2_HIGHCPU_32
   logging: CLOUD_LOGGING_ONLY
 
 steps:
