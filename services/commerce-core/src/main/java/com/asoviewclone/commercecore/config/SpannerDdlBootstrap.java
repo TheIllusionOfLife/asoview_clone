@@ -17,7 +17,7 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile({"local", "test"})
+@Profile({"local", "test", "dev"})
 public class SpannerDdlBootstrap implements CommandLineRunner {
 
   private static final Logger log = LoggerFactory.getLogger(SpannerDdlBootstrap.class);
