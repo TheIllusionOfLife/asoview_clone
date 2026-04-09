@@ -22,6 +22,12 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      # cert-manager CRDs must exist before the ClusterIssuer in
+      # clusterissuer.yaml can apply. On the very first sync (before
+      # the cert-manager Application has finished installing CRDs),
+      # this flag lets the sync retry rather than fail hard on
+      # "no matches for kind ClusterIssuer".
+      - SkipDryRunOnMissingResource=true
     retry:
       limit: 5
       backoff:

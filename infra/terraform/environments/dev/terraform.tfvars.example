@@ -1,12 +1,21 @@
-# Copy to terraform.tfvars and fill in.
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored.
 project_id    = "asoview-clone-dev"
 region        = "asia-northeast1"
 zone          = "asia-northeast1-a"
 support_email = "you@example.com"
 
-# Optional: provide a domain you own (e.g. "asoview-clone.dev").
-# When set, terraform creates a Cloud DNS zone + A record pointing at the
-# reserved static IP. When empty, you create the A record manually at
-# whatever registrar/DNS provider you use, pointing at the `static_ip`
-# output.
+# Let's Encrypt account registration email is NOT a terraform variable.
+# After `terraform apply`, sed-replace REPLACE_WITH_ACME_EMAIL in
+# infra/k8s/edge/clusterissuer.yaml with your real address (you receive
+# ACME expiry warnings there). See docs/demo.md for the exact command.
+
+# DuckDNS subdomain (the part before .duckdns.org). Claim one at
+# https://www.duckdns.org. The full host becomes <this>.duckdns.org.
+# Default matches the hostname committed in infra/k8s/edge/ingress.yaml.
+duckdns_subdomain = "asoview-clone-dev"
+
+# Optional: provide a domain you own (e.g. "asoview-clone.dev") to skip
+# DuckDNS. When set AND duckdns_subdomain is empty, terraform creates a
+# Cloud DNS zone + A record pointing at the static IP. Unused in the
+# default DuckDNS flow.
 domain = ""

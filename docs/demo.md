@@ -9,7 +9,7 @@ A single GKE Autopilot cluster in `asia-northeast1` hosts 8 namespaces:
 
 | Namespace | Workloads |
 |---|---|
-| `edge` | `gateway`, `web`, GKE Ingress + ManagedCertificate |
+| `edge` | `gateway`, `web`, ingress-nginx, Let's Encrypt cert |
 | `core-services` | `commerce-core`, `ticketing-service`, `reservation-service` |
 | `ads-services` | `ads-service` |
 | `data-jobs` | `analytics-ingest` |
@@ -25,9 +25,12 @@ Platform, Cloud Build.
 ## Prerequisites
 
 1. GCP project `asoview-clone-dev` with billing enabled.
-2. `gcloud`, `kubectl`, `terraform >= 1.6`, `kustomize >= 5` installed locally.
-3. A registered domain (\~\$10/yr) for HTTPS. GKE ManagedCertificate
-   requires DNS-validated ownership.
+2. `gcloud`, `kubectl`, `terraform >= 1.6`, `kustomize >= 5`, `argocd` CLI installed locally.
+3. A **free DuckDNS subdomain** for HTTPS. Sign in at https://www.duckdns.org
+   with GitHub or Google, claim `<name>.duckdns.org`, copy the token from the
+   dashboard. **Store the token in a password manager — it is a secret**
+   equivalent to a DNS admin password. The default committed hostname is
+   `asoview-clone-dev.duckdns.org`.
 4. Argo CD installed in the cluster's `argocd` namespace. If not yet:
    `kubectl create namespace argocd && kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml`
 
@@ -80,15 +83,12 @@ kubectl create secret generic firebase-config \
 #     output `commerce_core_gsa_email`. If you change the dev project
 #     id, sync that overlay patch + the terraform variable.
 
-# 4. Bootstrap Argo CD Applications (run from repo root)
-kubectl apply -f infra/argocd/applications/
-
-# 5. Install + log in to the argocd CLI
+# 4. Install + log in to the argocd CLI
 #    macOS: brew install argocd
 #    Linux: curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64 && chmod +x /usr/local/bin/argocd
 #
-#    The Argo CD API server is ClusterIP-only by default. Either expose
-#    it via port-forward (simplest) or via a LoadBalancer Service.
+#    The Argo CD API server is ClusterIP-only by default. Expose via
+#    port-forward for this bootstrap.
 kubectl port-forward -n argocd svc/argocd-server 8080:443 >/dev/null 2>&1 &
 sleep 3
 ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret \
@@ -98,33 +98,80 @@ argocd login localhost:8080 \
   --password "$ARGOCD_PASSWORD" \
   --insecure
 
-# 6. Wait for initial sync (~5 min). The selector matches the
-#    `app.kubernetes.io/part-of: asoview-clone-dev` label that every
-#    Application manifest under infra/argocd/applications/ carries.
-argocd app sync -l app.kubernetes.io/part-of=asoview-clone-dev
-argocd app wait -l app.kubernetes.io/part-of=asoview-clone-dev --health
+# 5. Bootstrap phase 1: patch the committed placeholders BEFORE any Argo
+#    CD Application is applied. Argo CD auto-syncs on Application
+#    creation, so applying ingress-nginx.yaml with EDIT_ME_STATIC_IP in
+#    place provisions a LoadBalancer against an invalid IP and wedges
+#    the stack. Patch-then-apply is the explicit Terraform → GitOps bridge.
+STATIC_IP=$(terraform -chdir=infra/terraform/environments/dev output -raw static_ip)
+echo "Static IP: $STATIC_IP"
+LETSENCRYPT_EMAIL="<your-email@example.com>"  # <-- edit before running
+sed -i.bak "s|EDIT_ME_STATIC_IP|$STATIC_IP|" infra/argocd/applications/ingress-nginx.yaml
+sed -i.bak "s|REPLACE_WITH_ACME_EMAIL|$LETSENCRYPT_EMAIL|" infra/k8s/edge/clusterissuer.yaml
+rm infra/argocd/applications/ingress-nginx.yaml.bak infra/k8s/edge/clusterissuer.yaml.bak
+git add infra/argocd/applications/ingress-nginx.yaml infra/k8s/edge/clusterissuer.yaml
+git commit -m "chore(deploy): pin static IP + letsencrypt email for dev"
+git push origin main
 
-# 7. Configure DNS
-#    Get the static IP:
-terraform -chdir=infra/terraform/environments/dev output static_ip
-#    Create an A record in your DNS provider:
-#      <your-domain>.  300  IN  A  <static-ip>
+# 6. Set the DuckDNS A record. The token is a SECRET — read it silently
+#    so it doesn't land in shell history, and unset it after use.
+DUCKDNS_SUBDOMAIN="asoview-clone-dev"  # <-- the subdomain you claimed
+read -rs -p "DuckDNS token: " DUCKDNS_TOKEN; echo
+curl "https://www.duckdns.org/update?domains=${DUCKDNS_SUBDOMAIN}&token=${DUCKDNS_TOKEN}&ip=${STATIC_IP}"
+#    Expect "OK".
+unset DUCKDNS_TOKEN
 
-# 8. Activate the edge ingress with your real domain
-#    The base infra/k8s/edge/ directory ships EMPTY (kustomization.yaml
-#    has resources: []) so Argo CD does NOT sync the example.com
-#    placeholder. To activate:
-#      a. Copy infra/k8s/edge/template/ingress.yaml + managed-certificate.yaml
-#         into infra/k8s/edge/
-#      b. Replace `example.com` with your real domain in both files
-#      c. Add `host: <your-domain>` to the Ingress rules
-#      d. List both filenames in infra/k8s/edge/kustomization.yaml's
-#         resources: array
-#      e. Commit and push — Argo CD picks it up
-#    Wait ~15 min for ManagedCertificate to provision the cert.
+# 7. Apply the Argo CD Applications in strict order. syncWave annotations
+#    do NOT order across separate Applications applied directly, so the
+#    ordering is enforced manually here: cert-manager first (installs
+#    CRDs), then ingress-nginx (provides the Service on the static IP),
+#    then the edge app (ClusterIssuer + Ingress), then the 7 service apps.
+kubectl apply -f infra/argocd/applications/cert-manager.yaml
+kubectl wait --for=condition=Available deployment -l app.kubernetes.io/instance=cert-manager -n cert-manager --timeout=5m
 
-# 9. Visit https://<your-domain>/ja
+kubectl apply -f infra/argocd/applications/ingress-nginx.yaml
+kubectl wait --for=condition=Available deployment -l app.kubernetes.io/instance=ingress-nginx -n edge --timeout=5m
+kubectl get svc -n edge ingress-nginx-controller -o wide
+#    EXTERNAL-IP should match $STATIC_IP
+
+kubectl apply -f infra/argocd/applications/edge.yaml
+kubectl apply -f infra/argocd/applications/commerce-core.yaml \
+               -f infra/argocd/applications/gateway.yaml \
+               -f infra/argocd/applications/web.yaml \
+               -f infra/argocd/applications/ticketing-service.yaml \
+               -f infra/argocd/applications/reservation-service.yaml \
+               -f infra/argocd/applications/ads-service.yaml \
+               -f infra/argocd/applications/analytics-ingest.yaml \
+               -f infra/argocd/applications/search.yaml
+
+# 8. Wait for Let's Encrypt to issue the TLS cert (usually ~2 min).
+kubectl wait --for=condition=Ready certificate/asoview-clone-tls -n edge --timeout=10m
+kubectl describe certificate asoview-clone-tls -n edge  # inspect if stuck
+
+# 9. Visit https://${DUCKDNS_SUBDOMAIN}.duckdns.org/ja
 ```
+
+### Let's Encrypt rate limits
+
+Two limits apply:
+
+- **50 certificates per registered domain per week**: `duckdns.org` is the
+  registered domain, so the bucket is **shared across every DuckDNS user**.
+  Our renewal cadence is every 60 days (~6 certs/year), so we barely touch
+  the limit on our own, but heavy DuckDNS usage from other users CAN
+  exhaust it. If hit, cert-manager reports the error and retries after the
+  window clears.
+- **5 duplicate certificates per identical identifier set per week**: this
+  is the one you hit during debugging if you delete and recreate the
+  `asoview-clone-tls` Certificate. Mitigation: when debugging, set
+  `spec.acme.server` on the ClusterIssuer to the staging URL
+  `https://acme-staging-v02.api.letsencrypt.org/directory`, which has
+  much higher limits but issues untrusted certs (browser warning). Flip
+  back to production once the flow works end-to-end.
+- **Fallback if blocked**: install `cert-manager-webhook-duckdns` and
+  switch the ClusterIssuer from HTTP-01 to DNS-01. DNS-01 uses a
+  separate rate-limit bucket and works around the shared
+  `duckdns.org` problem. Not shipped in this PR; deferred follow-up.
 
 ## Redeploy (after code changes)
 
@@ -171,17 +218,21 @@ terraform -chdir=infra/terraform/environments/dev destroy
 ```
 
 This removes the GKE cluster, Cloud SQL, Spanner, Memorystore, and the
-static IP. DNS A records must be deleted manually from your DNS provider.
+regional static IP. The DuckDNS subdomain stays (free, no cleanup
+required). If you want to un-point it, log in to duckdns.org and
+delete the subdomain, or update its A record to `0.0.0.0`.
 
 ## Estimated Monthly Cost
 
 | Resource | ~USD / month |
 |---|---|
-| GKE Autopilot baseline (8 small pods) | \$75 |
+| GKE Autopilot baseline (8 small pods + ingress-nginx) | \$75 |
 | Cloud SQL `db-f1-micro` | \$10 |
 | Cloud Spanner 100 PU | \$65 |
 | Memorystore Redis basic (1 GB) | \$30 |
-| Load Balancer + static IP | \$20 |
+| Regional L4 LB (ingress-nginx Service) + static IP | \$18 |
+| TLS certs (Let's Encrypt) | \$0 |
+| DuckDNS subdomain | \$0 |
 | **Total** | **\~\$200/mo** |
 
 Cost-saving options when the demo is idle: Cloud Spanner's minimum is

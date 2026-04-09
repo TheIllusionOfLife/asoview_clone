@@ -1,0 +1,52 @@
+# Public edge ingress for the dev environment. Routes /api/* to the
+# gateway service and /* to the web service, both in the same namespace.
+#
+# Key correctness points (regressions from earlier iterations):
+# - Backend Service names are plain (`gateway`, `web`). Ingress backends
+#   are always namespace-local; FQDNs like `gateway.edge.svc.cluster.local`
+#   are invalid here.
+# - pathType: Prefix takes a literal prefix (`/api`, `/`). The `*` glob
+#   is NOT Prefix syntax — it's ImplementationSpecific and nginx ignores
+#   it silently.
+# - `spec.ingressClassName: nginx` is the modern field. No need for the
+#   legacy `kubernetes.io/ingress.class: nginx` annotation.
+#
+# cert-manager watches for the `cert-manager.io/cluster-issuer` annotation
+# + the `tls:` stanza, then issues a Let's Encrypt cert for the listed
+# hosts and writes it into the `asoview-clone-tls` Secret. nginx picks
+# that Secret up automatically via the `tls` section below.
+#
+# The host is hardcoded to the default DuckDNS subdomain. If you forked
+# and claimed a different subdomain, apply a kustomize overlay patch.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: asoview-clone-edge
+  namespace: edge
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: 10m
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - asoview-clone-dev.duckdns.org
+      secretName: asoview-clone-tls
+  rules:
+    - host: asoview-clone-dev.duckdns.org
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 3000

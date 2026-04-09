@@ -1,17 +1,15 @@
-# The edge directory is intentionally empty until the user provides a real
-# domain. The Ingress + ManagedCertificate templates live under `template/`
-# and contain `example.com` placeholders that would render as a permanently-
-# unhealthy ManagedCertificate if Argo CD synced them as-is.
+# Edge namespace: Let's Encrypt ClusterIssuer + ingress-nginx Ingress.
+# The ingress-nginx controller itself is deployed via its own Argo CD
+# Application (infra/argocd/applications/ingress-nginx.yaml) which
+# renders the upstream Helm chart. cert-manager similarly.
 #
-# To activate the edge:
-#   1. Copy template/ingress.yaml + template/managed-certificate.yaml here
-#   2. Replace `example.com` with the domain you registered
-#   3. Add both filenames back to `resources:` below
-#   4. Add the host: field to the Ingress rules to match the cert domain
-#   5. Commit and push — Argo CD picks it up
-#
-# See docs/demo.md for the full walkthrough.
+# NOTE: No top-level `namespace:` transformer. ClusterIssuer is
+# cluster-scoped and must NOT carry a namespace field — a
+# namespace-setting transformer would incorrectly stamp
+# `metadata.namespace: edge` onto it. Each namespaced resource (the
+# Ingress) sets its own namespace explicitly in its manifest instead.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: edge
-resources: []
+resources:
+  - clusterissuer.yaml
+  - ingress.yaml
