@@ -200,7 +200,10 @@ steps:
 
   # ---- Bump kustomize image tags and commit (only after all pushes succeed) ----
   - id: bump-kustomize
-    name: mikefarah/yq:4
+    # NOTE: mikefarah/yq:4 runs as non-root and cannot write to /workspace
+    # files owned by root from the git fetch. Use a root-running image
+    # and install yq inline.
+    name: alpine:3.20
     entrypoint: sh
     waitFor:
       - push-commerce-core
@@ -214,6 +217,7 @@ steps:
       - -c
       - |
         set -e
+        apk add --no-cache yq
         for svc in commerce-core gateway web ticketing-service reservation-service ads-service analytics-ingest; do
           yq eval -i ".images[0].newTag = \"$SHORT_SHA\"" infra/k8s/$svc/overlays/dev/kustomization.yaml
         done
