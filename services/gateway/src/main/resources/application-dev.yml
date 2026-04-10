@@ -4,11 +4,15 @@ server:
 spring:
   cloud:
     gateway:
-      routes:
-        - id: commerce-core
-          uri: http://commerce-core.core-services.svc.cluster.local:8081
-          predicates:
-            - Path=/v1/**
+      # Spring Cloud Gateway WebFlux 2025.x moved the property path from
+      # spring.cloud.gateway.routes to spring.cloud.gateway.server.webflux.routes
+      server:
+        webflux:
+          routes:
+            - id: commerce-core
+              uri: http://commerce-core.core-services.svc.cluster.local:8081
+              predicates:
+                - Path=/v1/**
 
 management:
   endpoints:
