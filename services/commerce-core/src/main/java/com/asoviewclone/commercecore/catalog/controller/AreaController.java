@@ -32,9 +32,14 @@ public class AreaController {
     return venueRepository.findAll().stream().map(AreaResponse::from).toList();
   }
 
-  public record AreaResponse(UUID id, String name, String address) {
+  public record AreaResponse(UUID id, String name, String slug, String address) {
     static AreaResponse from(Venue v) {
-      return new AreaResponse(v.getId(), v.getName(), v.getAddress());
+      return new AreaResponse(v.getId(), v.getName(), toSlug(v.getName()), v.getAddress());
+    }
+
+    private static String toSlug(String name) {
+      if (name == null) return "";
+      return name.toLowerCase(java.util.Locale.ROOT).replaceAll("\\s+", "-");
     }
   }
 }
