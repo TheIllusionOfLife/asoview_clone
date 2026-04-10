@@ -55,4 +55,15 @@ class AreaControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].slug", is("new-york-city")));
   }
+
+  @Test
+  void slug_stripsPunctuationAndTrimsWhitespace() throws Exception {
+    var venue = new Venue(UUID.randomUUID(), "  New/York (City)  ", "NYC, USA", 40.7, -74.0);
+    when(venueRepository.findAll()).thenReturn(List.of(venue));
+
+    mockMvc
+        .perform(get("/v1/areas"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].slug", is("new-york-city")));
+  }
 }

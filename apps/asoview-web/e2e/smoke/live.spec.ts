@@ -167,8 +167,8 @@ test.describe("search page", () => {
     const body = await page.locator("body").innerText();
     const hasMessage =
       body.includes("失敗") || body.includes("見つかりません") || body.includes("error");
-    // Either error or empty — both are acceptable with search disabled
-    expect(true).toBe(true); // page didn't crash
+    // Either error message or page rendered without crash — both acceptable
+    expect(hasMessage || body.length > 0).toBe(true);
   });
 });
 

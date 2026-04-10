@@ -39,7 +39,10 @@ public class AreaController {
 
     private static String toSlug(String name) {
       if (name == null) return "";
-      return name.toLowerCase(java.util.Locale.ROOT).replaceAll("\\s+", "-");
+      return name.trim()
+          .toLowerCase(java.util.Locale.ROOT)
+          .replaceAll("[^\\p{Alnum}]+", "-")
+          .replaceAll("(^-|-$)", "");
     }
   }
 }
