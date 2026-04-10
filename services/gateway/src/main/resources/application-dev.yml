@@ -16,6 +16,9 @@ spring:
               filters:
                 - StripPrefix=1
 
+firebase:
+  project-id: asoview-clone-dev
+
 management:
   endpoints:
     web:

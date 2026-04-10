@@ -24,6 +24,9 @@ spring:
         emulator:
           enabled: false
 
+firebase:
+  project-id: ${GOOGLE_CLOUD_PROJECT:asoview-clone-dev}
+
 opensearch:
   url: ${OPENSEARCH_URL:http://opensearch.search.svc.cluster.local:9200}
 
