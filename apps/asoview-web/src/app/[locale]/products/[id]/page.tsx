@@ -67,7 +67,11 @@ export default async function ProductPage({ params }: Props) {
       <div className="mt-4 grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-8">
         <div>
           {product.imageUrl ? (
-            <img src={product.imageUrl} alt={product.title} className="aspect-[4/3] w-full rounded-[var(--radius-lg)] object-cover" />
+            <img
+              src={product.imageUrl}
+              alt={product.title}
+              className="aspect-[4/3] w-full rounded-[var(--radius-lg)] object-cover"
+            />
           ) : (
             <div className="aspect-[4/3] rounded-[var(--radius-lg)] bg-gradient-to-br from-[var(--color-primary)]/20 to-[var(--color-accent)]/10" />
           )}

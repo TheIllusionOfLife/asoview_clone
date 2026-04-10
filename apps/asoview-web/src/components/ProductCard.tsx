@@ -22,7 +22,11 @@ export function ProductCard({ product }: { product: ProductResponse }) {
     <div className="group relative rounded-[var(--radius-lg)] bg-[var(--color-surface)] border border-[var(--color-border)] overflow-hidden shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] motion-safe:transition-shadow">
       <Link href={`/products/${product.id}`} className="block">
         {product.imageUrl ? (
-          <img src={product.imageUrl} alt={product.title} className="aspect-[4/3] w-full object-cover" />
+          <img
+            src={product.imageUrl}
+            alt={product.title}
+            className="aspect-[4/3] w-full object-cover"
+          />
         ) : (
           <div className="aspect-[4/3] bg-gradient-to-br from-[var(--color-primary)]/15 to-[var(--color-accent)]/10" />
         )}
