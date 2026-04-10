@@ -26,20 +26,24 @@ export type OrderStatus =
 export type ProductVariantResponse = {
   id: string;
   name: string;
-  unitPrice: string; // NUMERIC(12,2) serialised as String — never parse as Long
-  currency: string;
+  priceAmount: number;
+  priceCurrency: string;
+  durationMinutes?: number;
+  maxParticipants?: number;
 };
 
 export type ProductResponse = {
   id: string;
-  name: string;
+  title: string;
   description: string | null;
+  imageUrl: string | null;
   status: ProductStatus;
   categoryId: string | null;
   venueId: string | null;
   variants: ProductVariantResponse[];
   averageRating?: number;
   reviewCount?: number;
+  isFavorited?: boolean;
 };
 
 export type AreaResponse = {

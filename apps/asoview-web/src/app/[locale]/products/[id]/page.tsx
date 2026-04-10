@@ -15,15 +15,13 @@ type Props = {
   params: Promise<{ locale: string; id: string }>;
 };
 
-function formatJpy(amount: string | undefined, locale: string): string {
-  if (!amount) return "—";
-  const n = Number(amount);
-  if (!Number.isFinite(n)) return amount;
+function formatJpy(amount: number | undefined, locale: string): string {
+  if (amount == null || !Number.isFinite(amount)) return "—";
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "JPY",
     maximumFractionDigits: 0,
-  }).format(Math.trunc(n));
+  }).format(Math.trunc(amount));
 }
 
 /**
@@ -54,7 +52,7 @@ export default async function ProductPage({ params }: Props) {
   if (!product || product.status !== "ACTIVE") {
     notFound();
   }
-  const minPrice = product.variants?.[0]?.unitPrice;
+  const minPrice = product.variants?.[0]?.priceAmount;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
@@ -63,14 +61,18 @@ export default async function ProductPage({ params }: Props) {
           ホーム
         </Link>
         <span className="mx-2">/</span>
-        <span>{product.name}</span>
+        <span>{product.title}</span>
       </nav>
 
       <div className="mt-4 grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-8">
         <div>
-          <div className="aspect-[4/3] rounded-[var(--radius-lg)] bg-gradient-to-br from-[var(--color-primary)]/20 to-[var(--color-accent)]/10" />
+          {product.imageUrl ? (
+            <img src={product.imageUrl} alt={product.title} className="aspect-[4/3] w-full rounded-[var(--radius-lg)] object-cover" />
+          ) : (
+            <div className="aspect-[4/3] rounded-[var(--radius-lg)] bg-gradient-to-br from-[var(--color-primary)]/20 to-[var(--color-accent)]/10" />
+          )}
           <div className="mt-5 flex items-start justify-between gap-3">
-            <h1 className="font-display text-3xl font-bold">{product.name}</h1>
+            <h1 className="font-display text-3xl font-bold">{product.title}</h1>
             <FavoriteToggle productId={product.id} />
           </div>
           <p className="mt-2 text-base font-semibold text-[var(--color-primary)]">

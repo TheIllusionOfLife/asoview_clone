@@ -15,8 +15,8 @@ vi.mock("@/lib/server-api", () => ({
 
 // ProductCard imports next-intl navigation; stub it to a plain anchor.
 vi.mock("@/components/ProductCard", () => ({
-  ProductCard: ({ product }: { product: { id: string; name: string } }) => (
-    <div data-testid={`card-${product.id}`}>{product.name}</div>
+  ProductCard: ({ product }: { product: { id: string; title: string } }) => (
+    <div data-testid={`card-${product.id}`}>{product.title}</div>
   ),
 }));
 
@@ -27,11 +27,11 @@ afterEach(() => {
   serverGetMock.mockReset();
 });
 
-function page(items: Array<{ id: string; name: string }>) {
+function page(items: Array<{ id: string; title: string }>) {
   return {
     content: items.map((i) => ({
       id: i.id,
-      name: i.name,
+      title: i.title,
       description: null,
       status: "ACTIVE",
       categoryId: "c1",
@@ -48,9 +48,9 @@ describe("SimilarProducts", () => {
   it("renders cards and excludes the current product", async () => {
     serverGetMock.mockResolvedValue(
       page([
-        { id: "p1", name: "Alpha" },
-        { id: "p2", name: "Beta" },
-        { id: "p3", name: "Gamma" },
+        { id: "p1", title: "Alpha" },
+        { id: "p2", title: "Beta" },
+        { id: "p3", title: "Gamma" },
       ]),
     );
     const element = await SimilarProducts({

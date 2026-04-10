@@ -182,8 +182,8 @@ export function SlotPicker({ product }: { product: ProductResponse }) {
       slotStartAt: `${selected.date}T${selected.startTime}`,
       slotEndAt: `${selected.date}T${selected.endTime}`,
       quantity,
-      unitPrice: variant?.unitPrice ?? "0",
-      productSnapshot: { name: product.name },
+      unitPrice: String(variant?.priceAmount ?? 0),
+      productSnapshot: { name: product.title },
     });
     setAddedToCart(true);
     window.setTimeout(() => setAddedToCart(false), 2000);
