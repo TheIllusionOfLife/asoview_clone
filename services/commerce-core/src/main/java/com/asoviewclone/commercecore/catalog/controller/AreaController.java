@@ -41,7 +41,7 @@ public class AreaController {
       if (name == null) return "";
       return name.trim()
           .toLowerCase(java.util.Locale.ROOT)
-          .replaceAll("[^\\p{Alnum}]+", "-")
+          .replaceAll("[^\\p{L}\\p{N}]+", "-")
           .replaceAll("(^-|-$)", "");
     }
   }

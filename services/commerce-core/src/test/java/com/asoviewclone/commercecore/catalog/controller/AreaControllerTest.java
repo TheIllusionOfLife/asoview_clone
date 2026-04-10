@@ -66,4 +66,15 @@ class AreaControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].slug", is("new-york-city")));
   }
+
+  @Test
+  void slug_preservesNonAsciiCharacters() throws Exception {
+    var venue = new Venue(UUID.randomUUID(), "東京", "Tokyo, Japan", 35.6762, 139.6503);
+    when(venueRepository.findAll()).thenReturn(List.of(venue));
+
+    mockMvc
+        .perform(get("/v1/areas"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].slug", is("東京")));
+  }
 }
