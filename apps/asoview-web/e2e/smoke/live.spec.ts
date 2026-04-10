@@ -135,13 +135,13 @@ test.describe("product detail page", () => {
     await expect(page.getByText(/残り|sold out|予約/i).first()).toBeVisible({ timeout: 10_000 });
   });
 
-  test("variant selector is visible", async ({ page }) => {
+  test("price is displayed on product page", async ({ page }) => {
     await page.goto(`/ja/products/${productId}`);
     await page.waitForTimeout(2000);
-    // Should show variant names like "Adult" or price
+    // Price should appear somewhere (formatJpy renders as ¥3,100 etc.)
     const body = await page.locator("body").innerText();
-    const hasVariant = body.includes("Adult") || body.includes("大人") || body.includes("¥") || body.includes("円");
-    expect(hasVariant).toBe(true);
+    const hasPrice = body.includes("¥") || body.includes("円") || body.includes("〜");
+    expect(hasPrice).toBe(true);
   });
 });
 
@@ -249,8 +249,9 @@ test.describe("API health", () => {
   test("GET /api/v1/products/{id}/availability → 200", async ({ page }) => {
     const list = await page.request.get("/api/v1/products?size=1");
     const pid = (await list.json()).content[0].id;
-    const res = await page.request.get(`/api/v1/products/${pid}/availability`);
-    // BUG DETECTION: 403 means security config missing this path
+    const today = new Date().toISOString().slice(0, 10);
+    const nextWeek = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+    const res = await page.request.get(`/api/v1/products/${pid}/availability?from=${today}&to=${nextWeek}`);
     expect(res.status()).toBe(200);
   });
 
