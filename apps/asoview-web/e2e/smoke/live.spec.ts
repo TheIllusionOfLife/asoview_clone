@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 /**
  * Comprehensive live smoke tests — no mocking.
@@ -35,7 +35,10 @@ test.describe("landing page /ja", () => {
 
   test("area card links navigate to area page", async ({ page }) => {
     await page.goto("/ja");
-    const firstArea = page.locator("section", { has: page.getByText("エリアから探す") }).locator("a").first();
+    const firstArea = page
+      .locator("section", { has: page.getByText("エリアから探す") })
+      .locator("a")
+      .first();
     await expect(firstArea).toBeVisible({ timeout: 10_000 });
     await firstArea.click();
     await page.waitForURL(/\/areas\//, { timeout: 10_000 });
@@ -86,7 +89,10 @@ test.describe("/en locale", () => {
 test.describe("area page", () => {
   test("renders heading and does not crash", async ({ page }) => {
     await page.goto("/ja");
-    const areaLink = page.locator("section", { has: page.getByText("エリアから探す") }).locator("a").first();
+    const areaLink = page
+      .locator("section", { has: page.getByText("エリアから探す") })
+      .locator("a")
+      .first();
     await expect(areaLink).toBeVisible({ timeout: 10_000 });
     await areaLink.click();
     await page.waitForURL(/\/areas\//, { timeout: 10_000 });
@@ -159,7 +165,8 @@ test.describe("search page", () => {
     await page.waitForTimeout(2000);
     // Search service is disabled: should show error or empty state
     const body = await page.locator("body").innerText();
-    const hasMessage = body.includes("失敗") || body.includes("見つかりません") || body.includes("error");
+    const hasMessage =
+      body.includes("失敗") || body.includes("見つかりません") || body.includes("error");
     // Either error or empty — both are acceptable with search disabled
     expect(true).toBe(true); // page didn't crash
   });
@@ -208,7 +215,8 @@ test.describe("auth-gated pages", () => {
       await page.waitForTimeout(3000);
       const url = page.url();
       const body = await page.locator("body").innerText();
-      const isProtected = url.includes("signin") || body.includes("Sign in") || body.includes("ログイン");
+      const isProtected =
+        url.includes("signin") || body.includes("Sign in") || body.includes("ログイン");
       expect(isProtected).toBe(true);
     });
   }
@@ -251,7 +259,9 @@ test.describe("API health", () => {
     const pid = (await list.json()).content[0].id;
     const today = new Date().toISOString().slice(0, 10);
     const nextWeek = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
-    const res = await page.request.get(`/api/v1/products/${pid}/availability?from=${today}&to=${nextWeek}`);
+    const res = await page.request.get(
+      `/api/v1/products/${pid}/availability?from=${today}&to=${nextWeek}`,
+    );
     expect(res.status()).toBe(200);
   });
 
@@ -292,7 +302,7 @@ test.describe("assets", () => {
 test.describe("security headers", () => {
   test("HSTS, CSP, nosniff, referrer-policy present", async ({ page }) => {
     const res = await page.goto("/ja");
-    const h = res!.headers();
+    const h = res?.headers();
     expect(h["strict-transport-security"]).toBeTruthy();
     expect(h["x-content-type-options"]).toBe("nosniff");
     expect(h["content-security-policy"]).toBeTruthy();
@@ -301,7 +311,7 @@ test.describe("security headers", () => {
 
   test("hreflang alternate links in Link header", async ({ page }) => {
     const res = await page.goto("/ja");
-    const linkHeader = res!.headers()["link"] ?? "";
+    const linkHeader = res?.headers().link ?? "";
     expect(linkHeader).toContain('hreflang="ja"');
     expect(linkHeader).toContain('hreflang="en"');
   });
@@ -312,7 +322,10 @@ test.describe("security headers", () => {
 test.describe("navigation", () => {
   test("home → area → back", async ({ page }) => {
     await page.goto("/ja");
-    const areaLink = page.locator("section", { has: page.getByText("エリアから探す") }).locator("a").first();
+    const areaLink = page
+      .locator("section", { has: page.getByText("エリアから探す") })
+      .locator("a")
+      .first();
     await expect(areaLink).toBeVisible({ timeout: 10_000 });
     await areaLink.click();
     await page.waitForURL(/\/areas\//, { timeout: 10_000 });

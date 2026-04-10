@@ -48,10 +48,7 @@ public class GatewaySecurityConfig {
                     .permitAll()
                     // Webhook endpoints use signature verification, not
                     // Firebase auth. Permit both /v1 and /api/v1 shapes.
-                    .pathMatchers(
-                        HttpMethod.POST,
-                        "/v1/payments/webhooks/**",
-                        "/api/v1/payments/webhooks/**")
+                    .pathMatchers(HttpMethod.POST, "/v1/payments/webhooks/**", "/api/v1/payments/webhooks/**")
                     .permitAll()
                     .anyExchange()
                     .authenticated())
