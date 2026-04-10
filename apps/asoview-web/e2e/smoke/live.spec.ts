@@ -30,9 +30,15 @@ test.describe("landing page /ja", () => {
     const count = await cards.count();
     expect(count).toBeGreaterThan(0);
     // Verify at least the first product card image actually loaded
-    const firstImg = featuredSection.locator("img").first();
+    const firstImg = cards.first().locator("img").first();
     await expect(firstImg).toBeVisible({ timeout: 10_000 });
-    const naturalWidth = await firstImg.evaluate((el: HTMLImageElement) => el.naturalWidth);
+    const naturalWidth = await firstImg.evaluate(async (el: HTMLImageElement) => {
+      if (!el.complete)
+        await new Promise((res) => {
+          el.onload = el.onerror = res;
+        });
+      return el.naturalWidth;
+    });
     // BUG DETECTION: naturalWidth 0 means image blocked by CSP or broken URL
     expect(naturalWidth).toBeGreaterThan(0);
   });
@@ -131,17 +137,24 @@ test.describe("product detail page", () => {
   });
 
   test("product image loads successfully (not blocked by CSP)", async ({ page }) => {
-    // Listen for CSP violations and failed image loads
     const cspViolations: string[] = [];
     page.on("console", (msg) => {
       if (msg.text().includes("Content Security Policy")) cspViolations.push(msg.text());
     });
     await page.goto(`/ja/products/${productId}`);
-    const img = page.locator("img[src*='unsplash'], img[src*='http']").first();
+    const img = page.locator("main img").first();
     await expect(img).toBeVisible({ timeout: 10_000 });
-    // Verify the image actually loaded (naturalWidth > 0 means decoded)
-    const naturalWidth = await img.evaluate((el: HTMLImageElement) => el.naturalWidth);
-    // BUG DETECTION: naturalWidth 0 means image blocked by CSP or 404
+    await expect(img).toHaveAttribute(
+      "src",
+      /https:\/\/(images\.unsplash\.com|[\w.-]+\.googleusercontent\.com)/,
+    );
+    const naturalWidth = await img.evaluate(async (el: HTMLImageElement) => {
+      if (!el.complete)
+        await new Promise((res) => {
+          el.onload = el.onerror = res;
+        });
+      return el.naturalWidth;
+    });
     expect(naturalWidth).toBeGreaterThan(0);
     expect(cspViolations).toHaveLength(0);
   });
@@ -208,8 +221,12 @@ test.describe("sign-in page", () => {
   });
 
   test("no Firebase errors visible on signin page", async ({ page }) => {
+    const consoleErrors: string[] = [];
+    page.on("console", (msg) => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
     await page.goto("/ja/signin");
-    await page.waitForTimeout(2000);
+    await expect(page.getByRole("button", { name: /Google/ })).toBeVisible({ timeout: 10_000 });
     const body = await page.locator("body").innerText();
     // BUG DETECTION: Firebase config missing
     expect(body).not.toContain("NEXT_PUBLIC_FIREBASE");
@@ -217,6 +234,11 @@ test.describe("sign-in page", () => {
     expect(body).not.toContain("auth/internal-error");
     expect(body).not.toContain("auth/unauthorized-domain");
     expect(body).not.toContain("auth/invalid-api-key");
+    // BUG DETECTION: Firebase errors in console (not always rendered to DOM)
+    const firebaseConsoleErrors = consoleErrors.filter(
+      (e) => e.includes("auth/") || e.includes("Firebase"),
+    );
+    expect(firebaseConsoleErrors).toHaveLength(0);
   });
 });
 
