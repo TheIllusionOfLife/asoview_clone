@@ -22,15 +22,19 @@ test.describe("landing page /ja", () => {
     await expect(areaCards).toHaveCount(8, { timeout: 10_000 });
   });
 
-  test("featured products section renders product cards", async ({ page }) => {
+  test("featured products section renders product cards with loaded images", async ({ page }) => {
     await page.goto("/ja");
     const featuredSection = page.locator("section", { has: page.getByText("注目の体験") });
     await expect(featuredSection).toBeVisible({ timeout: 10_000 });
-    // Check if product cards actually rendered (not empty state)
     const cards = featuredSection.locator("a[href*='/products/']");
     const count = await cards.count();
-    // BUG DETECTION: if 0, products failed to render (name/title mismatch?)
     expect(count).toBeGreaterThan(0);
+    // Verify at least the first product card image actually loaded
+    const firstImg = featuredSection.locator("img").first();
+    await expect(firstImg).toBeVisible({ timeout: 10_000 });
+    const naturalWidth = await firstImg.evaluate((el: HTMLImageElement) => el.naturalWidth);
+    // BUG DETECTION: naturalWidth 0 means image blocked by CSP or broken URL
+    expect(naturalWidth).toBeGreaterThan(0);
   });
 
   test("area card links navigate to area page", async ({ page }) => {
@@ -126,13 +130,20 @@ test.describe("product detail page", () => {
     expect(text.trim().length).toBeGreaterThan(0);
   });
 
-  test("product image is visible", async ({ page }) => {
+  test("product image loads successfully (not blocked by CSP)", async ({ page }) => {
+    // Listen for CSP violations and failed image loads
+    const cspViolations: string[] = [];
+    page.on("console", (msg) => {
+      if (msg.text().includes("Content Security Policy")) cspViolations.push(msg.text());
+    });
     await page.goto(`/ja/products/${productId}`);
-    await page.waitForTimeout(2000);
-    const imgs = page.locator("img[src*='unsplash'], img[src*='http']");
-    // BUG DETECTION: 0 images means imageUrl not wired
-    const count = await imgs.count();
-    expect(count).toBeGreaterThan(0);
+    const img = page.locator("img[src*='unsplash'], img[src*='http']").first();
+    await expect(img).toBeVisible({ timeout: 10_000 });
+    // Verify the image actually loaded (naturalWidth > 0 means decoded)
+    const naturalWidth = await img.evaluate((el: HTMLImageElement) => el.naturalWidth);
+    // BUG DETECTION: naturalWidth 0 means image blocked by CSP or 404
+    expect(naturalWidth).toBeGreaterThan(0);
+    expect(cspViolations).toHaveLength(0);
   });
 
   test("slot picker / availability section renders", async ({ page }) => {
@@ -196,13 +207,16 @@ test.describe("sign-in page", () => {
     await expect(page.getByRole("button", { name: /Google/ })).toBeVisible({ timeout: 10_000 });
   });
 
-  test("Firebase config message absent (config is set)", async ({ page }) => {
+  test("no Firebase errors visible on signin page", async ({ page }) => {
     await page.goto("/ja/signin");
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(2000);
     const body = await page.locator("body").innerText();
-    // BUG DETECTION: Firebase config missing message
-    const hasMissingConfig = body.includes("NEXT_PUBLIC_FIREBASE");
-    expect(hasMissingConfig).toBe(false);
+    // BUG DETECTION: Firebase config missing
+    expect(body).not.toContain("NEXT_PUBLIC_FIREBASE");
+    // BUG DETECTION: Firebase auth errors (wrong config, unauthorized domain)
+    expect(body).not.toContain("auth/internal-error");
+    expect(body).not.toContain("auth/unauthorized-domain");
+    expect(body).not.toContain("auth/invalid-api-key");
   });
 });
 
@@ -307,6 +321,13 @@ test.describe("security headers", () => {
     expect(h["x-content-type-options"]).toBe("nosniff");
     expect(h["content-security-policy"]).toBeTruthy();
     expect(h["referrer-policy"]).toBeTruthy();
+  });
+
+  test("CSP img-src allows Unsplash images", async ({ page }) => {
+    const res = await page.goto("/ja");
+    const csp = res?.headers()["content-security-policy"] ?? "";
+    const imgSrc = csp.split(";").find((d) => d.trim().startsWith("img-src")) ?? "";
+    expect(imgSrc).toContain("images.unsplash.com");
   });
 
   test("hreflang alternate links in Link header", async ({ page }) => {

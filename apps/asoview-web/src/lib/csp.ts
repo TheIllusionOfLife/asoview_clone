@@ -57,7 +57,7 @@ export function buildCsp(env: NodeJS.ProcessEnv = process.env): string {
     `script-src ${scriptSrc}`,
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self' data:",
-    "img-src 'self' data: https://*.googleusercontent.com",
+    "img-src 'self' data: https://*.googleusercontent.com https://images.unsplash.com",
     `connect-src ${connect.join(" ")}`,
     `frame-src ${frame.join(" ")}`,
     "frame-ancestors 'none'",
