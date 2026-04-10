@@ -12,7 +12,9 @@ spring:
             - id: commerce-core
               uri: http://commerce-core.core-services.svc.cluster.local:8081
               predicates:
-                - Path=/v1/**
+                - Path=/api/v1/**
+              filters:
+                - StripPrefix=1
 
 management:
   endpoints:

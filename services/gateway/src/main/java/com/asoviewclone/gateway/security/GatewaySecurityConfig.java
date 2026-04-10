@@ -38,7 +38,13 @@ public class GatewaySecurityConfig {
                         "/v1/categories/**",
                         "/v1/products/**",
                         "/v1/areas/**",
-                        "/v1/search/**")
+                        "/v1/search/**",
+                        // Dev ingress forwards /api/v1/** (StripPrefix
+                        // runs after security), so permit both shapes.
+                        "/api/v1/categories/**",
+                        "/api/v1/products/**",
+                        "/api/v1/areas/**",
+                        "/api/v1/search/**")
                     .permitAll()
                     .anyExchange()
                     .authenticated())
