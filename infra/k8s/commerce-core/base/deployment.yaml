@@ -89,17 +89,27 @@ spec:
           ports:
             - name: http
               containerPort: 8081
+          # startupProbe gives the app up to 5 min (failureThreshold *
+          # periodSeconds) to finish Spring Boot init + Spanner DDL
+          # bootstrap + Flyway + data seeder before liveness kicks in.
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 30
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
               port: 8081
-            initialDelaySeconds: 30
+            initialDelaySeconds: 10
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
               port: 8081
-            initialDelaySeconds: 90
+            initialDelaySeconds: 10
             periodSeconds: 30
           resources:
             requests:
