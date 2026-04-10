@@ -25,10 +25,34 @@ resource "google_compute_subnetwork" "main" {
   }
 }
 
+# Private Services Access (VPC peering) for Cloud SQL + Memorystore
+# private-IP instances. Without this, google_sql_database_instance with
+# ip_configuration.private_network fails with "the network doesn't have
+# at least 1 private services connection".
+resource "google_compute_global_address" "private_services" {
+  name          = "asoview-clone-psa"
+  purpose       = "VPC_PEERING"
+  address_type  = "INTERNAL"
+  prefix_length = 16
+  network       = google_compute_network.main.id
+  project       = var.project_id
+}
+
+resource "google_service_networking_connection" "private_services" {
+  network                 = google_compute_network.main.id
+  service                 = "servicenetworking.googleapis.com"
+  reserved_peering_ranges = [google_compute_global_address.private_services.name]
+}
+
 output "network_id" {
   value = google_compute_network.main.id
 }
 
 output "subnetwork_id" {
   value = google_compute_subnetwork.main.id
+}
+
+output "private_services_connection" {
+  value       = google_service_networking_connection.private_services.id
+  description = "Handle that downstream modules (cloudsql, redis) depend_on so they wait for the peering."
 }

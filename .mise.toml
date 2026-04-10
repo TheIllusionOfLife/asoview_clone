@@ -1,0 +1,19 @@
+# Project-local toolchain pinned via mise (https://mise.jdx.dev).
+#
+# One-time setup (nothing installs to /usr/local):
+#   curl https://mise.run | sh
+#   ~/.local/bin/mise activate zsh >> ~/.zshrc && exec zsh
+#   cd <repo> && mise install
+#
+# After that, `terraform`, `kubectl`, `gcloud`, etc. resolve to the
+# versions pinned below whenever you cd into this repo. Uninstall is
+# `rm -rf ~/.local/share/mise ~/.local/bin/mise`.
+#
+# Java, Bun, and Node are intentionally NOT pinned here — Gradle
+# wrapper + bun's own version file cover those.
+[tools]
+terraform = "1.9.8"
+kubectl = "1.31.2"
+kustomize = "5.5.0"
+argocd = "2.13.1"
+gcloud = "latest"

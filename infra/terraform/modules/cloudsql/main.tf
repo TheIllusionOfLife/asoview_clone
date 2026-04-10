@@ -19,7 +19,8 @@ resource "google_sql_database_instance" "main" {
   project          = var.project_id
 
   settings {
-    tier = "db-f1-micro"
+    tier    = "db-f1-micro"
+    edition = "ENTERPRISE"
 
     ip_configuration {
       ipv4_enabled    = false
