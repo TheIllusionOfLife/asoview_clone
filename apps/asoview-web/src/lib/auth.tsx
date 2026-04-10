@@ -5,6 +5,7 @@ import {
   type User,
   signOut as firebaseSignOut,
   onIdTokenChanged,
+  signInWithEmailAndPassword,
   signInWithPopup,
 } from "firebase/auth";
 import {
@@ -26,6 +27,7 @@ export type AuthState = {
   idToken: string | null;
   ready: boolean;
   signIn: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   /**
    * Returns the current ID token, refreshing if necessary. Used by the API
@@ -118,6 +120,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signInWithPopup(auth, provider);
   }, []);
 
+  const signInWithEmail = useCallback(async (email: string, password: string) => {
+    const { auth } = await ensureFirebaseReady();
+    await signInWithEmailAndPassword(auth, email, password);
+  }, []);
+
   const signOut = useCallback(async () => {
     const { auth } = getFirebase();
     await firebaseSignOut(auth);
@@ -143,8 +150,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [getIdToken]);
 
   const value = useMemo<AuthState>(
-    () => ({ user, idToken, ready, signIn, signOut, getIdToken }),
-    [user, idToken, ready, signIn, signOut, getIdToken],
+    () => ({ user, idToken, ready, signIn, signInWithEmail, signOut, getIdToken }),
+    [user, idToken, ready, signIn, signInWithEmail, signOut, getIdToken],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
