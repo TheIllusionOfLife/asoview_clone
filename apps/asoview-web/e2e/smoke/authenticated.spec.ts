@@ -34,7 +34,12 @@ async function getIdToken(): Promise<string> {
   }
 
   // Only attempt signup if user doesn't exist
-  const errBody = await signInRes.json().catch(() => null);
+  let errBody: { error?: { message?: string } } | null;
+  try {
+    errBody = await signInRes.json();
+  } catch {
+    errBody = null;
+  }
   const errCode = errBody?.error?.message ?? "";
   if (errCode !== "EMAIL_NOT_FOUND") {
     throw new Error(`Firebase sign-in failed: ${errCode}`);
@@ -67,7 +72,7 @@ async function signInViaUI(page: import("@playwright/test").Page): Promise<void>
   await page.getByTestId("password-input").fill(TEST_PASSWORD as string);
   await page.getByRole("button", { name: "Sign in with Email" }).click();
   // Wait for redirect away from signin page
-  await page.waitForURL(/(?!.*signin)/, { timeout: 15_000 });
+  await page.waitForURL((url) => !url.toString().includes("signin"), { timeout: 15_000 });
 }
 
 // ─── Shared state ───────────────────────────────────────────────────
@@ -147,21 +152,21 @@ test.describe("authenticated UI", () => {
 
     // Navigate to orders page — should NOT redirect to signin
     await page.goto("/ja/me/orders");
-    await page.waitForTimeout(3000);
+    await expect(page.locator("body")).toBeVisible({ timeout: 10_000 });
     expect(page.url()).not.toContain("signin");
   });
 
   test("favorites page accessible when signed in", async ({ page }) => {
     await signInViaUI(page);
     await page.goto("/ja/me/favorites");
-    await page.waitForTimeout(3000);
+    await expect(page.locator("body")).toBeVisible({ timeout: 10_000 });
     expect(page.url()).not.toContain("signin");
   });
 
   test("points page accessible when signed in", async ({ page }) => {
     await signInViaUI(page);
     await page.goto("/ja/me/points");
-    await page.waitForTimeout(3000);
+    await expect(page.locator("body")).toBeVisible({ timeout: 10_000 });
     expect(page.url()).not.toContain("signin");
   });
 
@@ -182,16 +187,14 @@ test.describe("authenticated UI", () => {
       .first();
     if ((await heartBtn.count()) > 0) {
       await heartBtn.click();
-      await page.waitForTimeout(1000);
-      await expect(page.locator("h1")).toBeVisible();
+      await expect(page.locator("h1")).toBeVisible({ timeout: 5_000 });
     }
   });
 
   test("cart page works when signed in", async ({ page }) => {
     await signInViaUI(page);
     await page.goto("/ja/cart");
-    await page.waitForTimeout(2000);
+    await expect(page.locator("body")).toBeVisible({ timeout: 10_000 });
     expect(page.url()).toContain("/cart");
-    await expect(page.locator("body")).toBeVisible();
   });
 });

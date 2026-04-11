@@ -12,7 +12,8 @@ function SignInInner() {
   const next = sanitizeNext(params.get("next"));
   const { user, ready, signIn, signInWithEmail } = useAuth();
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const [googlePending, setGooglePending] = useState(false);
+  const [emailPending, setEmailPending] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -24,13 +25,13 @@ function SignInInner() {
 
   const onGoogleClick = useCallback(async () => {
     setError(null);
-    setPending(true);
+    setGooglePending(true);
     try {
       await signIn();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Sign-in failed");
     } finally {
-      setPending(false);
+      setGooglePending(false);
     }
   }, [signIn]);
 
@@ -38,13 +39,13 @@ function SignInInner() {
     async (e: React.FormEvent) => {
       e.preventDefault();
       setError(null);
-      setPending(true);
+      setEmailPending(true);
       try {
         await signInWithEmail(email, password);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Sign-in failed");
       } finally {
-        setPending(false);
+        setEmailPending(false);
       }
     },
     [signInWithEmail, email, password],
@@ -57,10 +58,10 @@ function SignInInner() {
       <button
         type="button"
         onClick={onGoogleClick}
-        disabled={pending}
+        disabled={googlePending || emailPending}
         className="w-full rounded-lg bg-white px-4 py-3 font-medium text-gray-800 shadow hover:shadow-md disabled:opacity-50"
       >
-        {pending ? "Signing in…" : "Continue with Google"}
+        {googlePending ? "Signing in…" : "Continue with Google"}
       </button>
 
       <div className="flex items-center gap-3">
@@ -100,10 +101,10 @@ function SignInInner() {
         />
         <button
           type="submit"
-          disabled={pending}
+          disabled={emailPending || googlePending}
           className="w-full rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          Sign in with Email
+          {emailPending ? "Signing in…" : "Sign in with Email"}
         </button>
       </form>
 
