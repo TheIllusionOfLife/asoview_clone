@@ -107,6 +107,18 @@ test.beforeAll(async () => {
     );
   }
   idToken = await getIdToken();
+
+  // Provision the user in the app database by calling GET /api/v1/me.
+  // Without this, write endpoints (POST favorites, POST orders) return 403
+  // because the user exists in Firebase but has no row in the users table.
+  const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+  const meRes = await fetch(`${baseUrl}/api/v1/me`, {
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  if (!meRes.ok) {
+    const body = await meRes.text();
+    throw new Error(`User provisioning failed: GET /api/v1/me returned ${meRes.status}: ${body}`);
+  }
 });
 
 // ─── Authenticated API tests ────────────────────────────────────────
@@ -172,7 +184,7 @@ test.describe("authenticated API", () => {
     expect(content.length).toBeGreaterThan(0);
     const productId = content[0].id;
 
-    // Add favorite (200/201/204)
+    // Add favorite
     const addRes = await request.post(`/api/v1/me/favorites/${productId}`, {
       headers: { Authorization: `Bearer ${idToken}` },
     });
@@ -181,7 +193,7 @@ test.describe("authenticated API", () => {
       addRes.status(),
     );
 
-    // Remove favorite (200/204)
+    // Remove favorite
     const delRes = await request.delete(`/api/v1/me/favorites/${productId}`, {
       headers: { Authorization: `Bearer ${idToken}` },
     });
@@ -197,11 +209,9 @@ test.describe("authenticated API", () => {
 test.describe("authenticated UI", () => {
   test("sign in via email form and access protected pages", async ({ page }) => {
     await signInViaUI(page);
-
-    // Should be on home page after sign-in
     await expect(page.locator("h1")).toBeVisible({ timeout: 10_000 });
 
-    // Navigate to orders page — should NOT redirect to signin
+    // browserSessionPersistence survives full navigation
     await page.goto("/ja/me/orders");
     await expect(page.locator("body")).toBeVisible({ timeout: 10_000 });
     expect(page.url()).not.toContain("signin");

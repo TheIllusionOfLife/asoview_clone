@@ -1,19 +1,19 @@
 import { type FirebaseApp, getApps, initializeApp } from "firebase/app";
 import {
   type Auth,
+  browserSessionPersistence,
   connectAuthEmulator,
   getAuth,
-  inMemoryPersistence,
   setPersistence,
 } from "firebase/auth";
 
 /**
  * Firebase web initialization for Asoview!.
  *
- * Persistence is forced to in-memory so the ID token never lands on
- * disk-backed storage (localStorage / IndexedDB). This bounds XSS blast
- * radius. Token is held only in the JS heap and the in-memory cache
- * inside `AuthProvider`.
+ * Persistence uses browserSessionPersistence (sessionStorage) so auth
+ * state survives same-tab navigations but is cleared on browser close.
+ * This avoids the XSS risk of localStorage while keeping the user
+ * signed in across client-side and full-page navigations.
  *
  * When `NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL` is set, the Auth SDK is
  * pointed at the local emulator (used for `bun run dev` and Playwright
@@ -47,11 +47,10 @@ export function getFirebase(): FirebaseRuntime {
   const app = getApps()[0] ?? initializeApp(config);
   const auth = getAuth(app);
 
-  // Force in-memory persistence. Note: setPersistence is async, so we
-  // capture the promise and let `ensureFirebaseReady` await it before any
-  // sign-in flow runs. The synchronous `auth` object is still returned for
-  // listener wiring (`onIdTokenChanged`).
-  persistencePromise = setPersistence(auth, inMemoryPersistence);
+  // Use session persistence so auth survives page navigations within the
+  // same tab. setPersistence is async; `ensureFirebaseReady` awaits it
+  // before any sign-in flow runs.
+  persistencePromise = setPersistence(auth, browserSessionPersistence);
 
   const emulatorUrl = process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL;
   if (emulatorUrl) {
@@ -64,8 +63,8 @@ export function getFirebase(): FirebaseRuntime {
 
 /**
  * Await before any sign-in / token operation. Guarantees that
- * `setPersistence(auth, inMemoryPersistence)` has resolved so we never
- * accidentally fall back to the SDK's default localStorage persistence.
+ * `setPersistence(auth, browserSessionPersistence)` has resolved so we
+ * never accidentally fall back to the SDK's default localStorage persistence.
  */
 export async function ensureFirebaseReady(): Promise<FirebaseRuntime> {
   const rt = getFirebase();
