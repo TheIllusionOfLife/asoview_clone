@@ -1,6 +1,10 @@
 "use client";
 
+import { apiRequest } from "@/lib/api";
 import { useTranslations } from "next-intl";
+import { useEffect, useState } from "react";
+
+type CategoryOption = { id: string; name: string };
 
 type Props = {
   category: string;
@@ -10,14 +14,46 @@ type Props = {
   onChange: (updates: Record<string, string | null>) => void;
 };
 
+const FALLBACK_CATEGORY_IDS = ["outdoor", "indoor", "food", "culture"] as const;
+
 /**
  * Facet + sort controls. Every change calls `onChange` which rewrites
  * the URL via `router.replace` in the parent. Prices are integer minor
  * units (yen) — per CLAUDE.md PR #21 rule we parse as integer via
  * `parseInt` and reject anything fractional.
+ *
+ * Category option values: the API returns UUID-based ids (matching
+ * OpenSearch categoryId index). Fallback uses slug-based ids with
+ * translated names for immediate UX. When search-service is deployed,
+ * the search controller should accept both slug and UUID.
  */
 export function Facets({ category, priceMin, priceMax, sort, onChange }: Props) {
   const t = useTranslations("search");
+  const fallback: CategoryOption[] = FALLBACK_CATEGORY_IDS.map((id) => ({
+    id,
+    name: t(`facets.categories.${id}`),
+  }));
+  const [categories, setCategories] = useState<CategoryOption[]>(fallback);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await apiRequest<CategoryOption[]>("/v1/categories/active", {
+          method: "GET",
+          retries: 1,
+        });
+        if (!cancelled && data.length > 0) {
+          setCategories(data);
+        }
+      } catch (err) {
+        console.warn("Failed to load active categories; using fallback", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Integer yen only — strings from URL / inputs are validated to digits.
   // Japanese IMEs commonly emit full-width digits (０-９); normalize to
@@ -39,10 +75,11 @@ export function Facets({ category, priceMin, priceMax, sort, onChange }: Props) 
           className="rounded border border-[var(--color-border)] px-2 py-1"
         >
           <option value="">{t("facets.any")}</option>
-          <option value="outdoor">{t("facets.categories.outdoor")}</option>
-          <option value="indoor">{t("facets.categories.indoor")}</option>
-          <option value="food">{t("facets.categories.food")}</option>
-          <option value="culture">{t("facets.categories.culture")}</option>
+          {categories.map((cat) => (
+            <option key={cat.id} value={cat.id}>
+              {cat.name}
+            </option>
+          ))}
         </select>
       </label>
 

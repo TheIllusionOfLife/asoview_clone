@@ -1,5 +1,6 @@
 package com.asoviewclone.commercecore.orders.controller;
 
+import com.asoviewclone.commercecore.catalog.repository.ProductVariantRepository;
 import com.asoviewclone.commercecore.orders.controller.dto.CreateOrderRequest;
 import com.asoviewclone.commercecore.orders.controller.dto.OrderResponse;
 import com.asoviewclone.commercecore.orders.model.Order;
@@ -9,6 +10,9 @@ import com.asoviewclone.commercecore.security.AuthenticatedUser;
 import com.asoviewclone.common.error.NotFoundException;
 import com.asoviewclone.common.error.ValidationException;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,9 +29,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class OrderController {
 
   private final OrderService orderService;
+  private final ProductVariantRepository productVariantRepository;
 
-  public OrderController(OrderService orderService) {
+  public OrderController(
+      OrderService orderService, ProductVariantRepository productVariantRepository) {
     this.orderService = orderService;
+    this.productVariantRepository = productVariantRepository;
   }
 
   @PostMapping("/orders")
@@ -54,7 +61,7 @@ public class OrderController {
     long pointsToUse = request.pointsToUse() != null ? Math.max(0, request.pointsToUse()) : 0L;
     Order order =
         orderService.createOrder(user.userId().toString(), idempotencyKey, items, pointsToUse);
-    return OrderResponse.from(order);
+    return toResponse(order);
   }
 
   /**
@@ -71,13 +78,43 @@ public class OrderController {
     if (!user.userId().toString().equals(order.userId())) {
       throw new NotFoundException("Order", orderId);
     }
-    return OrderResponse.from(order);
+    return toResponse(order);
   }
 
   @GetMapping("/me/orders")
   public List<OrderResponse> listMyOrders(@AuthenticationPrincipal AuthenticatedUser user) {
-    return orderService.listUserOrders(user.userId().toString()).stream()
-        .map(OrderResponse::from)
-        .toList();
+    List<Order> orders = orderService.listUserOrders(user.userId().toString());
+    // Batch-fetch all variant->product mappings across all orders in one query.
+    List<UUID> allVariantIds =
+        orders.stream()
+            .flatMap(o -> o.items().stream())
+            .map(item -> UUID.fromString(item.productVariantId()))
+            .distinct()
+            .toList();
+    Map<UUID, UUID> variantToProduct = resolveVariantToProductMap(allVariantIds);
+    return orders.stream().map(o -> OrderResponse.from(o, variantToProduct)).toList();
+  }
+
+  private OrderResponse toResponse(Order order) {
+    List<UUID> variantIds =
+        order.items().stream()
+            .map(item -> UUID.fromString(item.productVariantId()))
+            .distinct()
+            .toList();
+    Map<UUID, UUID> variantToProduct = resolveVariantToProductMap(variantIds);
+    return OrderResponse.from(order, variantToProduct);
+  }
+
+  /**
+   * Resolves variant ids to their parent product ids in a single batch JPQL query. Returns an empty
+   * map when the input is empty to avoid sending an empty IN clause. Uses a projection query to
+   * avoid LazyInitializationException (open-in-view=false, controller is not @Transactional).
+   */
+  private Map<UUID, UUID> resolveVariantToProductMap(List<UUID> variantIds) {
+    if (variantIds.isEmpty()) {
+      return Map.of();
+    }
+    return productVariantRepository.findVariantProductPairs(variantIds).stream()
+        .collect(Collectors.toMap(row -> (UUID) row[0], row -> (UUID) row[1]));
   }
 }

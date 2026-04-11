@@ -138,6 +138,19 @@ steps:
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/analytics-ingest:latest
       - .
 
+  - id: build-search
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args:
+      - build
+      - -f
+      - services/search-service/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/search-service:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/search-service:latest
+      - .
+
   - id: build-web
     name: gcr.io/cloud-builders/docker
     waitFor: ['-']
@@ -193,6 +206,10 @@ steps:
     name: gcr.io/cloud-builders/docker
     waitFor: ['build-analytics']
     args: ['push', '--all-tags', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/analytics-ingest']
+  - id: push-search
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['build-search']
+    args: ['push', '--all-tags', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/search-service']
   - id: push-web
     name: gcr.io/cloud-builders/docker
     waitFor: ['build-web']
@@ -212,13 +229,14 @@ steps:
       - push-reservation
       - push-ads
       - push-analytics
+      - push-search
       - push-web
     args:
       - -c
       - |
         set -e
         apk add --no-cache yq
-        for svc in commerce-core gateway web ticketing-service reservation-service ads-service analytics-ingest; do
+        for svc in commerce-core gateway web ticketing-service reservation-service ads-service analytics-ingest search; do
           yq eval -i ".images[0].newTag = \"$SHORT_SHA\"" infra/k8s/$svc/overlays/dev/kustomization.yaml
         done
 
@@ -226,6 +244,7 @@ steps:
     name: gcr.io/cloud-builders/git
     waitFor: ['bump-kustomize']
     entrypoint: bash
+    secretEnv: ['GITHUB_PAT']
     args:
       - -c
       - |
@@ -240,6 +259,11 @@ steps:
         fi
         git config user.email "cloudbuild@$PROJECT_ID.iam.gserviceaccount.com"
         git config user.name "Cloud Build"
+        # Configure git credential helper to supply the PAT from Secret Manager
+        # without persisting it in .git/config (avoids accidental token leakage
+        # if workspace is logged or reused).
+        git config credential.helper '!f() { echo "password=${GITHUB_PAT}"; }; f'
+        git remote set-url origin "https://x-access-token@github.com/TheIllusionOfLife/asoview_clone.git"
         # Snapshot the bumped kustomization files so we can re-apply them
         # on every retry. The bump step (`bump-kustomize`) ran yq -i so
         # the changes are in the working tree but unstaged.
@@ -275,6 +299,11 @@ steps:
         echo "git push failed after 3 attempts"
         exit 1
 
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_ID/secrets/github-pat/versions/latest
+      env: GITHUB_PAT
+
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/commerce-core:$SHORT_SHA
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/commerce-core:latest
@@ -290,5 +319,7 @@ images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/ads-service:latest
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/analytics-ingest:$SHORT_SHA
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/analytics-ingest:latest
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/search-service:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/search-service:latest
 
 timeout: 2400s

@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: search
+resources:
+  - opensearch-statefulset.yaml
+  - search-service-deployment.yaml
+  - network-policy.yaml
+images:
+  - name: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/search-service
+    newTag: latest

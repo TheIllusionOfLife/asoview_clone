@@ -1,0 +1,2 @@
+ALTER TABLE categories ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE';
+ALTER TABLE categories ADD CONSTRAINT chk_categories_status CHECK (status IN ('ACTIVE', 'INACTIVE'));
