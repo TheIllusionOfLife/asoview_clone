@@ -31,9 +31,6 @@ spec:
       labels:
         app: search-service
     spec:
-      # Pod-level securityContext: enforce non-root and a known uid so the
-      # container has predictable ownership across restarts. Compatible with
-      # the Restricted PodSecurityStandards profile.
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -43,16 +40,8 @@ spec:
           type: RuntimeDefault
       containers:
         - name: search-service
-          # Pinned to an immutable semver tag (NOT :latest) so rollbacks are
-          # deterministic and the running version is discoverable from the
-          # manifest. Bump in lockstep with releases via Argo CD Image Updater
-          # or a manual edit. (PR #21 review H2 from Gemini.)
           image: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/search-service:latest
           imagePullPolicy: IfNotPresent
-          # Container-level hardening: drop all linux capabilities, block
-          # privilege escalation, mount the root filesystem read-only.
-          # Spring Boot writes nothing to / at runtime so RO is safe; tmp
-          # writes (jar extraction, heap dumps) go to an emptyDir below.
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
