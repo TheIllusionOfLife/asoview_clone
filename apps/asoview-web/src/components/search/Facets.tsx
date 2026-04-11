@@ -14,21 +14,20 @@ type Props = {
   onChange: (updates: Record<string, string | null>) => void;
 };
 
-const FALLBACK_CATEGORY_IDS = ["outdoor", "indoor", "food", "culture"] as const;
-
 /**
  * Facet + sort controls. Every change calls `onChange` which rewrites
  * the URL via `router.replace` in the parent. Prices are integer minor
  * units (yen) — per CLAUDE.md PR #21 rule we parse as integer via
  * `parseInt` and reject anything fractional.
+ *
+ * Category option values are UUIDs from the API (matching OpenSearch
+ * categoryId index). If the API is unreachable, the dropdown shows no
+ * categories (just "All") since slug-based fallbacks would silently
+ * produce unfiltered results from the search service.
  */
 export function Facets({ category, priceMin, priceMax, sort, onChange }: Props) {
   const t = useTranslations("search");
-  const fallback: CategoryOption[] = FALLBACK_CATEGORY_IDS.map((id) => ({
-    id,
-    name: t(`facets.categories.${id}`),
-  }));
-  const [categories, setCategories] = useState<CategoryOption[]>(fallback);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
 
   useEffect(() => {
     let cancelled = false;
