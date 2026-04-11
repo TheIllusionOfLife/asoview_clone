@@ -42,14 +42,10 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [idToken, setIdToken] = useState<string | null>(null);
-  // Start `ready=true` so route-protected client components render
-  // immediately as signed-out (null user). Firebase's in-memory
-  // persistence has no stored state to restore, so waiting for
-  // `onIdTokenChanged` only produces a loading spinner; the real sign-in
-  // flow still updates `user` + `idToken` when the user completes
-  // Google OAuth via signInWithPopup. Real persistence-backed session
-  // restore lives on the server via ID-token cookies in a later PR.
-  const [ready, setReady] = useState(true);
+  // Start `ready=false` so route-protected components wait for Firebase
+  // to restore session state from sessionStorage (browserSessionPersistence).
+  // `onIdTokenChanged` fires once restoration completes, setting `ready=true`.
+  const [ready, setReady] = useState(false);
   // Tracks the last uid we observed from Firebase, OUTSIDE of React state so
   // the identity-change detection runs exactly once per transition even under
   // Strict Mode (which double-invokes state updaters in dev). Keeping the

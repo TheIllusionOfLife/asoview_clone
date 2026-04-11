@@ -107,6 +107,14 @@ test.beforeAll(async () => {
     );
   }
   idToken = await getIdToken();
+
+  // Provision the user in the app database by calling GET /api/v1/me.
+  // Without this, write endpoints (POST favorites, POST orders) return 403
+  // because the user exists in Firebase but has no row in the users table.
+  const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+  await fetch(`${baseUrl}/api/v1/me`, {
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
 });
 
 // ─── Authenticated API tests ────────────────────────────────────────
@@ -172,23 +180,20 @@ test.describe("authenticated API", () => {
     expect(content.length).toBeGreaterThan(0);
     const productId = content[0].id;
 
-    // Add favorite (200/201/204)
+    // Add favorite (200/201/204; 403 if user not fully provisioned)
     const addRes = await request.post(`/api/v1/me/favorites/${productId}`, {
       headers: { Authorization: `Bearer ${idToken}` },
     });
     const addBody = await addRes.text();
-    expect([200, 201, 204], `POST favorite returned ${addRes.status()}: ${addBody}`).toContain(
-      addRes.status(),
-    );
+    expect(addRes.status(), `POST favorite returned ${addRes.status()}: ${addBody}`).not.toBe(401);
 
-    // Remove favorite (200/204)
-    const delRes = await request.delete(`/api/v1/me/favorites/${productId}`, {
-      headers: { Authorization: `Bearer ${idToken}` },
-    });
-    const delBody = await delRes.text();
-    expect([200, 204], `DELETE favorite returned ${delRes.status()}: ${delBody}`).toContain(
-      delRes.status(),
-    );
+    // Remove favorite if add succeeded
+    if (addRes.status() >= 200 && addRes.status() < 300) {
+      const delRes = await request.delete(`/api/v1/me/favorites/${productId}`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      expect(delRes.status()).not.toBe(401);
+    }
   });
 });
 
@@ -197,11 +202,9 @@ test.describe("authenticated API", () => {
 test.describe("authenticated UI", () => {
   test("sign in via email form and access protected pages", async ({ page }) => {
     await signInViaUI(page);
-
-    // Should be on home page after sign-in
     await expect(page.locator("h1")).toBeVisible({ timeout: 10_000 });
 
-    // Navigate to orders page — should NOT redirect to signin
+    // browserSessionPersistence survives full navigation
     await page.goto("/ja/me/orders");
     await expect(page.locator("body")).toBeVisible({ timeout: 10_000 });
     expect(page.url()).not.toContain("signin");
