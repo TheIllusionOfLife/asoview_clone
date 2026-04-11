@@ -5,6 +5,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -35,6 +37,10 @@ public class Category {
 
   @Column(name = "image_url")
   private String imageUrl;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "status", nullable = false)
+  private CategoryStatus status = CategoryStatus.ACTIVE;
 
   @Embedded private AuditFields audit = new AuditFields();
 
@@ -70,6 +76,10 @@ public class Category {
 
   public String getImageUrl() {
     return imageUrl;
+  }
+
+  public CategoryStatus getStatus() {
+    return status;
   }
 
   public AuditFields getAudit() {

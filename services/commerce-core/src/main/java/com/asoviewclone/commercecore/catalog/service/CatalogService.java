@@ -12,6 +12,8 @@ public interface CatalogService {
 
   List<Category> listCategories();
 
+  List<Category> listActiveCategories();
+
   Product getProduct(UUID productId);
 
   /**

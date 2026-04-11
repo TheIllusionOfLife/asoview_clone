@@ -21,4 +21,9 @@ public class CategoryController {
   public List<CategoryResponse> listCategories() {
     return catalogService.listCategories().stream().map(CategoryResponse::from).toList();
   }
+
+  @GetMapping("/active")
+  public List<CategoryResponse> listActiveCategories() {
+    return catalogService.listActiveCategories().stream().map(CategoryResponse::from).toList();
+  }
 }

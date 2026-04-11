@@ -2,6 +2,7 @@ package com.asoviewclone.commercecore.catalog.service;
 
 import com.asoviewclone.commercecore.catalog.event.ProductIndexEventPublisher;
 import com.asoviewclone.commercecore.catalog.model.Category;
+import com.asoviewclone.commercecore.catalog.model.CategoryStatus;
 import com.asoviewclone.commercecore.catalog.model.Product;
 import com.asoviewclone.commercecore.catalog.model.ProductStatus;
 import com.asoviewclone.commercecore.catalog.repository.CategoryRepository;
@@ -47,6 +48,11 @@ public class CatalogServiceImpl implements CatalogService {
   @Override
   public List<Category> listCategories() {
     return categoryRepository.findAllByOrderByDisplayOrderAsc();
+  }
+
+  @Override
+  public List<Category> listActiveCategories() {
+    return categoryRepository.findByStatusOrderByDisplayOrderAsc(CategoryStatus.ACTIVE);
   }
 
   @Override

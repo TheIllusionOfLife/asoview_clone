@@ -42,4 +42,26 @@ class CategoryControllerTest {
         .andExpect(jsonPath("$[0].name").value("Outdoor"))
         .andExpect(jsonPath("$[1].name").value("Indoor"));
   }
+
+  @Test
+  void listActiveCategoriesReturnsOnlyActive() throws Exception {
+    Category active = new Category("Outdoor", "outdoor", null, 1, null);
+    when(catalogService.listActiveCategories()).thenReturn(List.of(active));
+
+    mockMvc
+        .perform(get("/v1/categories/active"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(1)))
+        .andExpect(jsonPath("$[0].name").value("Outdoor"));
+  }
+
+  @Test
+  void listActiveCategoriesReturnsEmptyWhenNoneActive() throws Exception {
+    when(catalogService.listActiveCategories()).thenReturn(List.of());
+
+    mockMvc
+        .perform(get("/v1/categories/active"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(0)));
+  }
 }
