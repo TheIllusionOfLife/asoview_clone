@@ -4,7 +4,6 @@ import com.asoviewclone.commercecore.catalog.repository.ProductVariantRepository
 import com.asoviewclone.commercecore.orders.controller.dto.CreateOrderRequest;
 import com.asoviewclone.commercecore.orders.controller.dto.OrderResponse;
 import com.asoviewclone.commercecore.orders.model.Order;
-import com.asoviewclone.commercecore.orders.model.OrderItem;
 import com.asoviewclone.commercecore.orders.service.OrderService;
 import com.asoviewclone.commercecore.orders.service.OrderService.CreateOrderItemRequest;
 import com.asoviewclone.commercecore.security.AuthenticatedUser;
