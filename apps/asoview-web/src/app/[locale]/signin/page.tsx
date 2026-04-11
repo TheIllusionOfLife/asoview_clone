@@ -70,18 +70,28 @@ function SignInInner() {
       </div>
 
       <form onSubmit={onEmailSubmit} className="space-y-3">
+        <label htmlFor="signin-email" className="sr-only">
+          Email
+        </label>
         <input
+          id="signin-email"
           type="email"
           placeholder="Email"
+          autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
           className="w-full rounded-lg border border-gray-600 bg-transparent px-4 py-2"
           data-testid="email-input"
         />
+        <label htmlFor="signin-password" className="sr-only">
+          Password
+        </label>
         <input
+          id="signin-password"
           type="password"
           placeholder="Password"
+          autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
