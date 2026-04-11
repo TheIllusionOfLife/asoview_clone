@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import {
   ApiError,
   NetworkError,
@@ -63,6 +63,7 @@ export function PointsClient() {
     const ctrl = new AbortController();
     (async () => {
       try {
+        setError(null);
         const [balanceRes, ledgerRes] = await Promise.all([
           getPointsBalance({ signal: ctrl.signal, currentPath: "/me/points" }),
           getPointsLedger(page, 20, { signal: ctrl.signal, currentPath: "/me/points" }),
@@ -119,12 +120,12 @@ export function PointsClient() {
                     {entry.reason}
                   </span>
                   {entry.referenceId && (
-                    <a
+                    <Link
                       href={`/me/orders/${entry.referenceId}`}
                       className="text-xs text-[var(--color-primary)] underline"
                     >
                       {t("viewOrder")}
-                    </a>
+                    </Link>
                   )}
                   <span className="text-xs text-[var(--color-ink-muted)]">
                     {formatJstDate(entry.createdAt)}

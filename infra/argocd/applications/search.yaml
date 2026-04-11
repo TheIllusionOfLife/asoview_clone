@@ -14,9 +14,7 @@ spec:
   source:
     repoURL: https://github.com/TheIllusionOfLife/asoview_clone.git
     targetRevision: main
-    path: infra/k8s/search
-    directory:
-      recurse: true
+    path: infra/k8s/search/overlays/dev
   destination:
     server: https://kubernetes.default.svc
     namespace: search

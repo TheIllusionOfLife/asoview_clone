@@ -1,7 +1,6 @@
 package com.asoviewclone.commercecore.points.controller;
 
 import com.asoviewclone.commercecore.points.controller.dto.PointLedgerResponse;
-import com.asoviewclone.commercecore.points.repository.PointLedgerRepository;
 import com.asoviewclone.commercecore.points.service.PointService;
 import com.asoviewclone.commercecore.security.AuthenticatedUser;
 import java.util.Map;
@@ -17,11 +16,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class PointController {
 
   private final PointService pointService;
-  private final PointLedgerRepository pointLedgerRepository;
 
-  public PointController(PointService pointService, PointLedgerRepository pointLedgerRepository) {
+  public PointController(PointService pointService) {
     this.pointService = pointService;
-    this.pointLedgerRepository = pointLedgerRepository;
   }
 
   @GetMapping("/me/points")
@@ -32,8 +29,6 @@ public class PointController {
   @GetMapping("/me/points/ledger")
   public Page<PointLedgerResponse> getMyPointsLedger(
       @AuthenticationPrincipal AuthenticatedUser user, Pageable pageable) {
-    return pointLedgerRepository
-        .findByUserIdOrderByCreatedAtDesc(user.userId(), pageable)
-        .map(PointLedgerResponse::from);
+    return pointService.getLedger(user.userId(), pageable).map(PointLedgerResponse::from);
   }
 }

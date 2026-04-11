@@ -42,8 +42,8 @@ export function Facets({ category, priceMin, priceMax, sort, onChange }: Props) 
         if (!cancelled && data.length > 0) {
           setCategories(data);
         }
-      } catch {
-        // Fall back to hardcoded list silently
+      } catch (err) {
+        console.warn("Failed to load active categories; using fallback", err);
       }
     })();
     return () => {

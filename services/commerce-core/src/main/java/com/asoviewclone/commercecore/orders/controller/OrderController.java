@@ -106,18 +106,15 @@ public class OrderController {
   }
 
   /**
-   * Resolves variant ids to their parent product ids in a single batch query. Returns an empty map
-   * when the input is empty to avoid sending an empty IN clause.
+   * Resolves variant ids to their parent product ids in a single batch JPQL query. Returns an empty
+   * map when the input is empty to avoid sending an empty IN clause. Uses a projection query to
+   * avoid LazyInitializationException (open-in-view=false, controller is not @Transactional).
    */
   private Map<UUID, UUID> resolveVariantToProductMap(List<UUID> variantIds) {
     if (variantIds.isEmpty()) {
       return Map.of();
     }
-    // findProductIdsByVariantIds returns a Set<UUID> of product ids (distinct).
-    // We need a Map<variantId, productId>. The existing repository method only returns
-    // product ids, not the mapping. We need to fetch the variants with their product ids.
-    // Use findAllById and map each variant to its product id.
-    return productVariantRepository.findAllById(variantIds).stream()
-        .collect(Collectors.toMap(v -> v.getId(), v -> v.getProduct().getId()));
+    return productVariantRepository.findVariantProductPairs(variantIds).stream()
+        .collect(Collectors.toMap(row -> (UUID) row[0], row -> (UUID) row[1]));
   }
 }

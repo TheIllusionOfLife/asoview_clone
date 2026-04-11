@@ -21,4 +21,13 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
    */
   @Query("SELECT DISTINCT pv.product.id FROM ProductVariant pv WHERE pv.id IN :variantIds")
   Set<UUID> findProductIdsByVariantIds(@Param("variantIds") Collection<UUID> variantIds);
+
+  /**
+   * Returns variant-to-product id pairs for the given variant ids in a single JPQL query. Avoids
+   * the {@code LazyInitializationException} that {@code findAllById + getProduct().getId()}
+   * triggers when {@code open-in-view=false} and the caller is outside a transaction (e.g. a
+   * controller).
+   */
+  @Query("SELECT pv.id, pv.product.id FROM ProductVariant pv WHERE pv.id IN :variantIds")
+  List<Object[]> findVariantProductPairs(@Param("variantIds") Collection<UUID> variantIds);
 }

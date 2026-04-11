@@ -31,6 +31,9 @@ spec:
       labels:
         app: search-service
     spec:
+      # Pod-level securityContext: enforce non-root and a known uid so the
+      # container has predictable ownership across restarts. Compatible with
+      # the Restricted PodSecurityStandards profile.
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -40,8 +43,14 @@ spec:
           type: RuntimeDefault
       containers:
         - name: search-service
+          # Image tag is overridden by the kustomize overlay (overlays/dev).
+          # Cloud Build bumps newTag to $SHORT_SHA on every deploy.
           image: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/search-service:latest
           imagePullPolicy: IfNotPresent
+          # Container-level hardening: drop all linux capabilities, block
+          # privilege escalation, mount the root filesystem read-only.
+          # Spring Boot writes nothing to / at runtime so RO is safe; tmp
+          # writes (jar extraction, heap dumps) go to an emptyDir below.
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

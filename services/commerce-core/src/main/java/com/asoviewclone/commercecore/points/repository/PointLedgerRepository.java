@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 public interface PointLedgerRepository extends JpaRepository<PointLedgerEntry, UUID> {
 
-  Page<PointLedgerEntry> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
+  Page<PointLedgerEntry> findByUserIdOrderByCreatedAtDescIdDesc(UUID userId, Pageable pageable);
 
   boolean existsByReasonAndOrderId(PointReason reason, String orderId);
 

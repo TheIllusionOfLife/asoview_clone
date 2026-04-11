@@ -236,7 +236,7 @@ steps:
       - |
         set -e
         apk add --no-cache yq
-        for svc in commerce-core gateway web ticketing-service reservation-service ads-service analytics-ingest search-service; do
+        for svc in commerce-core gateway web ticketing-service reservation-service ads-service analytics-ingest search; do
           yq eval -i ".images[0].newTag = \"$SHORT_SHA\"" infra/k8s/$svc/overlays/dev/kustomization.yaml
         done
 
@@ -259,8 +259,11 @@ steps:
         fi
         git config user.email "cloudbuild@$PROJECT_ID.iam.gserviceaccount.com"
         git config user.name "Cloud Build"
-        # Configure git to authenticate with the GitHub PAT from Secret Manager.
-        git remote set-url origin "https://x-access-token:${GITHUB_PAT}@github.com/TheIllusionOfLife/asoview_clone.git"
+        # Configure git credential helper to supply the PAT from Secret Manager
+        # without persisting it in .git/config (avoids accidental token leakage
+        # if workspace is logged or reused).
+        git config credential.helper '!f() { echo "password=${GITHUB_PAT}"; }; f'
+        git remote set-url origin "https://x-access-token@github.com/TheIllusionOfLife/asoview_clone.git"
         # Snapshot the bumped kustomization files so we can re-apply them
         # on every retry. The bump step (`bump-kustomize`) ran yq -i so
         # the changes are in the working tree but unstaged.
