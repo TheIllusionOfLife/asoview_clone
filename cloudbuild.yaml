@@ -226,6 +226,7 @@ steps:
     name: gcr.io/cloud-builders/git
     waitFor: ['bump-kustomize']
     entrypoint: bash
+    secretEnv: ['GITHUB_PAT']
     args:
       - -c
       - |
@@ -240,6 +241,8 @@ steps:
         fi
         git config user.email "cloudbuild@$PROJECT_ID.iam.gserviceaccount.com"
         git config user.name "Cloud Build"
+        # Configure git to authenticate with the GitHub PAT from Secret Manager.
+        git remote set-url origin "https://x-access-token:${GITHUB_PAT}@github.com/TheIllusionOfLife/asoview_clone.git"
         # Snapshot the bumped kustomization files so we can re-apply them
         # on every retry. The bump step (`bump-kustomize`) ran yq -i so
         # the changes are in the working tree but unstaged.
@@ -274,6 +277,11 @@ steps:
         done
         echo "git push failed after 3 attempts"
         exit 1
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_ID/secrets/github-pat/versions/latest
+      env: GITHUB_PAT
 
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/commerce-core:$SHORT_SHA
