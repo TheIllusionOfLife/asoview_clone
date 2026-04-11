@@ -3,6 +3,8 @@ package com.asoviewclone.commercecore.points.repository;
 import com.asoviewclone.commercecore.points.model.PointLedgerEntry;
 import com.asoviewclone.commercecore.points.model.PointReason;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -10,6 +12,8 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 public interface PointLedgerRepository extends JpaRepository<PointLedgerEntry, UUID> {
+
+  Page<PointLedgerEntry> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
 
   boolean existsByReasonAndOrderId(PointReason reason, String orderId);
 
