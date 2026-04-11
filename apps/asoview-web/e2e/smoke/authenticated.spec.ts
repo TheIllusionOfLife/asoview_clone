@@ -16,7 +16,26 @@ const TEST_EMAIL = process.env.E2E_TEST_EMAIL;
 const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD;
 const FIREBASE_API_KEY = process.env.E2E_FIREBASE_API_KEY;
 
+// ─── Types ──────────────────────────────────────────────────────────
+
+interface FirebaseAuthResponse {
+  idToken?: string;
+  localId?: string;
+  email?: string;
+}
+
+interface FirebaseAuthErrorResponse {
+  error?: { message?: string; code?: number };
+}
+
 // ─── Helper: get ID token via Firebase REST API ─────────────────────
+
+function validateToken(data: FirebaseAuthResponse): string {
+  if (!data.idToken || typeof data.idToken !== "string") {
+    throw new Error(`Firebase returned no idToken: ${JSON.stringify(data)}`);
+  }
+  return data.idToken;
+}
 
 async function getIdToken(): Promise<string> {
   // Try sign-in first
@@ -30,11 +49,12 @@ async function getIdToken(): Promise<string> {
   );
 
   if (signInRes.ok) {
-    return (await signInRes.json()).idToken;
+    const data: FirebaseAuthResponse = await signInRes.json();
+    return validateToken(data);
   }
 
   // Only attempt signup if user doesn't exist
-  let errBody: { error?: { message?: string } } | null;
+  let errBody: FirebaseAuthErrorResponse | null;
   try {
     errBody = await signInRes.json();
   } catch {
@@ -61,7 +81,8 @@ async function getIdToken(): Promise<string> {
     const err = await signUpRes.text();
     throw new Error(`Failed to create test user: ${err}`);
   }
-  return (await signUpRes.json()).idToken;
+  const data: FirebaseAuthResponse = await signUpRes.json();
+  return validateToken(data);
 }
 
 // ─── Helper: sign in via the UI form ────────────────────────────────
@@ -91,33 +112,57 @@ test.beforeAll(async () => {
 // ─── Authenticated API tests ────────────────────────────────────────
 
 test.describe("authenticated API", () => {
-  test("GET /api/v1/me → not 401 with valid token", async ({ request }) => {
+  test("GET /api/v1/me → 2xx with valid token", async ({ request }) => {
     const res = await request.get("/api/v1/me", {
       headers: { Authorization: `Bearer ${idToken}` },
     });
-    // 200 or 404 (user may not have a profile row yet) — but NOT 401
-    expect(res.status()).not.toBe(401);
+    const body = await res.text();
+    expect(res.status(), `GET /api/v1/me returned ${res.status()}: ${body}`).toBeGreaterThanOrEqual(
+      200,
+    );
+    expect(res.status(), `GET /api/v1/me returned ${res.status()}: ${body}`).toBeLessThan(300);
   });
 
-  test("GET /api/v1/me/favorites → not 401", async ({ request }) => {
+  test("GET /api/v1/me/favorites → 2xx", async ({ request }) => {
     const res = await request.get("/api/v1/me/favorites", {
       headers: { Authorization: `Bearer ${idToken}` },
     });
-    expect(res.status()).not.toBe(401);
+    const body = await res.text();
+    expect(
+      res.status(),
+      `GET /api/v1/me/favorites returned ${res.status()}: ${body}`,
+    ).toBeGreaterThanOrEqual(200);
+    expect(res.status(), `GET /api/v1/me/favorites returned ${res.status()}: ${body}`).toBeLessThan(
+      300,
+    );
   });
 
-  test("GET /api/v1/me/orders → not 401", async ({ request }) => {
+  test("GET /api/v1/me/orders → 2xx", async ({ request }) => {
     const res = await request.get("/api/v1/me/orders", {
       headers: { Authorization: `Bearer ${idToken}` },
     });
-    expect(res.status()).not.toBe(401);
+    const body = await res.text();
+    expect(
+      res.status(),
+      `GET /api/v1/me/orders returned ${res.status()}: ${body}`,
+    ).toBeGreaterThanOrEqual(200);
+    expect(res.status(), `GET /api/v1/me/orders returned ${res.status()}: ${body}`).toBeLessThan(
+      300,
+    );
   });
 
-  test("GET /api/v1/me/points → not 401", async ({ request }) => {
+  test("GET /api/v1/me/points → 2xx", async ({ request }) => {
     const res = await request.get("/api/v1/me/points", {
       headers: { Authorization: `Bearer ${idToken}` },
     });
-    expect(res.status()).not.toBe(401);
+    const body = await res.text();
+    expect(
+      res.status(),
+      `GET /api/v1/me/points returned ${res.status()}: ${body}`,
+    ).toBeGreaterThanOrEqual(200);
+    expect(res.status(), `GET /api/v1/me/points returned ${res.status()}: ${body}`).toBeLessThan(
+      300,
+    );
   });
 
   test("POST /api/v1/me/favorites/{productId} → toggle favorite", async ({ request }) => {
@@ -127,17 +172,23 @@ test.describe("authenticated API", () => {
     expect(content.length).toBeGreaterThan(0);
     const productId = content[0].id;
 
-    // Add favorite
+    // Add favorite (200/201/204)
     const addRes = await request.post(`/api/v1/me/favorites/${productId}`, {
       headers: { Authorization: `Bearer ${idToken}` },
     });
-    expect(addRes.status()).not.toBe(401);
+    const addBody = await addRes.text();
+    expect([200, 201, 204], `POST favorite returned ${addRes.status()}: ${addBody}`).toContain(
+      addRes.status(),
+    );
 
-    // Remove favorite
+    // Remove favorite (200/204)
     const delRes = await request.delete(`/api/v1/me/favorites/${productId}`, {
       headers: { Authorization: `Bearer ${idToken}` },
     });
-    expect(delRes.status()).not.toBe(401);
+    const delBody = await delRes.text();
+    expect([200, 204], `DELETE favorite returned ${delRes.status()}: ${delBody}`).toContain(
+      delRes.status(),
+    );
   });
 });
 
