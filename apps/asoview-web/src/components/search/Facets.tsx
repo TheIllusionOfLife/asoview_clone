@@ -1,6 +1,10 @@
 "use client";
 
+import { apiRequest } from "@/lib/api";
 import { useTranslations } from "next-intl";
+import { useEffect, useState } from "react";
+
+type CategoryOption = { id: string; name: string };
 
 type Props = {
   category: string;
@@ -10,6 +14,13 @@ type Props = {
   onChange: (updates: Record<string, string | null>) => void;
 };
 
+const FALLBACK_CATEGORIES: CategoryOption[] = [
+  { id: "outdoor", name: "outdoor" },
+  { id: "indoor", name: "indoor" },
+  { id: "food", name: "food" },
+  { id: "culture", name: "culture" },
+];
+
 /**
  * Facet + sort controls. Every change calls `onChange` which rewrites
  * the URL via `router.replace` in the parent. Prices are integer minor
@@ -18,6 +29,27 @@ type Props = {
  */
 export function Facets({ category, priceMin, priceMax, sort, onChange }: Props) {
   const t = useTranslations("search");
+  const [categories, setCategories] = useState<CategoryOption[]>(FALLBACK_CATEGORIES);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await apiRequest<CategoryOption[]>("/v1/categories/active", {
+          method: "GET",
+          retries: 1,
+        });
+        if (!cancelled && data.length > 0) {
+          setCategories(data);
+        }
+      } catch {
+        // Fall back to hardcoded list silently
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Integer yen only — strings from URL / inputs are validated to digits.
   // Japanese IMEs commonly emit full-width digits (０-９); normalize to
@@ -39,10 +71,11 @@ export function Facets({ category, priceMin, priceMax, sort, onChange }: Props) 
           className="rounded border border-[var(--color-border)] px-2 py-1"
         >
           <option value="">{t("facets.any")}</option>
-          <option value="outdoor">{t("facets.categories.outdoor")}</option>
-          <option value="indoor">{t("facets.categories.indoor")}</option>
-          <option value="food">{t("facets.categories.food")}</option>
-          <option value="culture">{t("facets.categories.culture")}</option>
+          {categories.map((cat) => (
+            <option key={cat.id} value={cat.id}>
+              {cat.name}
+            </option>
+          ))}
         </select>
       </label>
 
