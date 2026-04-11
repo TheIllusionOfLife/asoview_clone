@@ -177,7 +177,9 @@ test.describe("authenticated API", () => {
     );
   });
 
-  test("PUT /api/v1/me/favorites/{productId} → toggle favorite", async ({ request }) => {
+  test("PUT/DELETE /api/v1/me/favorites/{productId} → add and remove favorite", async ({
+    request,
+  }) => {
     const listRes = await request.get("/api/v1/products?size=1");
     expect(listRes.status()).toBe(200);
     const content = (await listRes.json()).content;
@@ -189,18 +191,14 @@ test.describe("authenticated API", () => {
       headers: { Authorization: `Bearer ${idToken}` },
     });
     const addBody = await addRes.text();
-    expect([200, 204], `PUT favorite returned ${addRes.status()}: ${addBody}`).toContain(
-      addRes.status(),
-    );
+    expect(addRes.status(), `PUT favorite returned ${addRes.status()}: ${addBody}`).toBe(204);
 
     // Remove favorite
     const delRes = await request.delete(`/api/v1/me/favorites/${productId}`, {
       headers: { Authorization: `Bearer ${idToken}` },
     });
     const delBody = await delRes.text();
-    expect([200, 204], `DELETE favorite returned ${delRes.status()}: ${delBody}`).toContain(
-      delRes.status(),
-    );
+    expect(delRes.status(), `DELETE favorite returned ${delRes.status()}: ${delBody}`).toBe(204);
   });
 });
 
