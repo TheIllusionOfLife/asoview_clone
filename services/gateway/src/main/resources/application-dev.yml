@@ -16,6 +16,9 @@ spring:
               filters:
                 - StripPrefix=1
 
+firebase:
+  project-id: ${GOOGLE_CLOUD_PROJECT:asoview-clone-dev}
+
 management:
   endpoints:
     web:
