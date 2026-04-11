@@ -177,30 +177,28 @@ test.describe("authenticated API", () => {
     );
   });
 
-  test("POST /api/v1/me/favorites/{productId} → toggle favorite", async ({ request }) => {
+  test("PUT/DELETE /api/v1/me/favorites/{productId} → add and remove favorite", async ({
+    request,
+  }) => {
     const listRes = await request.get("/api/v1/products?size=1");
     expect(listRes.status()).toBe(200);
     const content = (await listRes.json()).content;
     expect(content.length).toBeGreaterThan(0);
     const productId = content[0].id;
 
-    // Add favorite
-    const addRes = await request.post(`/api/v1/me/favorites/${productId}`, {
+    // Add favorite (PUT, not POST — controller uses @PutMapping)
+    const addRes = await request.put(`/api/v1/me/favorites/${productId}`, {
       headers: { Authorization: `Bearer ${idToken}` },
     });
     const addBody = await addRes.text();
-    expect([200, 201, 204], `POST favorite returned ${addRes.status()}: ${addBody}`).toContain(
-      addRes.status(),
-    );
+    expect(addRes.status(), `PUT favorite returned ${addRes.status()}: ${addBody}`).toBe(204);
 
     // Remove favorite
     const delRes = await request.delete(`/api/v1/me/favorites/${productId}`, {
       headers: { Authorization: `Bearer ${idToken}` },
     });
     const delBody = await delRes.text();
-    expect([200, 204], `DELETE favorite returned ${delRes.status()}: ${delBody}`).toContain(
-      delRes.status(),
-    );
+    expect(delRes.status(), `DELETE favorite returned ${delRes.status()}: ${delBody}`).toBe(204);
   });
 });
 
