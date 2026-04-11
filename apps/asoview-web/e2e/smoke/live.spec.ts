@@ -258,6 +258,37 @@ test.describe("auth-gated pages", () => {
   }
 });
 
+// ─── Points ledger (authenticated) ─────────────────────────────────
+
+test.describe("points ledger authenticated", () => {
+  test("shows ledger section after sign-in (not Coming Soon)", async ({ page }) => {
+    // Skip if no test credentials are configured
+    const email = process.env.E2E_TEST_USER_EMAIL;
+    const password = process.env.E2E_TEST_USER_PASSWORD;
+    test.skip(!email || !password, "E2E_TEST_USER_EMAIL/PASSWORD not set");
+
+    await page.goto("/ja/signin");
+    await page.getByLabel(/メール|Email/i).fill(email as string);
+    await page.getByLabel(/パスワード|Password/i).fill(password as string);
+    await page.getByRole("button", { name: /ログイン|Sign in/i }).click();
+
+    // Wait for redirect after sign-in
+    await page.waitForURL(/(?!.*signin)/, { timeout: 15_000 });
+
+    await page.goto("/ja/me/points");
+    await page.waitForTimeout(3000);
+
+    // The ledger section should be present (data-testid="points-ledger")
+    const ledger = page.locator('[data-testid="points-ledger"]');
+    await expect(ledger).toBeVisible({ timeout: 10_000 });
+
+    // Should NOT show "Coming Soon" text
+    const body = await page.locator("body").innerText();
+    expect(body).not.toContain("近日公開予定");
+    expect(body).not.toContain("coming soon");
+  });
+});
+
 // ─── API endpoints ──────────────────────────────────────────────────
 
 test.describe("API health", () => {
