@@ -121,7 +121,7 @@ export function PointsClient() {
                   </span>
                   {entry.referenceId && (
                     <Link
-                      href={`/me/orders/${entry.referenceId}`}
+                      href="/me/orders"
                       className="text-xs text-[var(--color-primary)] underline"
                     >
                       {t("viewOrder")}

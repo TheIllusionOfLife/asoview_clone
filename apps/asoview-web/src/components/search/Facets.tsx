@@ -14,12 +14,7 @@ type Props = {
   onChange: (updates: Record<string, string | null>) => void;
 };
 
-const FALLBACK_CATEGORIES: CategoryOption[] = [
-  { id: "outdoor", name: "outdoor" },
-  { id: "indoor", name: "indoor" },
-  { id: "food", name: "food" },
-  { id: "culture", name: "culture" },
-];
+const FALLBACK_CATEGORY_IDS = ["outdoor", "indoor", "food", "culture"] as const;
 
 /**
  * Facet + sort controls. Every change calls `onChange` which rewrites
@@ -29,7 +24,11 @@ const FALLBACK_CATEGORIES: CategoryOption[] = [
  */
 export function Facets({ category, priceMin, priceMax, sort, onChange }: Props) {
   const t = useTranslations("search");
-  const [categories, setCategories] = useState<CategoryOption[]>(FALLBACK_CATEGORIES);
+  const fallback: CategoryOption[] = FALLBACK_CATEGORY_IDS.map((id) => ({
+    id,
+    name: t(`facets.categories.${id}`),
+  }));
+  const [categories, setCategories] = useState<CategoryOption[]>(fallback);
 
   useEffect(() => {
     let cancelled = false;
