@@ -404,11 +404,40 @@ export function removeFavorite(
 
 // ---------- Points ----------
 
-/** Backend returns {balance: long}. No ledger endpoint exists yet. */
+/** Backend returns {balance: long}. */
 export function getPointsBalance(
   options: Omit<RequestOptions, "method" | "body"> = {},
 ): Promise<{ balance: number }> {
   return apiRequest<{ balance: number }>("/v1/me/points", { ...options, method: "GET" });
+}
+
+export type PointLedgerEntry = {
+  id: string;
+  direction: "EARN" | "BURN" | "REFUND";
+  amount: number;
+  reason: string;
+  referenceId: string | null;
+  createdAt: string;
+};
+
+export type PointLedgerPage = {
+  content: PointLedgerEntry[];
+  totalElements: number;
+  number: number;
+  size: number;
+  totalPages: number;
+};
+
+/** Paginated point ledger. */
+export function getPointsLedger(
+  page = 0,
+  size = 20,
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<PointLedgerPage> {
+  return apiRequest<PointLedgerPage>(`/v1/me/points/ledger?page=${page}&size=${size}`, {
+    ...options,
+    method: "GET",
+  });
 }
 
 export const api = {

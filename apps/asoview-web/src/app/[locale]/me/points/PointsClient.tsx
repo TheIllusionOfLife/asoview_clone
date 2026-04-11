@@ -1,22 +1,57 @@
 "use client";
 
 import { useRouter } from "@/i18n/navigation";
-import { ApiError, NetworkError, SignInRedirect, getPointsBalance } from "@/lib/api";
+import {
+  ApiError,
+  NetworkError,
+  type PointLedgerEntry,
+  type PointLedgerPage,
+  SignInRedirect,
+  getPointsBalance,
+  getPointsLedger,
+} from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-/**
- * Shows the current points balance. The backend does not yet expose a
- * ledger endpoint (GET /v1/me/points/ledger is not implemented), so the
- * ledger section is a placeholder until PR #21 lands the read side.
- */
+function formatJstDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo", dateStyle: "medium" });
+}
+
+function DirectionBadge({ direction }: { direction: PointLedgerEntry["direction"] }) {
+  const colors: Record<string, string> = {
+    EARN: "bg-green-100 text-green-800",
+    BURN: "bg-red-100 text-red-800",
+    REFUND: "bg-blue-100 text-blue-800",
+  };
+  const signs: Record<string, string> = { EARN: "+", BURN: "-", REFUND: "+" };
+  return (
+    <span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold ${colors[direction]}`}>
+      {signs[direction]} {direction}
+    </span>
+  );
+}
+
 export function PointsClient() {
   const t = useTranslations("points");
   const router = useRouter();
   const { ready, user } = useAuth();
   const [balance, setBalance] = useState<number | null>(null);
+  const [ledger, setLedger] = useState<PointLedgerPage | null>(null);
+  const [page, setPage] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
+  const handleError = useCallback(
+    (e: unknown) => {
+      if (e instanceof SignInRedirect) {
+        router.push(`/signin?next=${encodeURIComponent(e.next)}`);
+        return;
+      }
+      setError(e instanceof ApiError || e instanceof NetworkError ? e.message : t("loadError"));
+    },
+    [router, t],
+  );
 
   useEffect(() => {
     if (!ready) return;
@@ -28,25 +63,24 @@ export function PointsClient() {
     const ctrl = new AbortController();
     (async () => {
       try {
-        const { balance: b } = await getPointsBalance({
-          signal: ctrl.signal,
-          currentPath: "/me/points",
-        });
-        if (!cancelled) setBalance(b);
+        const [balanceRes, ledgerRes] = await Promise.all([
+          getPointsBalance({ signal: ctrl.signal, currentPath: "/me/points" }),
+          getPointsLedger(page, 20, { signal: ctrl.signal, currentPath: "/me/points" }),
+        ]);
+        if (!cancelled) {
+          setBalance(balanceRes.balance);
+          setLedger(ledgerRes);
+        }
       } catch (e) {
         if (cancelled) return;
-        if (e instanceof SignInRedirect) {
-          router.push(`/signin?next=${encodeURIComponent(e.next)}`);
-          return;
-        }
-        setError(e instanceof ApiError || e instanceof NetworkError ? e.message : t("loadError"));
+        handleError(e);
       }
     })();
     return () => {
       cancelled = true;
       ctrl.abort();
     };
-  }, [ready, user, router, t]);
+  }, [ready, user, router, page, handleError]);
 
   if (error) {
     return (
@@ -66,9 +100,61 @@ export function PointsClient() {
           {t("balanceValue", { balance })}
         </p>
       </div>
-      <section>
+      <section data-testid="points-ledger">
         <h2 className="font-display text-xl font-semibold">{t("ledgerTitle")}</h2>
-        <p className="mt-2 text-sm text-[var(--color-ink-muted)]">{t("ledgerComingSoon")}</p>
+        {ledger && ledger.content.length === 0 && (
+          <p className="mt-2 text-sm text-[var(--color-ink-muted)]">{t("ledgerEmpty")}</p>
+        )}
+        {ledger && ledger.content.length > 0 && (
+          <>
+            <ul className="mt-4 divide-y divide-[var(--color-border)]">
+              {ledger.content.map((entry) => (
+                <li key={entry.id} className="flex items-center gap-3 py-3">
+                  <DirectionBadge direction={entry.direction} />
+                  <span className="font-semibold tabular-nums">
+                    {entry.direction === "BURN" ? "-" : "+"}
+                    {entry.amount.toLocaleString()}
+                  </span>
+                  <span className="flex-1 text-sm text-[var(--color-ink-muted)]">
+                    {entry.reason}
+                  </span>
+                  {entry.referenceId && (
+                    <a
+                      href={`/me/orders/${entry.referenceId}`}
+                      className="text-xs text-[var(--color-primary)] underline"
+                    >
+                      {t("viewOrder")}
+                    </a>
+                  )}
+                  <span className="text-xs text-[var(--color-ink-muted)]">
+                    {formatJstDate(entry.createdAt)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-4 flex items-center gap-4">
+              <button
+                type="button"
+                disabled={page === 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                className="rounded border px-3 py-1 text-sm disabled:opacity-40"
+              >
+                {t("prev")}
+              </button>
+              <span className="text-sm text-[var(--color-ink-muted)]">
+                {page + 1} / {ledger.totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={page >= ledger.totalPages - 1}
+                onClick={() => setPage((p) => p + 1)}
+                className="rounded border px-3 py-1 text-sm disabled:opacity-40"
+              >
+                {t("next")}
+              </button>
+            </div>
+          </>
+        )}
       </section>
     </div>
   );
