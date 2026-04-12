@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.RestHighLevelClient;
-import org.opensearch.testcontainers.OpensearchContainer;
+import org.opensearch.testcontainers.OpenSearchContainer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -37,7 +37,7 @@ class SmokeTest {
           .asCompatibleSubstituteFor("opensearchproject/opensearch");
 
   @Container
-  static final OpensearchContainer<?> OPENSEARCH = new OpensearchContainer<>(OPENSEARCH_IMAGE);
+  static final OpenSearchContainer<?> OPENSEARCH = new OpenSearchContainer<>(OPENSEARCH_IMAGE);
 
   @DynamicPropertySource
   static void props(DynamicPropertyRegistry registry) {
