@@ -15,4 +15,5 @@ public record ProductDoc(
     String categoryId,
     Long minPrice,
     String status,
-    String indexedAt) {}
+    String indexedAt,
+    Long popularityScore) {}
