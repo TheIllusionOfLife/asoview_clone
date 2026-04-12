@@ -53,6 +53,26 @@ export function PointsClient() {
     [router, t],
   );
 
+  // Fetch balance once on mount (not on every page change).
+  useEffect(() => {
+    if (!ready || !user) return;
+    let cancelled = false;
+    const ctrl = new AbortController();
+    (async () => {
+      try {
+        const res = await getPointsBalance({ signal: ctrl.signal, currentPath: "/me/points" });
+        if (!cancelled) setBalance(res.balance);
+      } catch (e) {
+        if (!cancelled) handleError(e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      ctrl.abort();
+    };
+  }, [ready, user, handleError]);
+
+  // Fetch ledger on mount and when page changes.
   useEffect(() => {
     if (!ready) return;
     if (!user) {
@@ -64,14 +84,11 @@ export function PointsClient() {
     (async () => {
       try {
         setError(null);
-        const [balanceRes, ledgerRes] = await Promise.all([
-          getPointsBalance({ signal: ctrl.signal, currentPath: "/me/points" }),
-          getPointsLedger(page, 20, { signal: ctrl.signal, currentPath: "/me/points" }),
-        ]);
-        if (!cancelled) {
-          setBalance(balanceRes.balance);
-          setLedger(ledgerRes);
-        }
+        const res = await getPointsLedger(page, 20, {
+          signal: ctrl.signal,
+          currentPath: "/me/points",
+        });
+        if (!cancelled) setLedger(res);
       } catch (e) {
         if (cancelled) return;
         handleError(e);

@@ -48,6 +48,16 @@ resource "google_pubsub_topic_iam_member" "dlq_publisher" {
   project = var.project_id
 }
 
+# The Pub/Sub service agent also needs subscriber permission on each source
+# subscription to acknowledge messages after forwarding them to the DLQ.
+resource "google_pubsub_subscription_iam_member" "dlq_subscriber" {
+  for_each     = local.analytics_subscriptions
+  subscription = google_pubsub_subscription.analytics[each.key].id
+  role         = "roles/pubsub.subscriber"
+  member       = "serviceAccount:service-${data.google_project.current.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+  project      = var.project_id
+}
+
 resource "google_pubsub_subscription" "analytics" {
   for_each = local.analytics_subscriptions
   name     = each.key

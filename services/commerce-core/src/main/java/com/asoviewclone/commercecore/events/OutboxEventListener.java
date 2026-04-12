@@ -76,8 +76,11 @@ public class OutboxEventListener {
     PaymentEvent proto =
         PaymentEvent.newBuilder()
             .setMetadata(metadata(eventId, "payment.created", 1, event.orderId(), Instant.now()))
+            .setPaymentId(event.paymentId())
             .setOrderId(event.orderId())
             .setStatus("PROCESSING")
+            .setProvider(event.provider())
+            .setAmountJpy(event.amountJpy())
             .setCurrency("JPY")
             .build();
 

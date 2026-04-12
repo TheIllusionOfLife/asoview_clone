@@ -5,4 +5,5 @@ package com.asoviewclone.commercecore.payments.event;
  * listener advances the corresponding Order to PAYMENT_PENDING after the enclosing transaction
  * commits, keeping the cross-store update off the critical path and recoverable via retry.
  */
-public record PaymentCreatedEvent(String orderId) {}
+public record PaymentCreatedEvent(
+    String orderId, String paymentId, long amountJpy, String provider) {}

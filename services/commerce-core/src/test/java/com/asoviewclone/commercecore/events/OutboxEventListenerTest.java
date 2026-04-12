@@ -67,7 +67,7 @@ class OutboxEventListenerTest {
   void onPaymentCreated_writesOutboxRow() throws Exception {
     Mockito.when(repo.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
 
-    listener.onPaymentCreated(new PaymentCreatedEvent("order-3"));
+    listener.onPaymentCreated(new PaymentCreatedEvent("order-3", "pay-1", 3000L, "stripe"));
 
     ArgumentCaptor<OutboxEvent> captor = ArgumentCaptor.forClass(OutboxEvent.class);
     verify(repo).saveAndFlush(captor.capture());
@@ -78,6 +78,9 @@ class OutboxEventListenerTest {
 
     PaymentEvent proto = PaymentEvent.parseFrom(saved.getPayload());
     assertThat(proto.getOrderId()).isEqualTo("order-3");
+    assertThat(proto.getPaymentId()).isEqualTo("pay-1");
+    assertThat(proto.getAmountJpy()).isEqualTo(3000L);
+    assertThat(proto.getProvider()).isEqualTo("stripe");
     assertThat(proto.getStatus()).isEqualTo("PROCESSING");
   }
 }
