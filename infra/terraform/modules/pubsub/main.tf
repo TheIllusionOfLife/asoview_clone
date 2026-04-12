@@ -34,6 +34,20 @@ resource "google_pubsub_topic" "dlq" {
   project = var.project_id
 }
 
+# The Pub/Sub service agent needs publish permission on the DLQ topic
+# for dead-letter forwarding to work. Without this, delivery failures
+# are silently dropped instead of routed to the DLQ.
+data "google_project" "current" {
+  project_id = var.project_id
+}
+
+resource "google_pubsub_topic_iam_member" "dlq_publisher" {
+  topic   = google_pubsub_topic.dlq.id
+  role    = "roles/pubsub.publisher"
+  member  = "serviceAccount:service-${data.google_project.current.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+  project = var.project_id
+}
+
 resource "google_pubsub_subscription" "analytics" {
   for_each = local.analytics_subscriptions
   name     = each.key

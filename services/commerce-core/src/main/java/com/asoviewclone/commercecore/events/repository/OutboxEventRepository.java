@@ -11,8 +11,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 public interface OutboxEventRepository extends JpaRepository<OutboxEvent, UUID> {
 
-  @Query("SELECT e FROM OutboxEvent e WHERE e.publishedAt IS NULL ORDER BY e.createdAt ASC")
-  List<OutboxEvent> findUnpublished();
+  @Query(
+      value =
+          "SELECT * FROM outbox_events WHERE published_at IS NULL ORDER BY created_at ASC LIMIT :limit",
+      nativeQuery = true)
+  List<OutboxEvent> findUnpublished(@Param("limit") int limit);
 
   @Transactional
   @Modifying(clearAutomatically = true, flushAutomatically = true)

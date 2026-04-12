@@ -42,13 +42,10 @@ public class BigQueryWriterService {
 
     InsertAllResponse response = bigQuery.insertAll(request);
     if (response.hasErrors()) {
-      log.error(
-          "BigQuery insert errors for table={} insertId={}: {}",
-          table,
-          insertId,
-          response.getInsertErrors());
-    } else {
-      log.debug("BigQuery insert ok table={} insertId={}", table, insertId);
+      throw new IllegalStateException(
+          "BigQuery insert errors for table=%s insertId=%s: %s"
+              .formatted(table, insertId, response.getInsertErrors()));
     }
+    log.debug("BigQuery insert ok table={} insertId={}", table, insertId);
   }
 }

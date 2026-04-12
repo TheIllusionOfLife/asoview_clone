@@ -30,6 +30,7 @@ class OutboxEventListenerTest {
     verify(repo).saveAndFlush(captor.capture());
 
     OutboxEvent saved = captor.getValue();
+    assertThat(saved.getEventId()).isNotBlank();
     assertThat(saved.getEventType()).isEqualTo("order.paid");
     assertThat(saved.getAggregateId()).isEqualTo("order-1");
     assertThat(saved.getTopic()).isEqualTo("order-events");
@@ -42,6 +43,7 @@ class OutboxEventListenerTest {
     assertThat(proto.getTotalAmountJpy()).isEqualTo(5000L);
     assertThat(proto.getMetadata().getEventType()).isEqualTo("order.paid");
     assertThat(proto.getMetadata().getProducer()).isEqualTo("commerce-core");
+    assertThat(proto.getMetadata().getEventId()).isEqualTo(saved.getEventId());
   }
 
   @Test

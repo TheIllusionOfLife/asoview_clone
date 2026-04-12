@@ -13,6 +13,9 @@ public class OutboxEvent {
 
   @Id private UUID id;
 
+  @Column(name = "event_id", nullable = false)
+  private String eventId;
+
   @Column(name = "event_type", nullable = false, length = 100)
   private String eventType;
 
@@ -33,8 +36,10 @@ public class OutboxEvent {
 
   protected OutboxEvent() {}
 
-  public OutboxEvent(String eventType, String aggregateId, String topic, byte[] payload) {
+  public OutboxEvent(
+      String eventId, String eventType, String aggregateId, String topic, byte[] payload) {
     this.id = UUID.randomUUID();
+    this.eventId = eventId;
     this.eventType = eventType;
     this.aggregateId = aggregateId;
     this.topic = topic;
@@ -44,6 +49,10 @@ public class OutboxEvent {
 
   public UUID getId() {
     return id;
+  }
+
+  public String getEventId() {
+    return eventId;
   }
 
   public String getEventType() {

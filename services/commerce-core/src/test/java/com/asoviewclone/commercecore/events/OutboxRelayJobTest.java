@@ -1,6 +1,7 @@
 package com.asoviewclone.commercecore.events;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -21,20 +22,22 @@ class OutboxRelayJobTest {
 
   @Test
   void relay_publishesAndMarksPublished() {
-    OutboxEvent event = new OutboxEvent("order.paid", "order-1", "order-events", new byte[] {1, 2});
-    when(repo.findUnpublished()).thenReturn(List.of(event));
+    OutboxEvent event =
+        new OutboxEvent("evt-1", "order.paid", "order-1", "order-events", new byte[] {1, 2});
+    when(repo.findUnpublished(anyInt())).thenReturn(List.of(event));
     when(repo.markPublished(event.getId())).thenReturn(1);
 
     job.relay();
 
-    verify(publisher).publish(eq("order-events"), eq(event.getId().toString()), any(byte[].class));
+    verify(publisher).publish(eq("order-events"), eq("evt-1"), any(byte[].class));
     verify(repo).markPublished(event.getId());
   }
 
   @Test
   void relay_publisherFailure_doesNotMarkPublished() {
-    OutboxEvent event = new OutboxEvent("order.paid", "order-1", "order-events", new byte[] {1, 2});
-    when(repo.findUnpublished()).thenReturn(List.of(event));
+    OutboxEvent event =
+        new OutboxEvent("evt-2", "order.paid", "order-1", "order-events", new byte[] {1, 2});
+    when(repo.findUnpublished(anyInt())).thenReturn(List.of(event));
     doThrow(new RuntimeException("Pub/Sub down")).when(publisher).publish(any(), any(), any());
 
     job.relay();
@@ -44,7 +47,7 @@ class OutboxRelayJobTest {
 
   @Test
   void relay_emptyQueue_noOp() {
-    when(repo.findUnpublished()).thenReturn(List.of());
+    when(repo.findUnpublished(anyInt())).thenReturn(List.of());
 
     job.relay();
 

@@ -1,11 +1,12 @@
 CREATE TABLE outbox_events (
     id            UUID PRIMARY KEY,
+    event_id      VARCHAR(255)  NOT NULL,
     event_type    VARCHAR(100)  NOT NULL,
     aggregate_id  VARCHAR(255)  NOT NULL,
     topic         VARCHAR(100)  NOT NULL,
     payload       BYTEA         NOT NULL,
-    created_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    published_at  TIMESTAMP
+    created_at    TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    published_at  TIMESTAMPTZ
 );
 
 CREATE INDEX idx_outbox_events_unpublished

@@ -26,6 +26,13 @@ resource "google_bigquery_table" "order_events" {
   project             = var.project_id
   deletion_protection = false
 
+  time_partitioning {
+    type  = "DAY"
+    field = "occurred_at"
+  }
+
+  clustering = ["event_type"]
+
   schema = jsonencode([
     { name = "event_id", type = "STRING", mode = "REQUIRED" },
     { name = "event_type", type = "STRING", mode = "REQUIRED" },
@@ -44,6 +51,13 @@ resource "google_bigquery_table" "payment_events" {
   table_id            = "payment_events"
   project             = var.project_id
   deletion_protection = false
+
+  time_partitioning {
+    type  = "DAY"
+    field = "occurred_at"
+  }
+
+  clustering = ["event_type"]
 
   schema = jsonencode([
     { name = "event_id", type = "STRING", mode = "REQUIRED" },

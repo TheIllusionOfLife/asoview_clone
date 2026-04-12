@@ -47,7 +47,8 @@ public class OutboxEventListener {
             .build();
 
     outboxRepository.saveAndFlush(
-        new OutboxEvent("order.paid", event.orderId(), "order-events", proto.toByteArray()));
+        new OutboxEvent(
+            eventId, "order.paid", event.orderId(), "order-events", proto.toByteArray()));
     log.debug("Outbox: order.paid for order {}", event.orderId());
   }
 
@@ -64,7 +65,8 @@ public class OutboxEventListener {
             .build();
 
     outboxRepository.saveAndFlush(
-        new OutboxEvent("order.cancelled", event.orderId(), "order-events", proto.toByteArray()));
+        new OutboxEvent(
+            eventId, "order.cancelled", event.orderId(), "order-events", proto.toByteArray()));
     log.debug("Outbox: order.cancelled for order {}", event.orderId());
   }
 
@@ -80,7 +82,8 @@ public class OutboxEventListener {
             .build();
 
     outboxRepository.saveAndFlush(
-        new OutboxEvent("payment.created", event.orderId(), "payment-events", proto.toByteArray()));
+        new OutboxEvent(
+            eventId, "payment.created", event.orderId(), "payment-events", proto.toByteArray()));
     log.debug("Outbox: payment.created for order {}", event.orderId());
   }
 
