@@ -28,6 +28,7 @@ spring-cloud-bom = { module = "org.springframework.cloud:spring-cloud-dependenci
 # Spring Cloud GCP
 spring-cloud-gcp-bom = { module = "com.google.cloud:spring-cloud-gcp-dependencies", version.ref = "spring-cloud-gcp" }
 spring-cloud-gcp-starter-data-spanner = { module = "com.google.cloud:spring-cloud-gcp-starter-data-spanner" }
+spring-cloud-gcp-starter-pubsub = { module = "com.google.cloud:spring-cloud-gcp-starter-pubsub" }
 
 # gRPC
 grpc-bom = { module = "io.grpc:grpc-bom", version.ref = "grpc" }
