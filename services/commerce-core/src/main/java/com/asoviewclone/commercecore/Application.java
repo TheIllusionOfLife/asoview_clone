@@ -1,6 +1,8 @@
 package com.asoviewclone.commercecore;
 
 import com.google.cloud.spring.autoconfigure.firestore.GcpFirestoreAutoConfiguration;
+import com.google.cloud.spring.autoconfigure.pubsub.GcpPubSubAutoConfiguration;
+import com.google.cloud.spring.autoconfigure.pubsub.GcpPubSubReactiveAutoConfiguration;
 import com.google.cloud.spring.autoconfigure.spanner.GcpSpannerAutoConfiguration;
 import com.google.cloud.spring.autoconfigure.spanner.SpannerRepositoriesAutoConfiguration;
 import com.google.cloud.spring.autoconfigure.spanner.SpannerTransactionManagerAutoConfiguration;
@@ -20,7 +22,9 @@ import org.springframework.scheduling.annotation.EnableScheduling;
       GcpSpannerAutoConfiguration.class,
       SpannerRepositoriesAutoConfiguration.class,
       SpannerTransactionManagerAutoConfiguration.class,
-      GcpFirestoreAutoConfiguration.class
+      GcpFirestoreAutoConfiguration.class,
+      GcpPubSubAutoConfiguration.class,
+      GcpPubSubReactiveAutoConfiguration.class
     })
 @EnableRetry
 @EnableScheduling

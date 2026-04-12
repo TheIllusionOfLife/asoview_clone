@@ -17,3 +17,58 @@ resource "google_bigquery_dataset" "datasets" {
   location   = var.region
   project    = var.project_id
 }
+
+# --- analytics_raw tables (populated by analytics-ingest from Pub/Sub) ---
+
+resource "google_bigquery_table" "order_events" {
+  dataset_id          = google_bigquery_dataset.datasets["analytics_raw"].dataset_id
+  table_id            = "order_events"
+  project             = var.project_id
+  deletion_protection = false
+
+  time_partitioning {
+    type  = "DAY"
+    field = "occurred_at"
+  }
+
+  clustering = ["event_type"]
+
+  schema = jsonencode([
+    { name = "event_id", type = "STRING", mode = "REQUIRED" },
+    { name = "event_type", type = "STRING", mode = "REQUIRED" },
+    { name = "order_id", type = "STRING", mode = "REQUIRED" },
+    { name = "user_id", type = "STRING", mode = "NULLABLE" },
+    { name = "status", type = "STRING", mode = "REQUIRED" },
+    { name = "subtotal_jpy", type = "INTEGER", mode = "NULLABLE" },
+    { name = "currency", type = "STRING", mode = "NULLABLE" },
+    { name = "occurred_at", type = "TIMESTAMP", mode = "REQUIRED" },
+    { name = "producer", type = "STRING", mode = "NULLABLE" },
+  ])
+}
+
+resource "google_bigquery_table" "payment_events" {
+  dataset_id          = google_bigquery_dataset.datasets["analytics_raw"].dataset_id
+  table_id            = "payment_events"
+  project             = var.project_id
+  deletion_protection = false
+
+  time_partitioning {
+    type  = "DAY"
+    field = "occurred_at"
+  }
+
+  clustering = ["event_type"]
+
+  schema = jsonencode([
+    { name = "event_id", type = "STRING", mode = "REQUIRED" },
+    { name = "event_type", type = "STRING", mode = "REQUIRED" },
+    { name = "payment_id", type = "STRING", mode = "NULLABLE" },
+    { name = "order_id", type = "STRING", mode = "REQUIRED" },
+    { name = "status", type = "STRING", mode = "REQUIRED" },
+    { name = "provider", type = "STRING", mode = "NULLABLE" },
+    { name = "amount_jpy", type = "INTEGER", mode = "NULLABLE" },
+    { name = "currency", type = "STRING", mode = "NULLABLE" },
+    { name = "occurred_at", type = "TIMESTAMP", mode = "REQUIRED" },
+    { name = "producer", type = "STRING", mode = "NULLABLE" },
+  ])
+}

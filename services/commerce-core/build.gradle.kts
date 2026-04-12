@@ -27,6 +27,9 @@ dependencies {
     implementation(platform(libs.spring.cloud.gcp.bom))
     implementation(libs.spring.cloud.gcp.starter.data.spanner)
 
+    // Cloud Pub/Sub (outbox relay publishes domain events)
+    implementation(libs.spring.cloud.gcp.starter.pubsub)
+
     // Redis
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
 

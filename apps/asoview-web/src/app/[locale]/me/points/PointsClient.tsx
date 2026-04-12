@@ -41,18 +41,40 @@ export function PointsClient() {
   const [ledger, setLedger] = useState<PointLedgerPage | null>(null);
   const [page, setPage] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [ledgerError, setLedgerError] = useState<string | null>(null);
 
   const handleError = useCallback(
-    (e: unknown) => {
+    (e: unknown, setter: (msg: string) => void = setError) => {
       if (e instanceof SignInRedirect) {
         router.push(`/signin?next=${encodeURIComponent(e.next)}`);
         return;
       }
-      setError(e instanceof ApiError || e instanceof NetworkError ? e.message : t("loadError"));
+      setter(e instanceof ApiError || e instanceof NetworkError ? e.message : t("loadError"));
     },
     [router, t],
   );
 
+  // Fetch balance on mount and when auth/locale state changes (not on page navigation).
+  useEffect(() => {
+    if (!ready || !user) return;
+    let cancelled = false;
+    const ctrl = new AbortController();
+    (async () => {
+      try {
+        setError(null);
+        const res = await getPointsBalance({ signal: ctrl.signal, currentPath: "/me/points" });
+        if (!cancelled) setBalance(res.balance);
+      } catch (e) {
+        if (!cancelled) handleError(e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      ctrl.abort();
+    };
+  }, [ready, user, handleError]);
+
+  // Fetch ledger on mount and when page changes.
   useEffect(() => {
     if (!ready) return;
     if (!user) {
@@ -63,18 +85,15 @@ export function PointsClient() {
     const ctrl = new AbortController();
     (async () => {
       try {
-        setError(null);
-        const [balanceRes, ledgerRes] = await Promise.all([
-          getPointsBalance({ signal: ctrl.signal, currentPath: "/me/points" }),
-          getPointsLedger(page, 20, { signal: ctrl.signal, currentPath: "/me/points" }),
-        ]);
-        if (!cancelled) {
-          setBalance(balanceRes.balance);
-          setLedger(ledgerRes);
-        }
+        setLedgerError(null);
+        const res = await getPointsLedger(page, 20, {
+          signal: ctrl.signal,
+          currentPath: "/me/points",
+        });
+        if (!cancelled) setLedger(res);
       } catch (e) {
         if (cancelled) return;
-        handleError(e);
+        handleError(e, setLedgerError);
       }
     })();
     return () => {
@@ -103,10 +122,15 @@ export function PointsClient() {
       </div>
       <section data-testid="points-ledger">
         <h2 className="font-display text-xl font-semibold">{t("ledgerTitle")}</h2>
-        {ledger && ledger.content.length === 0 && (
+        {ledgerError && (
+          <p role="alert" className="mt-2 text-sm text-[var(--color-danger)]">
+            {ledgerError}
+          </p>
+        )}
+        {!ledgerError && ledger && ledger.content.length === 0 && (
           <p className="mt-2 text-sm text-[var(--color-ink-muted)]">{t("ledgerEmpty")}</p>
         )}
-        {ledger && ledger.content.length > 0 && (
+        {!ledgerError && ledger && ledger.content.length > 0 && (
           <>
             <ul className="mt-4 divide-y divide-[var(--color-border)]">
               {ledger.content.map((entry) => (

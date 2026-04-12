@@ -122,7 +122,12 @@ public class PaymentServiceImpl implements PaymentService {
     } catch (org.springframework.dao.DataIntegrityViolationException e) {
       throw new ConflictException("Order " + orderId + " already has a payment in flight");
     }
-    eventPublisher.publishEvent(new PaymentCreatedEvent(orderId));
+    eventPublisher.publishEvent(
+        new PaymentCreatedEvent(
+            orderId,
+            saved.getPaymentId().toString(),
+            saved.getAmount().setScale(0, java.math.RoundingMode.HALF_UP).longValueExact(),
+            saved.getProvider()));
 
     return saved;
   }

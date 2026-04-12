@@ -5,7 +5,69 @@ package analytics.v1;
 option java_multiple_files = true;
 option java_package = "com.asoviewclone.proto.analytics.v1";
 
-// Placeholder message for analytics domain contract.
-message AnalyticsPing {
-  string message = 1;
+import "google/protobuf/timestamp.proto";
+
+// Shared metadata carried by every analytics event.
+message EventMetadata {
+  string event_id = 1;
+  string event_type = 2;
+  int32 event_version = 3;
+  google.protobuf.Timestamp occurred_at = 4;
+  string aggregate_id = 5;
+  string trace_id = 6;
+  string producer = 7;
+}
+
+// Published when an order transitions to PAID.
+message OrderEvent {
+  EventMetadata metadata = 1;
+  string order_id = 2;
+  string user_id = 3;
+  string status = 4;
+  repeated OrderItemDetail items = 5;
+  int64 subtotal_jpy = 6;
+  string currency = 7;
+}
+
+message OrderItemDetail {
+  string product_variant_id = 1;
+  string product_id = 2;
+  int32 quantity = 3;
+  int64 unit_price_jpy = 4;
+}
+
+// Published when a payment status changes (PROCESSING, SUCCEEDED, FAILED).
+message PaymentEvent {
+  EventMetadata metadata = 1;
+  string payment_id = 2;
+  string order_id = 3;
+  string status = 4;
+  string provider = 5;
+  int64 amount_jpy = 6;
+  string currency = 7;
+}
+
+// Published when an entitlement is checked in at a venue.
+message CheckinEvent {
+  EventMetadata metadata = 1;
+  string entitlement_id = 2;
+  string user_id = 3;
+  string venue_id = 4;
+}
+
+// Published when a user views a product detail page.
+message ProductViewEvent {
+  EventMetadata metadata = 1;
+  string product_id = 2;
+  string user_id = 3;
+  string session_id = 4;
+}
+
+// Published when a user performs a search.
+message SearchEvent {
+  EventMetadata metadata = 1;
+  string query = 2;
+  string filters = 3;
+  int32 result_count = 4;
+  string user_id = 5;
 }
