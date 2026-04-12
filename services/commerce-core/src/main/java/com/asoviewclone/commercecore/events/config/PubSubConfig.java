@@ -21,8 +21,10 @@ public class PubSubConfig {
   @Bean
   public PubSubTemplate pubSubTemplate(@Value("${spring.cloud.gcp.project-id}") String projectId) {
     DefaultPublisherFactory publisherFactory = new DefaultPublisherFactory(() -> projectId);
+    PubSubConfiguration config = new PubSubConfiguration();
+    config.initialize(projectId);
     DefaultSubscriberFactory subscriberFactory =
-        new DefaultSubscriberFactory(() -> projectId, new PubSubConfiguration());
+        new DefaultSubscriberFactory(() -> projectId, config);
     return new PubSubTemplate(publisherFactory, subscriberFactory);
   }
 }
