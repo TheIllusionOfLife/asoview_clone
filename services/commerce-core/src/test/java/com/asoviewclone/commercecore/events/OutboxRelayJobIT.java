@@ -22,7 +22,7 @@ import org.springframework.test.context.ActiveProfiles;
  * Integration test for OutboxRelayJob using real Postgres persistence. Verifies that unpublished
  * outbox rows are published and marked with a non-null publishedAt timestamp.
  */
-@SpringBootTest
+@SpringBootTest(properties = "spring.task.scheduling.enabled=false")
 @ActiveProfiles("test")
 @Import({
   PostgresContainerConfig.class,
@@ -53,13 +53,14 @@ class OutboxRelayJobIT {
         new OutboxEvent("evt-it-2", "payment.created", "order-2", "payment-events", new byte[] {2});
     outboxRepository.saveAllAndFlush(List.of(e1, e2));
 
-    assertThat(outboxRepository.findUnpublished(100)).hasSize(2);
+    // Assert specific rows are unpublished before relay
+    assertThat(outboxRepository.findById(e1.getId()).orElseThrow().getPublishedAt()).isNull();
+    assertThat(outboxRepository.findById(e2.getId()).orElseThrow().getPublishedAt()).isNull();
 
-    OutboxRelayJob job = new OutboxRelayJob(outboxRepository, publisher);
-    job.relay();
-
-    List<OutboxEvent> remaining = outboxRepository.findUnpublished(100);
-    assertThat(remaining).isEmpty();
+    // Construct relay manually since OutboxRelayJob is @ConditionalOnBean(PubSubPublisher)
+    // and @TestConfiguration beans are registered after condition evaluation.
+    OutboxRelayJob relay = new OutboxRelayJob(outboxRepository, publisher);
+    relay.relay();
 
     OutboxEvent published1 = outboxRepository.findById(e1.getId()).orElseThrow();
     assertThat(published1.getPublishedAt()).isNotNull();

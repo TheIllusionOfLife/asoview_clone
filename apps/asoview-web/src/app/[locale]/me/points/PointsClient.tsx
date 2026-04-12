@@ -54,13 +54,14 @@ export function PointsClient() {
     [router, t],
   );
 
-  // Fetch balance once on mount (not on every page change).
+  // Fetch balance on mount and when auth/locale state changes (not on page navigation).
   useEffect(() => {
     if (!ready || !user) return;
     let cancelled = false;
     const ctrl = new AbortController();
     (async () => {
       try {
+        setError(null);
         const res = await getPointsBalance({ signal: ctrl.signal, currentPath: "/me/points" });
         if (!cancelled) setBalance(res.balance);
       } catch (e) {
