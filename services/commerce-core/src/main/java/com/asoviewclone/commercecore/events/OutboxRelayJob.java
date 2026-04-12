@@ -49,27 +49,17 @@ public class OutboxRelayJob {
           log.debug("Outbox event {} already published by another runner", event.getEventId());
         }
       } catch (Exception ex) {
-        outboxRepository.incrementAttemptCount(event.getId());
-        int attempts = event.getAttemptCount() + 1;
-        if (attempts >= MAX_ATTEMPTS) {
-          outboxRepository.quarantine(event.getId());
-          log.error(
-              "Outbox event quarantined after {} attempts: id={} type={} topic={}",
-              attempts,
-              event.getEventId(),
-              event.getEventType(),
-              event.getTopic(),
-              ex);
-        } else {
-          log.warn(
-              "Outbox relay failed (attempt {}/{}) for event id={} type={} topic={}",
-              attempts,
-              MAX_ATTEMPTS,
-              event.getEventId(),
-              event.getEventType(),
-              event.getTopic(),
-              ex);
-        }
+        // Atomically increment attempt_count and quarantine (set failed_at) if the new
+        // count reaches MAX_ATTEMPTS. Uses the DB value, not the stale in-memory entity,
+        // so concurrent runners cannot overshoot the cap.
+        outboxRepository.incrementAttemptAndMaybeQuarantine(event.getId(), MAX_ATTEMPTS);
+        log.error(
+            "Outbox relay failed for event id={} type={} topic={} (will quarantine at {} attempts)",
+            event.getEventId(),
+            event.getEventType(),
+            event.getTopic(),
+            MAX_ATTEMPTS,
+            ex);
       }
     }
     if (published > 0) {

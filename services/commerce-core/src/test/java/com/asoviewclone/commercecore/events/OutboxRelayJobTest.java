@@ -43,6 +43,7 @@ class OutboxRelayJobTest {
     job.relay();
 
     verify(repo, never()).markPublished(any());
+    verify(repo).incrementAttemptAndMaybeQuarantine(eq(event.getId()), anyInt());
   }
 
   @Test
