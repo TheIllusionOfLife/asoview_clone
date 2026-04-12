@@ -367,6 +367,79 @@ Rule: **`catch (...) { /* ignored */ }` is forbidden in any sweep/repair/reconci
 - **Always-running k8s `Filter`s on a clustered StatefulSet need a `PodDisruptionBudget`**: otherwise rolling node upgrades drain quorum.
 - **`bootstrap.memory_lock=true` requires `IPC_LOCK` capability**: dropping `ALL` capabilities for security and leaving `bootstrap.memory_lock=true` causes a startup warning. Fix: set `memory_lock=false` (cgroup memory limit + JVM Xms==Xmx is sufficient) or add `capabilities.add: ["IPC_LOCK"]`.
 
+## Review Pitfalls (learned the hard way on PR #33)
+
+**13 commits, 5+ review rounds, 8 fix commits for 5 feature commits.** Event pipeline with transactional outbox pattern. The fix-to-feature ratio reveals systematic gaps in pre-review verification. Every finding below was preventable before the first push.
+
+### Async APIs that return void hide delivery failures from callers
+
+`GcpPubSubPublisher.publish()` called `pubSubTemplate.publish()` (returns `CompletableFuture<String>`) but attached only a `.whenComplete()` logging callback and returned `void`. The outbox relay called `markPublished()` immediately after `publish()` returned, before delivery was confirmed. If the async future later failed, the event was permanently lost. Every reviewer (4/4) caught this.
+
+Rule: **when wrapping an async API for a caller that needs delivery confirmation, the wrapper MUST either block on the future (`.get()` / `.join()`) or return the future to the caller.** A `void` return type on a method that delegates to a `CompletableFuture` is always a contract lie. Before writing a wrapper around any async SDK method, answer: "does the caller need to know if this succeeded?" If yes, propagate the result. The outbox relay's try-catch was correctly structured to skip markPublished on exception, but it never received the exception because the interface hid it.
+
+### Adding a Spring Boot starter without testing its auto-config in CI is a guaranteed CI failure
+
+Adding `spring-cloud-gcp-starter-pubsub` to commerce-core activated `GcpPubSubAutoConfiguration` which requires a GCP project ID. This crashed both the `ApplicationTest.contextLoads()` and the Seed Smoke CI job. The fix required excluding both `GcpPubSubAutoConfiguration` and `GcpPubSubReactiveAutoConfiguration`, then manually wiring `PubSubTemplate` with `@ConditionalOnProperty`.
+
+Rule: **every time you add a `spring-cloud-*-starter` or `spring-boot-starter-*` dependency, immediately verify that the existing `ApplicationTest.contextLoads()` still passes locally.** Starters bring auto-configuration that may require credentials, project IDs, or running infrastructure. If the auto-config fails, exclude it in `Application.java` and wire the bean manually with `@ConditionalOnProperty` or `@ConditionalOnBean`. This is the same pattern we use for Spanner and Firestore. Run the test BEFORE committing, not after CI reports the failure.
+
+### Proto field names must match the actual data source, not the aspirational schema
+
+The proto defined `total_amount_jpy` but the data source was `OrderPaidEvent.subtotalJpy`. "Total" implies discounts and fees are included; "subtotal" is the pre-discount sum. The mismatch silently corrupts analytics: queries that filter on "orders over X total" would return wrong results because the field is actually the subtotal.
+
+Rule: **name proto fields and BigQuery columns after the actual data source field, not the conceptual field you wish it were.** If `OrderPaidEvent` carries `subtotalJpy`, the proto field is `subtotal_jpy`. Renaming it to `total` is a semantic change that requires populating it differently, not just renaming the label.
+
+### Domain events must carry all fields their outbox listeners need
+
+`PaymentCreatedEvent` only carried `orderId`. The outbox listener needed `paymentId`, `amountJpy`, and `provider` to populate the proto. Without them, BigQuery got empty strings and zeros for every payment row, making the analytics table useless. The fix required changing the domain event record and the publish site.
+
+Rule: **before writing an outbox listener for a domain event, list every proto field the listener will set. If any field is not on the event record, enrich the event record at the publish site FIRST.** Do not write a listener that produces incomplete protos. Check at design time, not review time.
+
+### Scheduled job quarantine logic must use DB state, not in-memory entity state
+
+`OutboxRelayJob` incremented `attempt_count` in the DB, then checked `event.getAttemptCount() + 1` (the in-memory value loaded at the start of the batch). Concurrent runners loading the same stale base value could both overshoot the max-attempts cap. The fix combined increment and quarantine into a single atomic SQL UPDATE.
+
+Rule: **any decision based on a counter that multiple writers can increment must read the DB value, not the in-memory entity value.** This is a generalization of the "read-modify-write via save() is broken for multi-writer columns" rule from PR #21. The same root cause: the in-memory entity is a snapshot, not the current truth.
+
+### Error-handling code that logs but does not throw is a silent data loss vector
+
+`BigQueryWriterService.insert()` checked `response.hasErrors()`, logged, and returned normally. The subscriber then acked the Pub/Sub message. Data permanently lost. This is the same class as the PR #21 "silent zero" pitfall: any error path that does not propagate the error to the caller is an implicit "success" signal.
+
+Rule: **at system boundaries (Pub/Sub ack/nack, outbox mark-published, payment confirmation), the error path must throw or return a failure signal. Logging is not error handling.** Before writing any "log and continue" catch block, ask: "will the caller treat this as success?" If yes, throw instead.
+
+### Pre-review checklist for outbox / event pipeline code
+
+Before pushing outbox or event pipeline code, verify:
+1. **Delivery confirmation**: does the publisher block until the broker acknowledges? (async + void = lost events)
+2. **Error propagation**: does every error path throw to the caller? (log-only = silent data loss)
+3. **Field completeness**: does the domain event carry all fields the outbox listener needs? (empty proto fields = useless analytics)
+4. **Naming accuracy**: do proto/BQ field names match the actual data source? (aspirational names = semantic corruption)
+5. **Auto-config compatibility**: does `ApplicationTest.contextLoads()` still pass after adding the new starter? (auto-config + no credentials = CI crash)
+6. **Poison message handling**: what happens when a row fails permanently? (no quarantine = head-of-queue blocking)
+7. **Concurrent safety**: does the quarantine decision use the DB value? (in-memory entity = stale under concurrency)
+
+## Process Lessons (workflow patterns from PR #33)
+
+PR #33 had a 1.6:1 fix-to-feature commit ratio (8 fixes for 5 features). Three structural workflow problems caused this:
+
+### Run the full CI-equivalent locally before the first push
+
+PR #33's first CI failure was `ApplicationTest.contextLoads()` in analytics-ingest, caused by the Pub/Sub starter auto-config. This was discoverable locally in 10 seconds. The second CI failure was the same issue in commerce-core's Seed Smoke job. Both required a full push-wait-read-fix-push cycle (20+ minutes each).
+
+Rule: **before the first push of any PR, run `./gradlew build --no-daemon` locally (or at minimum `:services:<affected>:test`).** Catching auto-config, missing-bean, and ArchUnit violations locally saves two CI round-trips per issue. The 10 seconds of local verification prevents 40+ minutes of CI feedback loops.
+
+### Trace the async contract from SDK to caller before writing the wrapper
+
+The fire-and-forget bug was the #1 finding across all 4 reviewers. It could have been caught by reading the `PubSubTemplate.publish()` return type (`CompletableFuture<String>`) and asking: "does my caller need to know if this succeeded?" The answer for an outbox relay is always yes. Instead, the wrapper was written with a `.whenComplete()` callback pattern copied from a logging use case, not a delivery-confirmation use case.
+
+Rule: **when wrapping an external SDK method, start by reading the SDK's return type and error contract.** Write the wrapper's signature to match what the CALLER needs, not what the SDK provides. If the caller needs synchronous confirmation, block. If the caller needs async, return the future. Never swallow the result.
+
+### Design-time field audit prevents multi-round proto/event enrichment
+
+PR #33 went through three rounds of proto field fixes: (1) `PaymentCreatedEvent` missing fields, (2) `total_amount_jpy` renamed to `subtotal_jpy`, (3) `optional` keyword discussion. All three were design-time decisions that should have been made before the first commit.
+
+Rule: **before writing proto message definitions, create a field mapping table: proto field -> source field -> data type -> nullable?** Review the table against the actual domain event records. Any field in the proto that has no source field is a design gap. Any proto field whose name differs from the source field is a semantic decision that needs explicit justification.
+
 ## Process Lessons (workflow patterns from PR #21)
 
 PR #21 took 4 review rounds. Each round caught a NEW class of bug that the previous round missed AND a regression of a rule from an earlier PR. The escalation is itself the signal: I need stronger pre-review verification, not just more review rounds.
