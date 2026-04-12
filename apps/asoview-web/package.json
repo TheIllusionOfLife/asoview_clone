@@ -16,7 +16,7 @@
   "dependencies": {
     "@asoview/design-tokens": "workspace:*",
     "@asoview/frontend-shared": "workspace:*",
-    "@stripe/react-stripe-js": "^3.0.0",
+    "@stripe/react-stripe-js": "^6.1.0",
     "@stripe/stripe-js": "^9.1.0",
     "firebase": "^12.11.0",
     "next": "^16.2.2",

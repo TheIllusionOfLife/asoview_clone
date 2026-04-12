@@ -44,8 +44,8 @@
       "dependencies": {
         "@asoview/design-tokens": "workspace:*",
         "@asoview/frontend-shared": "workspace:*",
-        "@stripe/react-stripe-js": "^3.0.0",
-        "@stripe/stripe-js": "^5.5.0",
+        "@stripe/react-stripe-js": "^6.1.0",
+        "@stripe/stripe-js": "^9.1.0",
         "firebase": "^12.11.0",
         "next": "^16.2.2",
         "next-intl": "^4.9.0",
@@ -964,9 +964,9 @@
 
     "@standard-schema/spec": ["@standard-schema/spec@1.1.0", "", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
 
-    "@stripe/react-stripe-js": ["@stripe/react-stripe-js@3.10.0", "", { "dependencies": { "prop-types": "^15.7.2" }, "peerDependencies": { "@stripe/stripe-js": ">=1.44.1 <8.0.0", "react": ">=16.8.0 <20.0.0", "react-dom": ">=16.8.0 <20.0.0" } }, "sha512-UPqHZwMwDzGSax0ZI7XlxR3tZSpgIiZdk3CiwjbTK978phwR/fFXeAXQcN/h8wTAjR4ZIAzdlI9DbOqJhuJdeg=="],
+    "@stripe/react-stripe-js": ["@stripe/react-stripe-js@6.1.0", "", { "dependencies": { "prop-types": "^15.7.2" }, "peerDependencies": { "@stripe/stripe-js": ">=9.0.0 <10.0.0", "react": ">=16.8.0 <20.0.0", "react-dom": ">=16.8.0 <20.0.0" } }, "sha512-LbKbRv4+wUSHLb5VNxqiYcKaqXPvTju0bJaF0RrzH0h4+aKWDXAk4RzUBcpNxxj8KtjuxICElANs1Li7aTv1IQ=="],
 
-    "@stripe/stripe-js": ["@stripe/stripe-js@5.10.0", "", {}, "sha512-PTigkxMdMUP6B5ISS7jMqJAKhgrhZwjprDqR1eATtFfh0OpKVNp110xiH+goeVdrJ29/4LeZJR4FaHHWstsu0A=="],
+    "@stripe/stripe-js": ["@stripe/stripe-js@9.1.0", "", {}, "sha512-v51LoEfZNiNS/5DcarWPCYgn24w4dqwwALR4GTbMW/N0DDzzj4DgYNoixX6PYvpt6uIJMucGUabn/BHhylggIQ=="],
 
     "@swc/core": ["@swc/core@1.15.24", "", { "dependencies": { "@swc/counter": "^0.1.3", "@swc/types": "^0.1.26" }, "optionalDependencies": { "@swc/core-darwin-arm64": "1.15.24", "@swc/core-darwin-x64": "1.15.24", "@swc/core-linux-arm-gnueabihf": "1.15.24", "@swc/core-linux-arm64-gnu": "1.15.24", "@swc/core-linux-arm64-musl": "1.15.24", "@swc/core-linux-ppc64-gnu": "1.15.24", "@swc/core-linux-s390x-gnu": "1.15.24", "@swc/core-linux-x64-gnu": "1.15.24", "@swc/core-linux-x64-musl": "1.15.24", "@swc/core-win32-arm64-msvc": "1.15.24", "@swc/core-win32-ia32-msvc": "1.15.24", "@swc/core-win32-x64-msvc": "1.15.24" }, "peerDependencies": { "@swc/helpers": ">=0.5.17" }, "optionalPeers": ["@swc/helpers"] }, "sha512-5Hj8aNasue7yusUt8LGCUe/AjM7RMAce8ZoyDyiFwx7Al+GbYKL+yE7g4sJk8vEr1dKIkTRARkNIJENc4CjkBQ=="],
 
