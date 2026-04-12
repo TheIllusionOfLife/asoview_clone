@@ -42,7 +42,7 @@ public class OrderEventSubscriber {
       row.put("order_id", event.getOrderId());
       row.put("user_id", event.getUserId());
       row.put("status", event.getStatus());
-      row.put("total_amount_jpy", event.getTotalAmountJpy());
+      row.put("subtotal_jpy", event.getSubtotalJpy());
       row.put("currency", event.getCurrency());
       row.put(
           "occurred_at",

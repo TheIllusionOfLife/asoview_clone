@@ -39,7 +39,7 @@ resource "google_bigquery_table" "order_events" {
     { name = "order_id", type = "STRING", mode = "REQUIRED" },
     { name = "user_id", type = "STRING", mode = "NULLABLE" },
     { name = "status", type = "STRING", mode = "REQUIRED" },
-    { name = "total_amount_jpy", type = "INTEGER", mode = "NULLABLE" },
+    { name = "subtotal_jpy", type = "INTEGER", mode = "NULLABLE" },
     { name = "currency", type = "STRING", mode = "NULLABLE" },
     { name = "occurred_at", type = "TIMESTAMP", mode = "REQUIRED" },
     { name = "producer", type = "STRING", mode = "NULLABLE" },

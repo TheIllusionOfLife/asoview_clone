@@ -25,7 +25,7 @@ message OrderEvent {
   string user_id = 3;
   string status = 4;
   repeated OrderItemDetail items = 5;
-  int64 total_amount_jpy = 6;
+  int64 subtotal_jpy = 6;
   string currency = 7;
 }
 

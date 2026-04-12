@@ -34,7 +34,7 @@ class OrderEventSubscriberTest {
             .setOrderId("order-1")
             .setUserId("user-1")
             .setStatus("PAID")
-            .setTotalAmountJpy(5000)
+            .setSubtotalJpy(5000)
             .setCurrency("JPY")
             .build();
 

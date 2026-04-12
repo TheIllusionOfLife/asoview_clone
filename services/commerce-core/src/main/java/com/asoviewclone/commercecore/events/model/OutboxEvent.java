@@ -28,11 +28,17 @@ public class OutboxEvent {
   @Column(nullable = false, columnDefinition = "BYTEA")
   private byte[] payload;
 
+  @Column(name = "attempt_count", nullable = false)
+  private int attemptCount;
+
   @Column(name = "created_at", nullable = false)
   private Instant createdAt;
 
   @Column(name = "published_at")
   private Instant publishedAt;
+
+  @Column(name = "failed_at")
+  private Instant failedAt;
 
   protected OutboxEvent() {}
 
@@ -77,6 +83,14 @@ public class OutboxEvent {
 
   public Instant getPublishedAt() {
     return publishedAt;
+  }
+
+  public int getAttemptCount() {
+    return attemptCount;
+  }
+
+  public Instant getFailedAt() {
+    return failedAt;
   }
 
   public void markPublished() {

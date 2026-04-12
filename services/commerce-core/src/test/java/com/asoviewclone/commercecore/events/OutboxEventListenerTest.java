@@ -40,7 +40,7 @@ class OutboxEventListenerTest {
     assertThat(proto.getOrderId()).isEqualTo("order-1");
     assertThat(proto.getUserId()).isEqualTo("user-1");
     assertThat(proto.getStatus()).isEqualTo("PAID");
-    assertThat(proto.getTotalAmountJpy()).isEqualTo(5000L);
+    assertThat(proto.getSubtotalJpy()).isEqualTo(5000L);
     assertThat(proto.getMetadata().getEventType()).isEqualTo("order.paid");
     assertThat(proto.getMetadata().getProducer()).isEqualTo("commerce-core");
     assertThat(proto.getMetadata().getEventId()).isEqualTo(saved.getEventId());

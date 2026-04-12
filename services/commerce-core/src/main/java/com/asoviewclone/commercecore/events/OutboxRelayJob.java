@@ -21,6 +21,7 @@ public class OutboxRelayJob {
 
   private static final Logger log = LoggerFactory.getLogger(OutboxRelayJob.class);
   private static final int BATCH_SIZE = 100;
+  private static final int MAX_ATTEMPTS = 5;
 
   private final OutboxEventRepository outboxRepository;
   private final PubSubPublisher publisher;
@@ -48,12 +49,27 @@ public class OutboxRelayJob {
           log.debug("Outbox event {} already published by another runner", event.getEventId());
         }
       } catch (Exception ex) {
-        log.error(
-            "Outbox relay failed for event id={} type={} topic={}",
-            event.getEventId(),
-            event.getEventType(),
-            event.getTopic(),
-            ex);
+        outboxRepository.incrementAttemptCount(event.getId());
+        int attempts = event.getAttemptCount() + 1;
+        if (attempts >= MAX_ATTEMPTS) {
+          outboxRepository.quarantine(event.getId());
+          log.error(
+              "Outbox event quarantined after {} attempts: id={} type={} topic={}",
+              attempts,
+              event.getEventId(),
+              event.getEventType(),
+              event.getTopic(),
+              ex);
+        } else {
+          log.warn(
+              "Outbox relay failed (attempt {}/{}) for event id={} type={} topic={}",
+              attempts,
+              MAX_ATTEMPTS,
+              event.getEventId(),
+              event.getEventType(),
+              event.getTopic(),
+              ex);
+        }
       }
     }
     if (published > 0) {

@@ -42,7 +42,7 @@ public class OutboxEventListener {
             .setOrderId(event.orderId())
             .setUserId(event.userId())
             .setStatus("PAID")
-            .setTotalAmountJpy(event.subtotalJpy())
+            .setSubtotalJpy(event.subtotalJpy())
             .setCurrency("JPY")
             .build();
 
