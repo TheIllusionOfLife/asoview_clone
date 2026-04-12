@@ -2,7 +2,7 @@
 spring-boot = "4.0.5"
 spring-cloud = "2025.1.1"
 spring-dependency-management = "1.1.7"
-spring-cloud-gcp = "8.0.1"
+spring-cloud-gcp = "8.0.2"
 grpc = "1.80.0"
 protobuf = "4.34.1"
 protobuf-plugin = "0.9.6"
@@ -15,7 +15,7 @@ checkstyle = "13.4.0"
 stripe-java = "32.0.0"
 bucket4j = "8.10.1"
 caffeine = "3.2.3"
-opensearch-client = "2.19.2"
+opensearch-client = "3.6.0"
 opensearch-testcontainers = "2.1.3"
 bouncycastle = "1.83"
 jjwt = "0.13.0"
@@ -28,6 +28,7 @@ spring-cloud-bom = { module = "org.springframework.cloud:spring-cloud-dependenci
 # Spring Cloud GCP
 spring-cloud-gcp-bom = { module = "com.google.cloud:spring-cloud-gcp-dependencies", version.ref = "spring-cloud-gcp" }
 spring-cloud-gcp-starter-data-spanner = { module = "com.google.cloud:spring-cloud-gcp-starter-data-spanner" }
+spring-cloud-gcp-starter-pubsub = { module = "com.google.cloud:spring-cloud-gcp-starter-pubsub" }
 
 # gRPC
 grpc-bom = { module = "io.grpc:grpc-bom", version.ref = "grpc" }
