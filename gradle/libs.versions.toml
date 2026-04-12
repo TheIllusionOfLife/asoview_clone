@@ -20,6 +20,7 @@ opensearch-testcontainers = "4.1.0"
 bouncycastle = "1.83"
 jjwt = "0.13.0"
 archunit = "1.4.1"
+google-genai = "1.47.0"
 
 [libraries]
 # Spring Cloud
@@ -85,6 +86,9 @@ jjwt-jackson = { module = "io.jsonwebtoken:jjwt-jackson", version.ref = "jjwt" }
 
 # ArchUnit (architecture rule tests for pitfall enforcement, PR 3d.5)
 archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
+
+# Google Genai (Gemini API SDK for recommendations and chatbot)
+google-genai = { module = "com.google.genai:google-genai", version.ref = "google-genai" }
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
