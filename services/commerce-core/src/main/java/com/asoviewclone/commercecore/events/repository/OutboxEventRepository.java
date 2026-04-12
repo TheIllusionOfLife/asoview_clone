@@ -19,6 +19,8 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, UUID> 
 
   @Transactional
   @Modifying(clearAutomatically = true, flushAutomatically = true)
-  @Query("UPDATE OutboxEvent e SET e.publishedAt = CURRENT_TIMESTAMP WHERE e.id = :id")
+  @Query(
+      "UPDATE OutboxEvent e SET e.publishedAt = CURRENT_TIMESTAMP"
+          + " WHERE e.id = :id AND e.publishedAt IS NULL")
   int markPublished(@Param("id") UUID id);
 }

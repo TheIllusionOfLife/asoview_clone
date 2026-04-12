@@ -41,8 +41,12 @@ public class OutboxRelayJob {
     for (OutboxEvent event : pending) {
       try {
         publisher.publish(event.getTopic(), event.getEventId(), event.getPayload());
-        outboxRepository.markPublished(event.getId());
-        published++;
+        int rows = outboxRepository.markPublished(event.getId());
+        if (rows == 1) {
+          published++;
+        } else {
+          log.debug("Outbox event {} already published by another runner", event.getEventId());
+        }
       } catch (Exception ex) {
         log.error(
             "Outbox relay failed for event id={} type={} topic={}",

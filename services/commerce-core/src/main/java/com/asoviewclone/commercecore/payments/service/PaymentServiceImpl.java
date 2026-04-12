@@ -126,7 +126,7 @@ public class PaymentServiceImpl implements PaymentService {
         new PaymentCreatedEvent(
             orderId,
             saved.getPaymentId().toString(),
-            saved.getAmount().longValue(),
+            saved.getAmount().setScale(0, java.math.RoundingMode.HALF_UP).longValueExact(),
             saved.getProvider()));
 
     return saved;
