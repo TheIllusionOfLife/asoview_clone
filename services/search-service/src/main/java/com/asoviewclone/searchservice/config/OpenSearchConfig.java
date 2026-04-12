@@ -1,7 +1,8 @@
 package com.asoviewclone.searchservice.config;
 
-import org.apache.http.HttpHost;
-import org.apache.http.client.config.RequestConfig;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.util.Timeout;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientBuilder;
 import org.opensearch.client.RestHighLevelClient;
@@ -40,10 +41,11 @@ public class OpenSearchConfig {
   @Bean(destroyMethod = "close")
   public RestHighLevelClient openSearchClient() {
     RestClientBuilder builder =
-        RestClient.builder(new HttpHost(host, port, scheme))
+        RestClient.builder(new HttpHost(scheme, host, port))
             .setRequestConfigCallback(
                 (RequestConfig.Builder cfg) ->
-                    cfg.setConnectTimeout(connectTimeoutMs).setSocketTimeout(socketTimeoutMs));
+                    cfg.setConnectTimeout(Timeout.ofMilliseconds(connectTimeoutMs))
+                        .setResponseTimeout(Timeout.ofMilliseconds(socketTimeoutMs)));
     return new RestHighLevelClient(builder);
   }
 }
