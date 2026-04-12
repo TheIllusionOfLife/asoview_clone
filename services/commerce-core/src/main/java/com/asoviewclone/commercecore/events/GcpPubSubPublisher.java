@@ -6,6 +6,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 
 /**
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Component;
  * so the outbox relay can safely mark the row as published only after success.
  */
 @Component
+@ConditionalOnBean(PubSubTemplate.class)
 public class GcpPubSubPublisher implements PubSubPublisher {
 
   private static final Logger log = LoggerFactory.getLogger(GcpPubSubPublisher.class);

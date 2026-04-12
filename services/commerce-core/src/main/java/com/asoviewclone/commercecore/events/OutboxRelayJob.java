@@ -5,6 +5,7 @@ import com.asoviewclone.commercecore.events.repository.OutboxEventRepository;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Component;
  * during Pub/Sub network calls.
  */
 @Component
+@ConditionalOnBean(PubSubPublisher.class)
 public class OutboxRelayJob {
 
   private static final Logger log = LoggerFactory.getLogger(OutboxRelayJob.class);
