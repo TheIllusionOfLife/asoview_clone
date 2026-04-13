@@ -8,7 +8,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
 import com.google.genai.types.GenerateContentResponse;
+import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -115,20 +117,30 @@ public class RecommendationService {
 
     try {
       List<String> ids = MAPPER.readValue(jsonText, new TypeReference<List<String>>() {});
+      LinkedHashSet<String> uniqueIds = new LinkedHashSet<>(ids);
       List<RecommendationResponse.RecommendedProduct> results = new ArrayList<>();
-      for (String id : ids) {
+      for (String id : uniqueIds) {
         Product p = catalogMap.get(id);
         if (p != null) {
           results.add(
               new RecommendationResponse.RecommendedProduct(
-                  p.getId().toString(), p.getTitle(), p.getDescription(), 0L));
+                  p.getId().toString(), p.getTitle(), p.getDescription(), minPriceJpy(p)));
           if (results.size() >= limit) break;
         }
       }
       return results;
     } catch (Exception e) {
-      log.warn("Failed to parse Gemini recommendation response as JSON: {}", text, e);
+      log.warn("Failed to parse Gemini recommendation response as JSON", e);
       return List.of();
     }
+  }
+
+  private static long minPriceJpy(Product p) {
+    return p.getVariants().stream()
+        .map(v -> v.getPriceAmount())
+        .filter(a -> a != null)
+        .map(BigDecimal::longValue)
+        .min(Long::compareTo)
+        .orElse(0L);
   }
 }

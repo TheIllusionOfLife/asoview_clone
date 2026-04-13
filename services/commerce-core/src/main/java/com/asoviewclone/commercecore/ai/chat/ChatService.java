@@ -65,7 +65,12 @@ public class ChatService {
     try {
       String prompt = buildPrompt(message);
       GenerateContentResponse response = geminiClient.models.generateContent(model, prompt, null);
-      return new ChatResponse(response.text());
+      String text = response.text();
+      if (text == null || text.isBlank()) {
+        log.warn("Gemini returned null/blank response for model={}", model);
+        return new ChatResponse("回答を生成できませんでした。もう一度お試しください。");
+      }
+      return new ChatResponse(text);
     } catch (Exception e) {
       log.error("Gemini chat failed", e);
       return new ChatResponse("申し訳ございません。現在チャットをご利用いただけません。");

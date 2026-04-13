@@ -53,9 +53,11 @@ public class DashboardService {
       days.add(
           new DailyBookingsResponse.DayEntry(
               row.get("booking_date").getStringValue(),
-              row.get("order_count").getLongValue(),
-              row.get("revenue_jpy").getLongValue(),
-              row.get("avg_order_value_jpy").getDoubleValue()));
+              row.get("order_count").isNull() ? 0 : row.get("order_count").getLongValue(),
+              row.get("revenue_jpy").isNull() ? 0 : row.get("revenue_jpy").getLongValue(),
+              row.get("avg_order_value_jpy").isNull()
+                  ? 0.0
+                  : row.get("avg_order_value_jpy").getDoubleValue()));
     }
     return new DailyBookingsResponse(days);
   }
@@ -83,9 +85,11 @@ public class DashboardService {
       products.add(
           new ProductRankingResponse.RankedProduct(
               row.get("product_id").getStringValue(),
-              row.get("order_count").getLongValue(),
-              row.get("total_revenue_jpy").getLongValue(),
-              row.get("popularity_rank").getLongValue()));
+              row.get("order_count").isNull() ? 0 : row.get("order_count").getLongValue(),
+              row.get("total_revenue_jpy").isNull()
+                  ? 0
+                  : row.get("total_revenue_jpy").getLongValue(),
+              row.get("popularity_rank").isNull() ? 0 : row.get("popularity_rank").getLongValue()));
     }
     return new ProductRankingResponse(products);
   }
