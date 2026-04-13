@@ -23,8 +23,8 @@ public class ReservationOperatorController {
 
   @GetMapping("/v1/op/reservations")
   public List<Reservation> listReservations(
-      @RequestParam String venueId, @RequestParam String status) {
-    return reservationService.findByVenueAndStatus(venueId, ReservationStatus.valueOf(status));
+      @RequestParam String venueId, @RequestParam ReservationStatus status) {
+    return reservationService.findByVenueAndStatus(venueId, status);
   }
 
   @GetMapping("/v1/op/reservations/{id}")
@@ -45,7 +45,7 @@ public class ReservationOperatorController {
     return reservationService.reject(id, request.reason());
   }
 
-  @PutMapping("/v1/reservations/{id}/cancel")
+  @PutMapping("/v1/op/reservations/{id}/cancel")
   public Reservation cancel(@PathVariable String id, @RequestBody ReasonRequest request) {
     return reservationService.cancel(id, request.reason());
   }

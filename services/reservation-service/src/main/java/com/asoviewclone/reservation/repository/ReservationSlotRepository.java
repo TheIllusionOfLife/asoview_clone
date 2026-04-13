@@ -1,7 +1,6 @@
 package com.asoviewclone.reservation.repository;
 
 import com.asoviewclone.reservation.model.ReservationSlot;
-import com.google.cloud.Timestamp;
 import com.google.cloud.spanner.DatabaseClient;
 import com.google.cloud.spanner.Mutation;
 import com.google.cloud.spanner.ResultSet;
@@ -32,7 +31,6 @@ public class ReservationSlotRepository {
       long capacity) {
     String slotId = UUID.randomUUID().toString();
     Instant now = Instant.now();
-    Timestamp ts = toSpannerTimestamp(now);
 
     databaseClient.write(
         List.of(
@@ -121,9 +119,5 @@ public class ReservationSlotRepository {
         rs.getLong("waitlist_count"),
         rs.getTimestamp("created_at").toSqlTimestamp().toInstant(),
         rs.getTimestamp("updated_at").toSqlTimestamp().toInstant());
-  }
-
-  private static Timestamp toSpannerTimestamp(Instant instant) {
-    return Timestamp.ofTimeSecondsAndNanos(instant.getEpochSecond(), 0);
   }
 }

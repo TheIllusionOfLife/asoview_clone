@@ -55,12 +55,14 @@ public class FirebaseTokenFilter extends OncePerRequestFilter {
       var authentication =
           new UsernamePasswordAuthenticationToken(decodedToken.getUid(), null, authorities);
       SecurityContextHolder.getContext().setAuthentication(authentication);
-    } catch (Exception e) {
+    } catch (com.google.firebase.auth.FirebaseAuthException e) {
       log.warn("Firebase token verification failed: {}", e.getMessage());
       response.setStatus(401);
       response.setContentType("application/json");
       response.getWriter().write("{\"error\":\"UNAUTHORIZED\",\"message\":\"Invalid token\"}");
       return;
+    } catch (Exception e) {
+      throw new ServletException("Firebase auth error", e);
     }
 
     filterChain.doFilter(request, response);

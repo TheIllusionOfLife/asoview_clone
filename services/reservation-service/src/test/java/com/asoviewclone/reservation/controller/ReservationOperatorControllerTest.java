@@ -19,11 +19,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(ReservationOperatorController.class)
 @AutoConfigureMockMvc(addFilters = false)
+@WithMockUser(
+    username = "admin-1",
+    roles = {"USER", "ADMIN"})
 class ReservationOperatorControllerTest {
 
   @Autowired private MockMvc mockMvc;
@@ -150,7 +154,7 @@ class ReservationOperatorControllerTest {
 
     mockMvc
         .perform(
-            put("/v1/reservations/res-1/cancel")
+            put("/v1/op/reservations/res-1/cancel")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """

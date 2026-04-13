@@ -406,25 +406,26 @@ public class ReservationRepository {
                         .to(current.slotId())
                         .build();
                 try (ResultSet rs = tx.executeQuery(slotStmt)) {
-                  if (rs.next()) {
-                    Mutation.WriteBuilder slotUpdate =
-                        Mutation.newUpdateBuilder("reservation_slots")
-                            .set("slot_id")
-                            .to(current.slotId())
-                            .set("updated_at")
-                            .to(Value.COMMIT_TIMESTAMP);
-
-                    if (current.status() == ReservationStatus.APPROVED) {
-                      slotUpdate
-                          .set("approved_count")
-                          .to(Math.max(0, rs.getLong("approved_count") - current.guestCount()));
-                    } else {
-                      slotUpdate
-                          .set("waitlist_count")
-                          .to(Math.max(0, rs.getLong("waitlist_count") - current.guestCount()));
-                    }
-                    tx.buffer(slotUpdate.build());
+                  if (!rs.next()) {
+                    throw new IllegalStateException("Slot not found: " + current.slotId());
                   }
+                  Mutation.WriteBuilder slotUpdate =
+                      Mutation.newUpdateBuilder("reservation_slots")
+                          .set("slot_id")
+                          .to(current.slotId())
+                          .set("updated_at")
+                          .to(Value.COMMIT_TIMESTAMP);
+
+                  if (current.status() == ReservationStatus.APPROVED) {
+                    slotUpdate
+                        .set("approved_count")
+                        .to(Math.max(0, rs.getLong("approved_count") - current.guestCount()));
+                  } else {
+                    slotUpdate
+                        .set("waitlist_count")
+                        .to(Math.max(0, rs.getLong("waitlist_count") - current.guestCount()));
+                  }
+                  tx.buffer(slotUpdate.build());
                 }
               }
 

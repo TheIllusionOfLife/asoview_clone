@@ -26,8 +26,10 @@ public class SecurityConfig {
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
             auth ->
-                auth.requestMatchers("/healthz", "/actuator/**")
+                auth.requestMatchers("/healthz", "/actuator/health")
                     .permitAll()
+                    .requestMatchers("/v1/op/**")
+                    .hasAuthority("ROLE_ADMIN")
                     .anyRequest()
                     .authenticated())
         .addFilterBefore(firebaseTokenFilter, UsernamePasswordAuthenticationFilter.class);

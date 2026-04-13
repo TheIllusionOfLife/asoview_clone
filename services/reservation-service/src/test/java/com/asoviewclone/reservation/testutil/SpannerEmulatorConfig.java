@@ -131,7 +131,9 @@ public class SpannerEmulatorConfig {
                   "CREATE INDEX idx_reservations_consumer"
                       + " ON reservations(consumer_user_id, created_at)"))
           .get();
-    } catch (ExecutionException | InterruptedException e) {
+    } catch (ExecutionException e) {
+      throw new RuntimeException("Failed to initialize Spanner emulator", e);
+    } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new RuntimeException("Failed to initialize Spanner emulator", e);
     }

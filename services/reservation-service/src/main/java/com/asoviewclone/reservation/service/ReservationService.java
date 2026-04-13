@@ -1,8 +1,11 @@
 package com.asoviewclone.reservation.service;
 
 import com.asoviewclone.reservation.model.Reservation;
+import com.asoviewclone.reservation.model.ReservationSlot;
 import com.asoviewclone.reservation.model.ReservationStatus;
 import com.asoviewclone.reservation.repository.ReservationRepository;
+import com.asoviewclone.reservation.repository.ReservationSlotRepository;
+import com.google.cloud.spanner.ErrorCode;
 import com.google.cloud.spanner.SpannerException;
 import java.util.List;
 import java.util.Optional;
@@ -12,9 +15,12 @@ import org.springframework.stereotype.Service;
 public class ReservationService {
 
   private final ReservationRepository repository;
+  private final ReservationSlotRepository slotRepository;
 
-  public ReservationService(ReservationRepository repository) {
+  public ReservationService(
+      ReservationRepository repository, ReservationSlotRepository slotRepository) {
     this.repository = repository;
+    this.slotRepository = slotRepository;
   }
 
   public Reservation requestReservation(
@@ -24,21 +30,29 @@ public class ReservationService {
       String guestEmail,
       String consumerUserId,
       int guestCount) {
-    Optional<Reservation> existing = repository.findByIdempotencyKey(idempotencyKey);
-    if (existing.isPresent()) {
-      return existing.get();
+    ReservationSlot slot =
+        slotRepository
+            .findById(slotId)
+            .orElseThrow(() -> new IllegalArgumentException("Slot not found: " + slotId));
+
+    try {
+      return repository.create(
+          slot.tenantId(),
+          slot.venueId(),
+          slotId,
+          consumerUserId,
+          idempotencyKey,
+          guestName,
+          guestEmail,
+          guestCount);
+    } catch (SpannerException e) {
+      if (e.getErrorCode() == ErrorCode.ALREADY_EXISTS) {
+        return repository
+            .findByIdempotencyKey(idempotencyKey)
+            .orElseThrow(() -> new IllegalStateException("Idempotency conflict but key not found"));
+      }
+      throw e;
     }
-    // tenantId and venueId will be resolved from the slot in later iterations.
-    // For now, use placeholder values that the slot lookup will replace.
-    return repository.create(
-        "default-tenant",
-        "default-venue",
-        slotId,
-        consumerUserId,
-        idempotencyKey,
-        guestName,
-        guestEmail,
-        guestCount);
   }
 
   public Optional<Reservation> findById(String reservationId) {
