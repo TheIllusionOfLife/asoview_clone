@@ -80,10 +80,10 @@ class ReservationControllerTest {
 
   @Test
   void listMyReservations_returnsList() throws Exception {
-    when(reservationService.findByConsumerUserId("user-1")).thenReturn(List.of(SAMPLE));
+    when(reservationService.findByConsumerUserId("anonymous")).thenReturn(List.of(SAMPLE));
 
     mockMvc
-        .perform(get("/v1/me/reservations").requestAttr("userId", "user-1"))
+        .perform(get("/v1/me/reservations"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$", hasSize(1)));
   }
