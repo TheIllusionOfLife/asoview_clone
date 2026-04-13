@@ -39,8 +39,6 @@ public class SecurityConfig {
                     // no 401 is thrown for a missing bearer token.
                     .requestMatchers(HttpMethod.POST, "/v1/payments/webhooks/**")
                     .permitAll()
-                    .requestMatchers(HttpMethod.POST, "/v1/chat")
-                    .permitAll()
                     .requestMatchers(
                         HttpMethod.GET, "/v1/categories/**", "/v1/products/**", "/v1/areas/**")
                     .permitAll()

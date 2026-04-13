@@ -23,7 +23,7 @@ class ChatServiceTest {
     when(repo.findByStatus(any(ProductStatus.class), any(Pageable.class)))
         .thenReturn(new PageImpl<>(List.of()));
 
-    ChatService service = new ChatService(client, repo);
+    ChatService service = new ChatService(client, repo, "gemini-3-flash-preview");
     service.loadCatalog();
 
     // client.models is null in mock -> NPE -> caught -> returns error message

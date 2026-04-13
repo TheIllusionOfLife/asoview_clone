@@ -6,14 +6,18 @@ import com.asoviewclone.analytics.dashboard.dto.RevenueSummaryResponse;
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.FieldValueList;
 import com.google.cloud.bigquery.QueryJobConfiguration;
+import com.google.cloud.bigquery.QueryParameterValue;
 import com.google.cloud.bigquery.TableResult;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
 public class DashboardService {
+
+  private static final long QUERY_TIMEOUT_MS = 30_000L;
 
   private final BigQuery bigQuery;
   private final String project;
@@ -37,10 +41,10 @@ public class DashboardService {
 
     QueryJobConfiguration config =
         QueryJobConfiguration.newBuilder(sql)
-            .addNamedParameter(
-                "from_date", com.google.cloud.bigquery.QueryParameterValue.date(from))
-            .addNamedParameter("to_date", com.google.cloud.bigquery.QueryParameterValue.date(to))
+            .addNamedParameter("from_date", QueryParameterValue.date(from))
+            .addNamedParameter("to_date", QueryParameterValue.date(to))
             .setUseLegacySql(false)
+            .setJobTimeoutMs(QUERY_TIMEOUT_MS)
             .build();
 
     TableResult result = bigQuery.query(config);
@@ -68,8 +72,9 @@ public class DashboardService {
 
     QueryJobConfiguration config =
         QueryJobConfiguration.newBuilder(sql)
-            .addNamedParameter("limit", com.google.cloud.bigquery.QueryParameterValue.int64(limit))
+            .addNamedParameter("limit", QueryParameterValue.int64(limit))
             .setUseLegacySql(false)
+            .setJobTimeoutMs(QUERY_TIMEOUT_MS)
             .build();
 
     TableResult result = bigQuery.query(config);
@@ -99,10 +104,17 @@ public class DashboardService {
             .formatted(project);
 
     QueryJobConfiguration config =
-        QueryJobConfiguration.newBuilder(sql).setUseLegacySql(false).build();
+        QueryJobConfiguration.newBuilder(sql)
+            .setUseLegacySql(false)
+            .setJobTimeoutMs(QUERY_TIMEOUT_MS)
+            .build();
 
     TableResult result = bigQuery.query(config);
-    FieldValueList row = result.iterateAll().iterator().next();
+    Iterator<FieldValueList> it = result.iterateAll().iterator();
+    if (!it.hasNext()) {
+      return new RevenueSummaryResponse(0, 0, 0.0, "", "");
+    }
+    FieldValueList row = it.next();
     return new RevenueSummaryResponse(
         row.get("total_revenue").isNull() ? 0 : row.get("total_revenue").getLongValue(),
         row.get("total_orders").isNull() ? 0 : row.get("total_orders").getLongValue(),

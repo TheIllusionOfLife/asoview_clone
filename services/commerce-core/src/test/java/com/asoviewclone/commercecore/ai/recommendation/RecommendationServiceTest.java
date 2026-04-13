@@ -29,7 +29,9 @@ class RecommendationServiceTest {
     geminiClient = mock(Client.class);
     productRepository = mock(ProductRepository.class);
     fallbackService = mock(PopularProductsFallbackService.class);
-    service = new RecommendationService(geminiClient, productRepository, fallbackService);
+    service =
+        new RecommendationService(
+            geminiClient, productRepository, fallbackService, "gemini-3-flash-preview");
   }
 
   @Test

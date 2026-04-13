@@ -1,9 +1,9 @@
 package com.asoviewclone.commercecore.ai.recommendation;
 
 import com.asoviewclone.commercecore.ai.recommendation.dto.RecommendationResponse;
+import com.asoviewclone.commercecore.security.AuthenticatedUser;
 import java.util.Optional;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/v1/me/recommendations")
 public class RecommendationController {
+
+  private static final int MAX_LIMIT = 20;
 
   private final Optional<RecommendationService> recommendationService;
   private final PopularProductsFallbackService fallbackService;
@@ -25,10 +27,12 @@ public class RecommendationController {
 
   @GetMapping
   public RecommendationResponse getRecommendations(
-      @AuthenticationPrincipal UserDetails user, @RequestParam(defaultValue = "5") int limit) {
+      @AuthenticationPrincipal AuthenticatedUser user,
+      @RequestParam(defaultValue = "5") int limit) {
+    int safeLimit = Math.max(1, Math.min(limit, MAX_LIMIT));
     if (recommendationService.isPresent()) {
-      return recommendationService.get().recommend(user.getUsername(), limit);
+      return recommendationService.get().recommend(user.firebaseUid(), safeLimit);
     }
-    return fallbackService.getPopularProducts(limit);
+    return fallbackService.getPopularProducts(safeLimit);
   }
 }

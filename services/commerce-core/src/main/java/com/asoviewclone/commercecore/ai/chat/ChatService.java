@@ -9,6 +9,7 @@ import com.google.genai.types.GenerateContentResponse;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -22,15 +23,19 @@ import org.springframework.stereotype.Service;
 public class ChatService {
 
   private static final Logger log = LoggerFactory.getLogger(ChatService.class);
-  private static final String MODEL = "gemini-3-flash-preview";
+  private final String model;
 
   private final Client geminiClient;
   private final ProductRepository productRepository;
   private String catalogContext;
 
-  public ChatService(Client geminiClient, ProductRepository productRepository) {
+  public ChatService(
+      Client geminiClient,
+      ProductRepository productRepository,
+      @Value("${asoview.ai.model:gemini-3-flash-preview}") String model) {
     this.geminiClient = geminiClient;
     this.productRepository = productRepository;
+    this.model = model;
   }
 
   @PostConstruct
@@ -59,7 +64,7 @@ public class ChatService {
   public ChatResponse chat(String message) {
     try {
       String prompt = buildPrompt(message);
-      GenerateContentResponse response = geminiClient.models.generateContent(MODEL, prompt, null);
+      GenerateContentResponse response = geminiClient.models.generateContent(model, prompt, null);
       return new ChatResponse(response.text());
     } catch (Exception e) {
       log.error("Gemini chat failed", e);
