@@ -31,8 +31,14 @@ public class ReservationService {
     // tenantId and venueId will be resolved from the slot in later iterations.
     // For now, use placeholder values that the slot lookup will replace.
     return repository.create(
-        "default-tenant", "default-venue", slotId, consumerUserId, idempotencyKey, guestName,
-        guestEmail, guestCount);
+        "default-tenant",
+        "default-venue",
+        slotId,
+        consumerUserId,
+        idempotencyKey,
+        guestName,
+        guestEmail,
+        guestCount);
   }
 
   public Optional<Reservation> findById(String reservationId) {

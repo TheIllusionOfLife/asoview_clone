@@ -36,8 +36,7 @@ public class ReservationSlotController {
   }
 
   @GetMapping
-  public List<ReservationSlot> listSlots(
-      @RequestParam String venueId, @RequestParam String date) {
+  public List<ReservationSlot> listSlots(@RequestParam String venueId, @RequestParam String date) {
     return slotService.listSlots(venueId, date);
   }
 

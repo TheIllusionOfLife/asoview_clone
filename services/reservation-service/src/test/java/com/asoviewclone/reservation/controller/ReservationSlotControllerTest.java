@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.asoviewclone.reservation.model.ReservationSlot;
 import com.asoviewclone.reservation.service.ReservationSlotService;
+import com.google.firebase.auth.FirebaseAuth;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -27,13 +28,24 @@ class ReservationSlotControllerTest {
 
   @Autowired private MockMvc mockMvc;
   @MockitoBean private ReservationSlotService slotService;
+  @MockitoBean private FirebaseAuth firebaseAuth;
 
   @Test
   void createSlot_returns201() throws Exception {
     ReservationSlot slot =
         new ReservationSlot(
-            "slot-1", "tenant-1", "venue-1", "product-1", "2026-05-01", "09:00", "10:00", 10, 0,
-            0, Instant.now(), Instant.now());
+            "slot-1",
+            "tenant-1",
+            "venue-1",
+            "product-1",
+            "2026-05-01",
+            "09:00",
+            "10:00",
+            10,
+            0,
+            0,
+            Instant.now(),
+            Instant.now());
 
     when(slotService.createSlot(
             anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), anyInt()))
@@ -63,8 +75,18 @@ class ReservationSlotControllerTest {
   void listSlots_returnsSlots() throws Exception {
     ReservationSlot slot =
         new ReservationSlot(
-            "slot-1", "tenant-1", "venue-1", "product-1", "2026-05-01", "09:00", "10:00", 10, 0,
-            0, Instant.now(), Instant.now());
+            "slot-1",
+            "tenant-1",
+            "venue-1",
+            "product-1",
+            "2026-05-01",
+            "09:00",
+            "10:00",
+            10,
+            0,
+            0,
+            Instant.now(),
+            Instant.now());
 
     when(slotService.listSlots("venue-1", "2026-05-01")).thenReturn(List.of(slot));
 

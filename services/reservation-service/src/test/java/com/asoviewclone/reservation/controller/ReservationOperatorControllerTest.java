@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.asoviewclone.reservation.model.Reservation;
 import com.asoviewclone.reservation.model.ReservationStatus;
 import com.asoviewclone.reservation.service.ReservationService;
+import com.google.firebase.auth.FirebaseAuth;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -27,12 +28,24 @@ class ReservationOperatorControllerTest {
 
   @Autowired private MockMvc mockMvc;
   @MockitoBean private ReservationService reservationService;
+  @MockitoBean private FirebaseAuth firebaseAuth;
 
   private static final Reservation SAMPLE =
       new Reservation(
-          "res-1", "tenant-1", "venue-1", "slot-1", "user-1",
-          ReservationStatus.PENDING_APPROVAL, "idem-1", "Taro", "t@e.com", 2,
-          null, null, Instant.now(), Instant.now());
+          "res-1",
+          "tenant-1",
+          "venue-1",
+          "slot-1",
+          "user-1",
+          ReservationStatus.PENDING_APPROVAL,
+          "idem-1",
+          "Taro",
+          "t@e.com",
+          2,
+          null,
+          null,
+          Instant.now(),
+          Instant.now());
 
   @Test
   void listReservations_returnsFilteredList() throws Exception {
@@ -40,8 +53,7 @@ class ReservationOperatorControllerTest {
         .thenReturn(List.of(SAMPLE));
 
     mockMvc
-        .perform(
-            get("/v1/op/reservations?venueId=venue-1&status=PENDING_APPROVAL"))
+        .perform(get("/v1/op/reservations?venueId=venue-1&status=PENDING_APPROVAL"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$", hasSize(1)))
         .andExpect(jsonPath("$[0].reservationId").value("res-1"));
@@ -61,9 +73,20 @@ class ReservationOperatorControllerTest {
   void approve_returns200() throws Exception {
     Reservation approved =
         new Reservation(
-            "res-1", "tenant-1", "venue-1", "slot-1", "user-1",
-            ReservationStatus.APPROVED, "idem-1", "Taro", "t@e.com", 2,
-            null, null, Instant.now(), Instant.now());
+            "res-1",
+            "tenant-1",
+            "venue-1",
+            "slot-1",
+            "user-1",
+            ReservationStatus.APPROVED,
+            "idem-1",
+            "Taro",
+            "t@e.com",
+            2,
+            null,
+            null,
+            Instant.now(),
+            Instant.now());
     when(reservationService.approve("res-1")).thenReturn(approved);
 
     mockMvc
@@ -76,16 +99,28 @@ class ReservationOperatorControllerTest {
   void reject_returns200() throws Exception {
     Reservation rejected =
         new Reservation(
-            "res-1", "tenant-1", "venue-1", "slot-1", "user-1",
-            ReservationStatus.REJECTED, "idem-1", "Taro", "t@e.com", 2,
-            "Not suitable", null, Instant.now(), Instant.now());
+            "res-1",
+            "tenant-1",
+            "venue-1",
+            "slot-1",
+            "user-1",
+            ReservationStatus.REJECTED,
+            "idem-1",
+            "Taro",
+            "t@e.com",
+            2,
+            "Not suitable",
+            null,
+            Instant.now(),
+            Instant.now());
     when(reservationService.reject("res-1", "Not suitable")).thenReturn(rejected);
 
     mockMvc
         .perform(
             put("/v1/op/reservations/res-1/reject")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""
+                .content(
+                    """
                     {"reason": "Not suitable"}
                     """))
         .andExpect(status().isOk())
@@ -97,16 +132,28 @@ class ReservationOperatorControllerTest {
   void cancel_returns200() throws Exception {
     Reservation cancelled =
         new Reservation(
-            "res-1", "tenant-1", "venue-1", "slot-1", "user-1",
-            ReservationStatus.CANCELLED, "idem-1", "Taro", "t@e.com", 2,
-            null, "Operator decision", Instant.now(), Instant.now());
+            "res-1",
+            "tenant-1",
+            "venue-1",
+            "slot-1",
+            "user-1",
+            ReservationStatus.CANCELLED,
+            "idem-1",
+            "Taro",
+            "t@e.com",
+            2,
+            null,
+            "Operator decision",
+            Instant.now(),
+            Instant.now());
     when(reservationService.cancel("res-1", "Operator decision")).thenReturn(cancelled);
 
     mockMvc
         .perform(
             put("/v1/reservations/res-1/cancel")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""
+                .content(
+                    """
                     {"reason": "Operator decision"}
                     """))
         .andExpect(status().isOk())

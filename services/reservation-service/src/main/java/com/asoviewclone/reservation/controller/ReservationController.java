@@ -48,9 +48,5 @@ public class ReservationController {
   }
 
   record ReservationRequest(
-      String slotId,
-      String idempotencyKey,
-      String guestName,
-      String guestEmail,
-      int guestCount) {}
+      String slotId, String idempotencyKey, String guestName, String guestEmail, int guestCount) {}
 }

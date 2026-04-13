@@ -4,7 +4,6 @@ import com.asoviewclone.reservation.model.Reservation;
 import com.asoviewclone.reservation.model.ReservationStatus;
 import com.asoviewclone.reservation.service.ReservationService;
 import java.util.List;
-import java.util.Optional;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,8 +24,7 @@ public class ReservationOperatorController {
   @GetMapping("/v1/op/reservations")
   public List<Reservation> listReservations(
       @RequestParam String venueId, @RequestParam String status) {
-    return reservationService.findByVenueAndStatus(
-        venueId, ReservationStatus.valueOf(status));
+    return reservationService.findByVenueAndStatus(venueId, ReservationStatus.valueOf(status));
   }
 
   @GetMapping("/v1/op/reservations/{id}")

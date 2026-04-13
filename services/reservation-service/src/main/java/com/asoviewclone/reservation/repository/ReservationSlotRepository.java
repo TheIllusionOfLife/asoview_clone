@@ -103,7 +103,8 @@ public class ReservationSlotRepository {
   }
 
   public void deleteAll() {
-    databaseClient.write(List.of(Mutation.delete("reservation_slots", com.google.cloud.spanner.KeySet.all())));
+    databaseClient.write(
+        List.of(Mutation.delete("reservation_slots", com.google.cloud.spanner.KeySet.all())));
   }
 
   private ReservationSlot fromResultSet(ResultSet rs) {

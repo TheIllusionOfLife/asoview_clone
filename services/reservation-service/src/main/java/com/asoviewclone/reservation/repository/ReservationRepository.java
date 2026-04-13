@@ -2,7 +2,6 @@ package com.asoviewclone.reservation.repository;
 
 import com.asoviewclone.reservation.model.Reservation;
 import com.asoviewclone.reservation.model.ReservationStatus;
-import com.google.cloud.Timestamp;
 import com.google.cloud.spanner.DatabaseClient;
 import com.google.cloud.spanner.KeySet;
 import com.google.cloud.spanner.Mutation;
@@ -273,7 +272,9 @@ public class ReservationRepository {
                       .to(Value.COMMIT_TIMESTAMP);
 
               if (current.status() == ReservationStatus.WAITLISTED) {
-                slotUpdate.set("waitlist_count").to(Math.max(0, waitlistCount - current.guestCount()));
+                slotUpdate
+                    .set("waitlist_count")
+                    .to(Math.max(0, waitlistCount - current.guestCount()));
               }
 
               tx.buffer(slotUpdate.build());
@@ -296,9 +297,7 @@ public class ReservationRepository {
             });
   }
 
-  /**
-   * Atomically waitlist a reservation: CAS on status + increment slot waitlist_count.
-   */
+  /** Atomically waitlist a reservation: CAS on status + increment slot waitlist_count. */
   public Reservation waitlistAtomically(String reservationId) {
     return databaseClient
         .readWriteTransaction()

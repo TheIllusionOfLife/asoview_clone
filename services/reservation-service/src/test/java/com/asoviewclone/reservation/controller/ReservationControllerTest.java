@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.asoviewclone.reservation.model.Reservation;
 import com.asoviewclone.reservation.model.ReservationStatus;
 import com.asoviewclone.reservation.service.ReservationService;
+import com.google.firebase.auth.FirebaseAuth;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -29,12 +30,24 @@ class ReservationControllerTest {
 
   @Autowired private MockMvc mockMvc;
   @MockitoBean private ReservationService reservationService;
+  @MockitoBean private FirebaseAuth firebaseAuth;
 
   private static final Reservation SAMPLE =
       new Reservation(
-          "res-1", "tenant-1", "venue-1", "slot-1", "user-1",
-          ReservationStatus.PENDING_APPROVAL, "idem-1", "Taro Yamada", "taro@example.com", 2,
-          null, null, Instant.now(), Instant.now());
+          "res-1",
+          "tenant-1",
+          "venue-1",
+          "slot-1",
+          "user-1",
+          ReservationStatus.PENDING_APPROVAL,
+          "idem-1",
+          "Taro Yamada",
+          "taro@example.com",
+          2,
+          null,
+          null,
+          Instant.now(),
+          Instant.now());
 
   @Test
   void requestReservation_returns201() throws Exception {
