@@ -68,6 +68,9 @@ public class PopularityScoreSyncJob {
         }
       }
       log.info("PopularityScore sync complete: {} succeeded, {} failed", success, failed);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      log.error("PopularityScore sync interrupted: {}", e.getMessage(), e);
     } catch (Exception e) {
       log.error("PopularityScore sync failed: {}", e.getMessage(), e);
     }

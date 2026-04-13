@@ -31,7 +31,7 @@ public class SecurityConfig {
                     .requestMatchers("/v1/admin/**")
                     .hasRole("ADMIN")
                     .anyRequest()
-                    .permitAll())
+                    .authenticated())
         .addFilterBefore(firebaseTokenFilter, UsernamePasswordAuthenticationFilter.class);
 
     return http.build();
