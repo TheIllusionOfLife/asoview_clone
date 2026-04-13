@@ -3,6 +3,7 @@ package com.asoviewclone.reservation.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.asoviewclone.reservation.exception.ConflictException;
 import com.asoviewclone.reservation.model.Reservation;
 import com.asoviewclone.reservation.model.ReservationSlot;
 import com.asoviewclone.reservation.model.ReservationStatus;
@@ -99,11 +100,11 @@ class ReservationCancelTest {
 
     assertThatThrownBy(
             () -> reservationService.cancel(reservation.reservationId(), "Try to cancel"))
-        .isInstanceOf(IllegalStateException.class);
+        .isInstanceOf(ConflictException.class);
   }
 
   @Test
-  void waitlistPromotion_cancelApproved_thenApproveWaitlisted() {
+  void waitlistPromotion_cancelApproved_autoPromotesWaitlisted() {
     ReservationSlot slot =
         slotRepository.create("t-1", "v-1", "p-1", "2026-05-01", "09:00", "10:00", 2);
 
@@ -121,16 +122,15 @@ class ReservationCancelTest {
     assertThat(full.approvedCount()).isEqualTo(2);
     assertThat(full.waitlistCount()).isEqualTo(1);
 
+    // Cancel the approved reservation: should auto-promote the waitlisted one
     reservationService.cancel(res1.reservationId(), "Cancel first");
 
-    ReservationSlot freed = slotRepository.findById(slot.slotId()).orElseThrow();
-    assertThat(freed.approvedCount()).isZero();
-
-    Reservation promoted = reservationService.approve(res2.reservationId());
+    // Verify auto-promotion: res2 should now be APPROVED without manual approve call
+    Reservation promoted = reservationRepository.findById(res2.reservationId()).orElseThrow();
     assertThat(promoted.status()).isEqualTo(ReservationStatus.APPROVED);
 
-    ReservationSlot afterPromo = slotRepository.findById(slot.slotId()).orElseThrow();
-    assertThat(afterPromo.approvedCount()).isEqualTo(1);
-    assertThat(afterPromo.waitlistCount()).isZero();
+    ReservationSlot afterCancel = slotRepository.findById(slot.slotId()).orElseThrow();
+    assertThat(afterCancel.approvedCount()).isEqualTo(1);
+    assertThat(afterCancel.waitlistCount()).isZero();
   }
 }

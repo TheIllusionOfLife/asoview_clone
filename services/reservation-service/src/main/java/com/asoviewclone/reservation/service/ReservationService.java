@@ -1,5 +1,7 @@
 package com.asoviewclone.reservation.service;
 
+import com.asoviewclone.reservation.exception.ConflictException;
+import com.asoviewclone.reservation.exception.NotFoundException;
 import com.asoviewclone.reservation.model.Reservation;
 import com.asoviewclone.reservation.model.ReservationSlot;
 import com.asoviewclone.reservation.model.ReservationStatus;
@@ -33,7 +35,7 @@ public class ReservationService {
     ReservationSlot slot =
         slotRepository
             .findById(slotId)
-            .orElseThrow(() -> new IllegalArgumentException("Slot not found: " + slotId));
+            .orElseThrow(() -> new NotFoundException("Slot not found: " + slotId));
 
     try {
       return repository.create(
@@ -47,9 +49,18 @@ public class ReservationService {
           guestCount);
     } catch (SpannerException e) {
       if (e.getErrorCode() == ErrorCode.ALREADY_EXISTS) {
-        return repository
-            .findByIdempotencyKey(idempotencyKey)
-            .orElseThrow(() -> new IllegalStateException("Idempotency conflict but key not found"));
+        Reservation existing =
+            repository
+                .findByConsumerUserIdAndIdempotencyKey(consumerUserId, idempotencyKey)
+                .orElseThrow(
+                    () ->
+                        new ConflictException(
+                            "Idempotency key already used by another consumer: " + idempotencyKey));
+        if (!existing.slotId().equals(slotId)) {
+          throw new ConflictException(
+              "Idempotency key reused with different slot: " + idempotencyKey);
+        }
+        return existing;
       }
       throw e;
     }
@@ -93,6 +104,12 @@ public class ReservationService {
     try {
       return action.get();
     } catch (SpannerException e) {
+      if (e.getCause() instanceof NotFoundException nfe) {
+        throw nfe;
+      }
+      if (e.getCause() instanceof ConflictException ce) {
+        throw ce;
+      }
       if (e.getCause() instanceof IllegalStateException ise) {
         throw ise;
       }

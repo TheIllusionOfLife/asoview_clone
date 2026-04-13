@@ -1,5 +1,7 @@
 package com.asoviewclone.reservation.repository;
 
+import com.asoviewclone.reservation.exception.ConflictException;
+import com.asoviewclone.reservation.exception.NotFoundException;
 import com.asoviewclone.reservation.model.Reservation;
 import com.asoviewclone.reservation.model.ReservationStatus;
 import com.google.cloud.spanner.DatabaseClient;
@@ -35,6 +37,7 @@ public class ReservationRepository {
       String guestEmail,
       int guestCount) {
     String reservationId = UUID.randomUUID().toString();
+    Instant now = Instant.now();
 
     databaseClient.write(
         List.of(
@@ -78,8 +81,8 @@ public class ReservationRepository {
         guestCount,
         null,
         null,
-        null,
-        null);
+        now,
+        now);
   }
 
   public Optional<Reservation> findById(String reservationId) {
@@ -99,6 +102,25 @@ public class ReservationRepository {
   public Optional<Reservation> findByIdempotencyKey(String idempotencyKey) {
     Statement stmt =
         Statement.newBuilder("SELECT * FROM reservations WHERE idempotency_key = @key")
+            .bind("key")
+            .to(idempotencyKey)
+            .build();
+    try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
+      if (rs.next()) {
+        return Optional.of(fromResultSet(rs));
+      }
+    }
+    return Optional.empty();
+  }
+
+  public Optional<Reservation> findByConsumerUserIdAndIdempotencyKey(
+      String consumerUserId, String idempotencyKey) {
+    Statement stmt =
+        Statement.newBuilder(
+                "SELECT * FROM reservations"
+                    + " WHERE consumer_user_id = @userId AND idempotency_key = @key")
+            .bind("userId")
+            .to(consumerUserId)
             .bind("key")
             .to(idempotencyKey)
             .build();
@@ -135,11 +157,11 @@ public class ReservationRepository {
   }
 
   /**
-   * Atomically transition reservation status from expectedStatus to newStatus AND update slot
-   * counters in a single Spanner read-write transaction. Returns the updated reservation on
-   * success.
+   * Atomically transition reservation status from expectedStatus to newStatus in a single Spanner
+   * read-write transaction. Returns the updated reservation on success.
    *
-   * @throws IllegalStateException if current status != expectedStatus or reservation not found
+   * @throws NotFoundException if reservation not found
+   * @throws ConflictException if current status != expectedStatus
    */
   public Reservation transitionStatusAtomically(
       String reservationId,
@@ -152,10 +174,10 @@ public class ReservationRepository {
             tx -> {
               Reservation current = readInTransaction(tx, reservationId);
               if (current == null) {
-                throw new IllegalStateException("Reservation not found: " + reservationId);
+                throw new NotFoundException("Reservation not found: " + reservationId);
               }
               if (current.status() != expectedStatus) {
-                throw new IllegalStateException(
+                throw new ConflictException(
                     "Expected status "
                         + expectedStatus
                         + " but was "
@@ -204,8 +226,8 @@ public class ReservationRepository {
    * decrement waitlist_count if transitioning from WAITLISTED. Checks slot capacity within the
    * transaction to prevent overbooking.
    *
-   * @throws IllegalStateException if status is not PENDING_APPROVAL or WAITLISTED, or capacity
-   *     exceeded
+   * @throws NotFoundException if reservation or slot not found
+   * @throws ConflictException if status is not PENDING_APPROVAL or WAITLISTED, or capacity exceeded
    */
   public Reservation approveAtomically(String reservationId) {
     return databaseClient
@@ -214,11 +236,11 @@ public class ReservationRepository {
             tx -> {
               Reservation current = readInTransaction(tx, reservationId);
               if (current == null) {
-                throw new IllegalStateException("Reservation not found: " + reservationId);
+                throw new NotFoundException("Reservation not found: " + reservationId);
               }
               if (current.status() != ReservationStatus.PENDING_APPROVAL
                   && current.status() != ReservationStatus.WAITLISTED) {
-                throw new IllegalStateException(
+                throw new ConflictException(
                     "Cannot approve reservation in status " + current.status());
               }
 
@@ -235,7 +257,7 @@ public class ReservationRepository {
               long waitlistCount;
               try (ResultSet rs = tx.executeQuery(slotStmt)) {
                 if (!rs.next()) {
-                  throw new IllegalStateException("Slot not found: " + current.slotId());
+                  throw new NotFoundException("Slot not found: " + current.slotId());
                 }
                 capacity = rs.getLong("capacity");
                 approvedCount = rs.getLong("approved_count");
@@ -243,7 +265,7 @@ public class ReservationRepository {
               }
 
               if (approvedCount + current.guestCount() > capacity) {
-                throw new IllegalStateException(
+                throw new ConflictException(
                     "Insufficient capacity: available="
                         + (capacity - approvedCount)
                         + ", requested="
@@ -297,7 +319,12 @@ public class ReservationRepository {
             });
   }
 
-  /** Atomically waitlist a reservation: CAS on status + increment slot waitlist_count. */
+  /**
+   * Atomically waitlist a reservation: CAS on status + increment slot waitlist_count.
+   *
+   * @throws NotFoundException if reservation or slot not found
+   * @throws ConflictException if status is not PENDING_APPROVAL
+   */
   public Reservation waitlistAtomically(String reservationId) {
     return databaseClient
         .readWriteTransaction()
@@ -305,10 +332,10 @@ public class ReservationRepository {
             tx -> {
               Reservation current = readInTransaction(tx, reservationId);
               if (current == null) {
-                throw new IllegalStateException("Reservation not found: " + reservationId);
+                throw new NotFoundException("Reservation not found: " + reservationId);
               }
               if (current.status() != ReservationStatus.PENDING_APPROVAL) {
-                throw new IllegalStateException(
+                throw new ConflictException(
                     "Cannot waitlist reservation in status " + current.status());
               }
 
@@ -321,7 +348,7 @@ public class ReservationRepository {
               long waitlistCount;
               try (ResultSet rs = tx.executeQuery(slotStmt)) {
                 if (!rs.next()) {
-                  throw new IllegalStateException("Slot not found: " + current.slotId());
+                  throw new NotFoundException("Slot not found: " + current.slotId());
                 }
                 waitlistCount = rs.getLong("waitlist_count");
               }
@@ -366,7 +393,11 @@ public class ReservationRepository {
 
   /**
    * Atomically cancel a reservation. Releases capacity if APPROVED (decrement approved_count) or
-   * WAITLISTED (decrement waitlist_count). Accepts PENDING_APPROVAL, APPROVED, or WAITLISTED.
+   * WAITLISTED (decrement waitlist_count). When cancelling an APPROVED reservation, automatically
+   * promotes the oldest WAITLISTED reservation(s) that fit into the freed seats.
+   *
+   * @throws NotFoundException if reservation or slot not found
+   * @throws ConflictException if reservation is in a terminal status
    */
   public Reservation cancelAtomically(String reservationId, String reason) {
     return databaseClient
@@ -375,10 +406,10 @@ public class ReservationRepository {
             tx -> {
               Reservation current = readInTransaction(tx, reservationId);
               if (current == null) {
-                throw new IllegalStateException("Reservation not found: " + reservationId);
+                throw new NotFoundException("Reservation not found: " + reservationId);
               }
               if (current.status().isTerminal()) {
-                throw new IllegalStateException(
+                throw new ConflictException(
                     "Cannot cancel reservation in terminal status " + current.status());
               }
 
@@ -395,38 +426,90 @@ public class ReservationRepository {
                       .to(Value.COMMIT_TIMESTAMP)
                       .build());
 
-              // Release capacity if needed
+              // Release capacity and auto-promote waitlisted if applicable
               if (current.status() == ReservationStatus.APPROVED
                   || current.status() == ReservationStatus.WAITLISTED) {
                 Statement slotStmt =
                     Statement.newBuilder(
-                            "SELECT approved_count, waitlist_count"
+                            "SELECT capacity, approved_count, waitlist_count"
                                 + " FROM reservation_slots WHERE slot_id = @slotId")
                         .bind("slotId")
                         .to(current.slotId())
                         .build();
+                long capacity;
+                long approvedCount;
+                long waitlistCount;
                 try (ResultSet rs = tx.executeQuery(slotStmt)) {
                   if (!rs.next()) {
-                    throw new IllegalStateException("Slot not found: " + current.slotId());
+                    throw new NotFoundException("Slot not found: " + current.slotId());
                   }
-                  Mutation.WriteBuilder slotUpdate =
-                      Mutation.newUpdateBuilder("reservation_slots")
-                          .set("slot_id")
-                          .to(current.slotId())
-                          .set("updated_at")
-                          .to(Value.COMMIT_TIMESTAMP);
-
-                  if (current.status() == ReservationStatus.APPROVED) {
-                    slotUpdate
-                        .set("approved_count")
-                        .to(Math.max(0, rs.getLong("approved_count") - current.guestCount()));
-                  } else {
-                    slotUpdate
-                        .set("waitlist_count")
-                        .to(Math.max(0, rs.getLong("waitlist_count") - current.guestCount()));
-                  }
-                  tx.buffer(slotUpdate.build());
+                  capacity = rs.getLong("capacity");
+                  approvedCount = rs.getLong("approved_count");
+                  waitlistCount = rs.getLong("waitlist_count");
                 }
+
+                long newApprovedCount;
+                long newWaitlistCount = waitlistCount;
+
+                if (current.status() == ReservationStatus.APPROVED) {
+                  newApprovedCount = Math.max(0, approvedCount - current.guestCount());
+
+                  // Auto-promote oldest waitlisted reservations that fit in freed seats
+                  long availableSeats = capacity - newApprovedCount;
+                  if (availableSeats > 0 && waitlistCount > 0) {
+                    Statement waitlistStmt =
+                        Statement.newBuilder(
+                                "SELECT * FROM reservations"
+                                    + " WHERE slot_id = @slotId AND status = @status"
+                                    + " ORDER BY created_at")
+                            .bind("slotId")
+                            .to(current.slotId())
+                            .bind("status")
+                            .to(ReservationStatus.WAITLISTED.name())
+                            .build();
+                    List<Reservation> toPromote = new ArrayList<>();
+                    long remainingSeats = availableSeats;
+                    try (ResultSet wlRs = tx.executeQuery(waitlistStmt)) {
+                      while (wlRs.next() && remainingSeats > 0) {
+                        Reservation wl = fromResultSet(wlRs);
+                        if (wl.guestCount() <= remainingSeats) {
+                          toPromote.add(wl);
+                          remainingSeats -= wl.guestCount();
+                        }
+                      }
+                    }
+
+                    for (Reservation wl : toPromote) {
+                      tx.buffer(
+                          Mutation.newUpdateBuilder("reservations")
+                              .set("reservation_id")
+                              .to(wl.reservationId())
+                              .set("status")
+                              .to(ReservationStatus.APPROVED.name())
+                              .set("updated_at")
+                              .to(Value.COMMIT_TIMESTAMP)
+                              .build());
+                      newApprovedCount += wl.guestCount();
+                      newWaitlistCount -= wl.guestCount();
+                    }
+                  }
+                } else {
+                  // WAITLISTED cancellation: just decrement waitlist
+                  newApprovedCount = approvedCount;
+                  newWaitlistCount = Math.max(0, waitlistCount - current.guestCount());
+                }
+
+                tx.buffer(
+                    Mutation.newUpdateBuilder("reservation_slots")
+                        .set("slot_id")
+                        .to(current.slotId())
+                        .set("approved_count")
+                        .to(newApprovedCount)
+                        .set("waitlist_count")
+                        .to(Math.max(0, newWaitlistCount))
+                        .set("updated_at")
+                        .to(Value.COMMIT_TIMESTAMP)
+                        .build());
               }
 
               return new Reservation(

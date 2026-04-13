@@ -3,6 +3,7 @@ package com.asoviewclone.reservation.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.asoviewclone.reservation.exception.ConflictException;
 import com.asoviewclone.reservation.model.Reservation;
 import com.asoviewclone.reservation.model.ReservationSlot;
 import com.asoviewclone.reservation.model.ReservationStatus;
@@ -56,7 +57,7 @@ class ReservationApprovalTest {
             "t-1", "v-1", slot.slotId(), "u-1", "idem-overcap", "Taro", "t@e.com", 2);
 
     assertThatThrownBy(() -> reservationService.approve(reservation.reservationId()))
-        .isInstanceOf(IllegalStateException.class)
+        .isInstanceOf(ConflictException.class)
         .hasMessageContaining("capacity");
 
     Reservation unchanged =
@@ -75,7 +76,7 @@ class ReservationApprovalTest {
     reservationService.reject(reservation.reservationId(), "Not suitable");
 
     assertThatThrownBy(() -> reservationService.approve(reservation.reservationId()))
-        .isInstanceOf(IllegalStateException.class);
+        .isInstanceOf(ConflictException.class);
   }
 
   @Test
@@ -108,7 +109,7 @@ class ReservationApprovalTest {
 
     assertThatThrownBy(
             () -> reservationService.reject(reservation.reservationId(), "Double reject"))
-        .isInstanceOf(IllegalStateException.class);
+        .isInstanceOf(ConflictException.class);
   }
 
   @Test

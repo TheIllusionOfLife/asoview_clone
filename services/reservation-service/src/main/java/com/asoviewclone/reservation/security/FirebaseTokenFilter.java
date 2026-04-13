@@ -30,7 +30,7 @@ public class FirebaseTokenFilter extends OncePerRequestFilter {
   @Override
   protected boolean shouldNotFilter(HttpServletRequest request) {
     String uri = request.getRequestURI();
-    return uri != null && (uri.equals("/healthz") || uri.startsWith("/actuator"));
+    return uri != null && (uri.equals("/healthz") || uri.equals("/actuator/health"));
   }
 
   @Override
