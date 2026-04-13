@@ -8,7 +8,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
 import com.google.genai.types.GenerateContentResponse;
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -139,7 +138,7 @@ public class RecommendationService {
     return p.getVariants().stream()
         .map(v -> v.getPriceAmount())
         .filter(a -> a != null)
-        .map(BigDecimal::longValue)
+        .map(a -> a.setScale(0, java.math.RoundingMode.HALF_UP).longValueExact())
         .min(Long::compareTo)
         .orElse(0L);
   }
