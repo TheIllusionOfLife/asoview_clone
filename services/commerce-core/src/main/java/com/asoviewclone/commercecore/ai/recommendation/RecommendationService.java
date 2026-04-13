@@ -20,6 +20,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * AI-powered recommendations using Gemini. Loads user order history and product catalog, asks
@@ -48,6 +49,7 @@ public class RecommendationService {
     this.model = model;
   }
 
+  @Transactional(readOnly = true)
   public RecommendationResponse recommend(String userId, int limit) {
     try {
       List<Product> catalog =
