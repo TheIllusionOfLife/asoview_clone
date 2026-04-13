@@ -26,3 +26,8 @@ spring:
 
 server:
   port: 8081
+
+# AI features (Gemini API). Disabled by default; enable with GOOGLE_API_KEY env var.
+asoview:
+  ai:
+    enabled: ${ASOVIEW_AI_ENABLED:false}

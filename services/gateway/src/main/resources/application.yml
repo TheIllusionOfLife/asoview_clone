@@ -27,6 +27,10 @@ spring:
           uri: ${SEARCH_SERVICE_URL:http://localhost:8082}
           predicates:
             - Path=/v1/search/**
+        - id: analytics-ingest-admin
+          uri: ${ANALYTICS_INGEST_URI:http://localhost:8085}
+          predicates:
+            - Path=/v1/admin/analytics/**
         - id: commerce-core-public
           uri: ${COMMERCE_CORE_URI:http://localhost:8081}
           predicates:

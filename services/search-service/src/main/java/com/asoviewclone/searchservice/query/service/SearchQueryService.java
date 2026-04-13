@@ -98,21 +98,44 @@ public class SearchQueryService {
     }
     bool.set("filter", filter);
 
-    root.set("query", mapper.createObjectNode().set("bool", bool));
-
     var sortNode = mapper.createArrayNode();
+    boolean explicitSort = false;
     switch (sort == null ? "" : sort) {
-      case "price_asc" -> sortNode.add(mapper.createObjectNode().set("minPrice", orderNode("asc")));
-      case "price_desc" ->
-          sortNode.add(mapper.createObjectNode().set("minPrice", orderNode("desc")));
-      case "name_asc" ->
-          sortNode.add(mapper.createObjectNode().set("name.keyword", orderNode("asc")));
+      case "price_asc" -> {
+        sortNode.add(mapper.createObjectNode().set("minPrice", orderNode("asc")));
+        explicitSort = true;
+      }
+      case "price_desc" -> {
+        sortNode.add(mapper.createObjectNode().set("minPrice", orderNode("desc")));
+        explicitSort = true;
+      }
+      case "name_asc" -> {
+        sortNode.add(mapper.createObjectNode().set("name.keyword", orderNode("asc")));
+        explicitSort = true;
+      }
       default -> {
-        // relevance default — no explicit sort
+        // relevance default — boost by popularity
       }
     }
-    if (!sortNode.isEmpty()) {
+
+    if (explicitSort) {
+      root.set("query", mapper.createObjectNode().set("bool", bool));
       root.set("sort", sortNode);
+    } else {
+      // Wrap in function_score to boost popular products in relevance sorting
+      var functionScore = mapper.createObjectNode();
+      functionScore.set("query", mapper.createObjectNode().set("bool", bool));
+      var functions = mapper.createArrayNode();
+      var fieldValueFactor = mapper.createObjectNode();
+      var factor = mapper.createObjectNode();
+      factor.put("field", "popularityScore");
+      factor.put("modifier", "log1p");
+      factor.put("missing", 0);
+      fieldValueFactor.set("field_value_factor", factor);
+      functions.add(fieldValueFactor);
+      functionScore.set("functions", functions);
+      functionScore.put("boost_mode", "sum");
+      root.set("query", mapper.createObjectNode().set("function_score", functionScore));
     }
 
     JsonNode response = executeSearch(root.toString());

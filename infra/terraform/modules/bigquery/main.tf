@@ -43,6 +43,20 @@ resource "google_bigquery_table" "order_events" {
     { name = "currency", type = "STRING", mode = "NULLABLE" },
     { name = "occurred_at", type = "TIMESTAMP", mode = "REQUIRED" },
     { name = "producer", type = "STRING", mode = "NULLABLE" },
+    { name = "product_id", type = "STRING", mode = "NULLABLE" },
+  ])
+}
+
+resource "google_bigquery_table" "product_venue_mapping" {
+  dataset_id          = google_bigquery_dataset.datasets["analytics_raw"].dataset_id
+  table_id            = "product_venue_mapping"
+  project             = var.project_id
+  deletion_protection = false
+
+  schema = jsonencode([
+    { name = "product_id", type = "STRING", mode = "REQUIRED" },
+    { name = "venue_id", type = "STRING", mode = "REQUIRED" },
+    { name = "venue_name", type = "STRING", mode = "REQUIRED" },
   ])
 }
 

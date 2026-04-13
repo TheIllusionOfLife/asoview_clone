@@ -44,6 +44,9 @@ public class OrderEventSubscriber {
       row.put("status", event.getStatus());
       row.put("subtotal_jpy", event.getSubtotalJpy());
       row.put("currency", event.getCurrency());
+      if (!event.getItemsList().isEmpty()) {
+        row.put("product_id", event.getItems(0).getProductId());
+      }
       row.put(
           "occurred_at",
           Instant.ofEpochSecond(

@@ -86,7 +86,7 @@ public class IndexerService {
       }
     }
     return new ProductDoc(
-        id, name, description, areaId, categoryId, minPrice, status, Instant.now().toString());
+        id, name, description, areaId, categoryId, minPrice, status, Instant.now().toString(), 0L);
   }
 
   private void indexDoc(ProductDoc doc) throws Exception {
