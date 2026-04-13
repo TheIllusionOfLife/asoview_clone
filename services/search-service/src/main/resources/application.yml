@@ -4,6 +4,9 @@ opensearch:
   host: ${OPENSEARCH_HOST:localhost}
   port: ${OPENSEARCH_PORT:9200}
   scheme: ${OPENSEARCH_SCHEME:http}
+search:
+  popularity-sync:
+    enabled: ${POPULARITY_SYNC_ENABLED:false}
 spring:
   application:
     name: search-service

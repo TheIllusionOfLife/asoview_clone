@@ -96,6 +96,17 @@ public class IndexerService {
     openSearchClient.getLowLevelClient().performRequest(req);
   }
 
+  /** Partial update: set only the popularityScore field on an existing document. */
+  public void updatePopularityScore(String productId, long score) {
+    try {
+      Request req = new Request("POST", "/" + indexName + "/_update/" + productId);
+      req.setJsonEntity("{\"doc\":{\"popularityScore\":" + score + "}}");
+      openSearchClient.getLowLevelClient().performRequest(req);
+    } catch (Exception e) {
+      log.warn("Failed to update popularityScore for {}: {}", productId, e.getMessage());
+    }
+  }
+
   public boolean markerExists() {
     try {
       Request req = new Request("GET", "/" + indexName + "/_doc/asoview-backfill-marker-v1");
