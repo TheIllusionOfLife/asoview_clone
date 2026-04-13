@@ -25,7 +25,7 @@ public class ReservationController {
 
   @PostMapping("/v1/reservations")
   public ResponseEntity<Reservation> requestReservation(@RequestBody ReservationRequest request) {
-    Reservation reservation =
+    var result =
         reservationService.requestReservation(
             request.slotId(),
             request.idempotencyKey(),
@@ -33,7 +33,8 @@ public class ReservationController {
             request.guestEmail(),
             currentUserId(),
             request.guestCount());
-    return ResponseEntity.status(HttpStatus.CREATED).body(reservation);
+    HttpStatus status = result.created() ? HttpStatus.CREATED : HttpStatus.OK;
+    return ResponseEntity.status(status).body(result.reservation());
   }
 
   @GetMapping("/v1/reservations/{id}")

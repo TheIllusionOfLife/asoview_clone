@@ -3,7 +3,6 @@ package com.asoviewclone.reservation.service;
 import com.asoviewclone.reservation.exception.ConflictException;
 import com.asoviewclone.reservation.exception.NotFoundException;
 import com.asoviewclone.reservation.model.Reservation;
-import com.asoviewclone.reservation.model.ReservationSlot;
 import com.asoviewclone.reservation.model.ReservationStatus;
 import com.asoviewclone.reservation.repository.ReservationRepository;
 import com.asoviewclone.reservation.repository.ReservationSlotRepository;
@@ -25,28 +24,20 @@ public class ReservationService {
     this.slotRepository = slotRepository;
   }
 
-  public Reservation requestReservation(
+  public record CreateResult(Reservation reservation, boolean created) {}
+
+  public CreateResult requestReservation(
       String slotId,
       String idempotencyKey,
       String guestName,
       String guestEmail,
       String consumerUserId,
       int guestCount) {
-    ReservationSlot slot =
-        slotRepository
-            .findById(slotId)
-            .orElseThrow(() -> new NotFoundException("Slot not found: " + slotId));
-
     try {
-      return repository.create(
-          slot.tenantId(),
-          slot.venueId(),
-          slotId,
-          consumerUserId,
-          idempotencyKey,
-          guestName,
-          guestEmail,
-          guestCount);
+      Reservation reservation =
+          repository.createWithSlotValidation(
+              slotId, consumerUserId, idempotencyKey, guestName, guestEmail, guestCount);
+      return new CreateResult(reservation, true);
     } catch (SpannerException e) {
       if (e.getErrorCode() == ErrorCode.ALREADY_EXISTS) {
         Reservation existing =
@@ -60,7 +51,10 @@ public class ReservationService {
           throw new ConflictException(
               "Idempotency key reused with different slot: " + idempotencyKey);
         }
-        return existing;
+        return new CreateResult(existing, false);
+      }
+      if (e.getCause() instanceof NotFoundException nfe) {
+        throw nfe;
       }
       throw e;
     }

@@ -37,8 +37,8 @@ class ReservationApprovalTest {
     ReservationSlot slot =
         slotRepository.create("t-1", "v-1", "p-1", "2026-05-01", "09:00", "10:00", 10);
     Reservation reservation =
-        reservationRepository.create(
-            "t-1", "v-1", slot.slotId(), "u-1", "idem-approve", "Taro", "t@e.com", 2);
+        reservationRepository.createWithSlotValidation(
+            slot.slotId(), "u-1", "idem-approve", "Taro", "t@e.com", 2);
 
     Reservation approved = reservationService.approve(reservation.reservationId());
 
@@ -53,8 +53,8 @@ class ReservationApprovalTest {
     ReservationSlot slot =
         slotRepository.create("t-1", "v-1", "p-1", "2026-05-01", "09:00", "10:00", 1);
     Reservation reservation =
-        reservationRepository.create(
-            "t-1", "v-1", slot.slotId(), "u-1", "idem-overcap", "Taro", "t@e.com", 2);
+        reservationRepository.createWithSlotValidation(
+            slot.slotId(), "u-1", "idem-overcap", "Taro", "t@e.com", 2);
 
     assertThatThrownBy(() -> reservationService.approve(reservation.reservationId()))
         .isInstanceOf(ConflictException.class)
@@ -70,8 +70,8 @@ class ReservationApprovalTest {
     ReservationSlot slot =
         slotRepository.create("t-1", "v-1", "p-1", "2026-05-01", "09:00", "10:00", 10);
     Reservation reservation =
-        reservationRepository.create(
-            "t-1", "v-1", slot.slotId(), "u-1", "idem-rejected", "Taro", "t@e.com", 1);
+        reservationRepository.createWithSlotValidation(
+            slot.slotId(), "u-1", "idem-rejected", "Taro", "t@e.com", 1);
 
     reservationService.reject(reservation.reservationId(), "Not suitable");
 
@@ -84,8 +84,8 @@ class ReservationApprovalTest {
     ReservationSlot slot =
         slotRepository.create("t-1", "v-1", "p-1", "2026-05-01", "09:00", "10:00", 10);
     Reservation reservation =
-        reservationRepository.create(
-            "t-1", "v-1", slot.slotId(), "u-1", "idem-reject", "Taro", "t@e.com", 1);
+        reservationRepository.createWithSlotValidation(
+            slot.slotId(), "u-1", "idem-reject", "Taro", "t@e.com", 1);
 
     Reservation rejected =
         reservationService.reject(reservation.reservationId(), "Schedule conflict");
@@ -102,8 +102,8 @@ class ReservationApprovalTest {
     ReservationSlot slot =
         slotRepository.create("t-1", "v-1", "p-1", "2026-05-01", "09:00", "10:00", 10);
     Reservation reservation =
-        reservationRepository.create(
-            "t-1", "v-1", slot.slotId(), "u-1", "idem-terminal", "Taro", "t@e.com", 1);
+        reservationRepository.createWithSlotValidation(
+            slot.slotId(), "u-1", "idem-terminal", "Taro", "t@e.com", 1);
 
     reservationService.reject(reservation.reservationId(), "No");
 
@@ -117,8 +117,8 @@ class ReservationApprovalTest {
     ReservationSlot slot =
         slotRepository.create("t-1", "v-1", "p-1", "2026-05-01", "09:00", "10:00", 10);
     Reservation reservation =
-        reservationRepository.create(
-            "t-1", "v-1", slot.slotId(), "u-1", "idem-wl", "Taro", "t@e.com", 1);
+        reservationRepository.createWithSlotValidation(
+            slot.slotId(), "u-1", "idem-wl", "Taro", "t@e.com", 1);
 
     Reservation waitlisted = reservationService.waitlist(reservation.reservationId());
 
@@ -133,8 +133,8 @@ class ReservationApprovalTest {
     ReservationSlot slot =
         slotRepository.create("t-1", "v-1", "p-1", "2026-05-01", "09:00", "10:00", 10);
     Reservation reservation =
-        reservationRepository.create(
-            "t-1", "v-1", slot.slotId(), "u-1", "idem-wl-approve", "Taro", "t@e.com", 1);
+        reservationRepository.createWithSlotValidation(
+            slot.slotId(), "u-1", "idem-wl-approve", "Taro", "t@e.com", 1);
 
     reservationService.waitlist(reservation.reservationId());
     Reservation approved = reservationService.approve(reservation.reservationId());

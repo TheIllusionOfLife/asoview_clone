@@ -37,8 +37,8 @@ class ReservationCancelTest {
     ReservationSlot slot =
         slotRepository.create("t-1", "v-1", "p-1", "2026-05-01", "09:00", "10:00", 10);
     Reservation reservation =
-        reservationRepository.create(
-            "t-1", "v-1", slot.slotId(), "u-1", "idem-cancel-pa", "Taro", "t@e.com", 2);
+        reservationRepository.createWithSlotValidation(
+            slot.slotId(), "u-1", "idem-cancel-pa", "Taro", "t@e.com", 2);
 
     Reservation cancelled =
         reservationService.cancel(reservation.reservationId(), "Changed my mind");
@@ -55,8 +55,8 @@ class ReservationCancelTest {
     ReservationSlot slot =
         slotRepository.create("t-1", "v-1", "p-1", "2026-05-01", "09:00", "10:00", 10);
     Reservation reservation =
-        reservationRepository.create(
-            "t-1", "v-1", slot.slotId(), "u-1", "idem-cancel-app", "Taro", "t@e.com", 3);
+        reservationRepository.createWithSlotValidation(
+            slot.slotId(), "u-1", "idem-cancel-app", "Taro", "t@e.com", 3);
 
     reservationService.approve(reservation.reservationId());
 
@@ -74,8 +74,8 @@ class ReservationCancelTest {
     ReservationSlot slot =
         slotRepository.create("t-1", "v-1", "p-1", "2026-05-01", "09:00", "10:00", 10);
     Reservation reservation =
-        reservationRepository.create(
-            "t-1", "v-1", slot.slotId(), "u-1", "idem-cancel-wl", "Taro", "t@e.com", 1);
+        reservationRepository.createWithSlotValidation(
+            slot.slotId(), "u-1", "idem-cancel-wl", "Taro", "t@e.com", 1);
 
     reservationService.waitlist(reservation.reservationId());
 
@@ -93,8 +93,8 @@ class ReservationCancelTest {
     ReservationSlot slot =
         slotRepository.create("t-1", "v-1", "p-1", "2026-05-01", "09:00", "10:00", 10);
     Reservation reservation =
-        reservationRepository.create(
-            "t-1", "v-1", slot.slotId(), "u-1", "idem-cancel-term", "Taro", "t@e.com", 1);
+        reservationRepository.createWithSlotValidation(
+            slot.slotId(), "u-1", "idem-cancel-term", "Taro", "t@e.com", 1);
 
     reservationService.reject(reservation.reservationId(), "No");
 
@@ -109,11 +109,11 @@ class ReservationCancelTest {
         slotRepository.create("t-1", "v-1", "p-1", "2026-05-01", "09:00", "10:00", 2);
 
     Reservation res1 =
-        reservationRepository.create(
-            "t-1", "v-1", slot.slotId(), "u-1", "idem-promo-1", "A", "a@e.com", 2);
+        reservationRepository.createWithSlotValidation(
+            slot.slotId(), "u-1", "idem-promo-1", "A", "a@e.com", 2);
     Reservation res2 =
-        reservationRepository.create(
-            "t-1", "v-1", slot.slotId(), "u-2", "idem-promo-2", "B", "b@e.com", 1);
+        reservationRepository.createWithSlotValidation(
+            slot.slotId(), "u-2", "idem-promo-2", "B", "b@e.com", 1);
 
     reservationService.approve(res1.reservationId());
     reservationService.waitlist(res2.reservationId());

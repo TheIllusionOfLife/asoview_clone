@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.asoviewclone.reservation.model.Reservation;
 import com.asoviewclone.reservation.model.ReservationStatus;
 import com.asoviewclone.reservation.service.ReservationService;
+import com.asoviewclone.reservation.service.ReservationService.CreateResult;
 import com.google.firebase.auth.FirebaseAuth;
 import java.time.Instant;
 import java.util.List;
@@ -57,7 +58,7 @@ class ReservationControllerTest {
   void requestReservation_returns201() throws Exception {
     when(reservationService.requestReservation(
             anyString(), anyString(), anyString(), anyString(), eq("user-1"), anyInt()))
-        .thenReturn(SAMPLE);
+        .thenReturn(new CreateResult(SAMPLE, true));
 
     mockMvc
         .perform(

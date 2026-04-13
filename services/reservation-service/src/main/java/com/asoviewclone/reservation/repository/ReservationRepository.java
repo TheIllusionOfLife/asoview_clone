@@ -27,62 +27,88 @@ public class ReservationRepository {
     this.databaseClient = databaseClient;
   }
 
-  public Reservation create(
-      String tenantId,
-      String venueId,
+  /**
+   * Atomically validate the slot exists and insert a new reservation in a single Spanner read-write
+   * transaction. The slot read and reservation write share the same transaction, eliminating the
+   * TOCTOU race between slot lookup and reservation creation.
+   *
+   * @throws NotFoundException if slot not found
+   */
+  public Reservation createWithSlotValidation(
       String slotId,
       String consumerUserId,
       String idempotencyKey,
       String guestName,
       String guestEmail,
       int guestCount) {
-    String reservationId = UUID.randomUUID().toString();
-    Instant now = Instant.now();
+    return databaseClient
+        .readWriteTransaction()
+        .run(
+            tx -> {
+              // Read slot within the transaction to prevent TOCTOU
+              Statement slotStmt =
+                  Statement.newBuilder(
+                          "SELECT tenant_id, venue_id FROM reservation_slots"
+                              + " WHERE slot_id = @slotId")
+                      .bind("slotId")
+                      .to(slotId)
+                      .build();
+              String tenantId;
+              String venueId;
+              try (ResultSet rs = tx.executeQuery(slotStmt)) {
+                if (!rs.next()) {
+                  throw new NotFoundException("Slot not found: " + slotId);
+                }
+                tenantId = rs.getString("tenant_id");
+                venueId = rs.getString("venue_id");
+              }
 
-    databaseClient.write(
-        List.of(
-            Mutation.newInsertBuilder("reservations")
-                .set("reservation_id")
-                .to(reservationId)
-                .set("tenant_id")
-                .to(tenantId)
-                .set("venue_id")
-                .to(venueId)
-                .set("slot_id")
-                .to(slotId)
-                .set("consumer_user_id")
-                .to(consumerUserId)
-                .set("status")
-                .to(ReservationStatus.PENDING_APPROVAL.name())
-                .set("idempotency_key")
-                .to(idempotencyKey)
-                .set("guest_name")
-                .to(guestName)
-                .set("guest_email")
-                .to(guestEmail)
-                .set("guest_count")
-                .to(guestCount)
-                .set("created_at")
-                .to(Value.COMMIT_TIMESTAMP)
-                .set("updated_at")
-                .to(Value.COMMIT_TIMESTAMP)
-                .build()));
+              String reservationId = UUID.randomUUID().toString();
 
-    return new Reservation(
-        reservationId,
-        tenantId,
-        venueId,
-        slotId,
-        consumerUserId,
-        ReservationStatus.PENDING_APPROVAL,
-        idempotencyKey,
-        guestName,
-        guestEmail,
-        guestCount,
-        null,
-        null,
-        now,
-        now);
+              tx.buffer(
+                  Mutation.newInsertBuilder("reservations")
+                      .set("reservation_id")
+                      .to(reservationId)
+                      .set("tenant_id")
+                      .to(tenantId)
+                      .set("venue_id")
+                      .to(venueId)
+                      .set("slot_id")
+                      .to(slotId)
+                      .set("consumer_user_id")
+                      .to(consumerUserId)
+                      .set("status")
+                      .to(ReservationStatus.PENDING_APPROVAL.name())
+                      .set("idempotency_key")
+                      .to(idempotencyKey)
+                      .set("guest_name")
+                      .to(guestName)
+                      .set("guest_email")
+                      .to(guestEmail)
+                      .set("guest_count")
+                      .to(guestCount)
+                      .set("created_at")
+                      .to(Value.COMMIT_TIMESTAMP)
+                      .set("updated_at")
+                      .to(Value.COMMIT_TIMESTAMP)
+                      .build());
+
+              return new Reservation(
+                  reservationId,
+                  tenantId,
+                  venueId,
+                  slotId,
+                  consumerUserId,
+                  ReservationStatus.PENDING_APPROVAL,
+                  idempotencyKey,
+                  guestName,
+                  guestEmail,
+                  guestCount,
+                  null,
+                  null,
+                  Instant.now(),
+                  Instant.now());
+            });
   }
 
   public Optional<Reservation> findById(String reservationId) {
