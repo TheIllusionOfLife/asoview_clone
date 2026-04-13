@@ -20,11 +20,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * AI-powered recommendations using Gemini. Loads user order history and product catalog, asks
- * Gemini to recommend products, parses product IDs from the JSON response.
+ * AI-powered recommendations using Gemini. Loads product catalog with variants in a short read-only
+ * transaction via TransactionTemplate (not @Transactional, because self-call from recommend() would
+ * bypass the proxy). The Gemini API call runs outside the transaction to avoid holding a DB
+ * connection during the external call.
  */
 @Service
 @ConditionalOnProperty(name = "asoview.ai.enabled", havingValue = "true")
@@ -37,24 +40,39 @@ public class RecommendationService {
   private final ProductRepository productRepository;
   private final PopularProductsFallbackService fallbackService;
   private final String model;
+  private final TransactionTemplate readOnlyTx;
 
   public RecommendationService(
       Client geminiClient,
       ProductRepository productRepository,
       PopularProductsFallbackService fallbackService,
+      PlatformTransactionManager txManager,
       @Value("${asoview.ai.model:gemini-3-flash-preview}") String model) {
     this.geminiClient = geminiClient;
     this.productRepository = productRepository;
     this.fallbackService = fallbackService;
     this.model = model;
+    this.readOnlyTx = new TransactionTemplate(txManager);
+    this.readOnlyTx.setReadOnly(true);
   }
 
-  @Transactional(readOnly = true)
   public RecommendationResponse recommend(String userId, int limit) {
     try {
+      // Load products + force-init variants in a short read-only transaction,
+      // then release the DB connection before calling the Gemini API.
       List<Product> catalog =
-          productRepository.findByStatus(ProductStatus.ACTIVE, PageRequest.of(0, 100)).getContent();
-      if (catalog.isEmpty()) {
+          readOnlyTx.execute(
+              status -> {
+                List<Product> products =
+                    productRepository
+                        .findByStatus(ProductStatus.ACTIVE, PageRequest.of(0, 100))
+                        .getContent();
+                for (Product p : products) {
+                  p.getVariants().size(); // force-init lazy collection
+                }
+                return products;
+              });
+      if (catalog == null || catalog.isEmpty()) {
         return fallbackService.getPopularProducts(limit);
       }
 

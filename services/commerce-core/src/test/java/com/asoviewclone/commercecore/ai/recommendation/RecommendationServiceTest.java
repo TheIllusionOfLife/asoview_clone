@@ -16,6 +16,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 
 class RecommendationServiceTest {
 
@@ -24,14 +26,20 @@ class RecommendationServiceTest {
   private PopularProductsFallbackService fallbackService;
   private RecommendationService service;
 
+  @SuppressWarnings("unchecked")
   @BeforeEach
   void setUp() {
     geminiClient = mock(Client.class);
     productRepository = mock(ProductRepository.class);
     fallbackService = mock(PopularProductsFallbackService.class);
+
+    // Stub a PlatformTransactionManager that executes callbacks immediately
+    PlatformTransactionManager txManager = mock(PlatformTransactionManager.class);
+    when(txManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus(true));
+
     service =
         new RecommendationService(
-            geminiClient, productRepository, fallbackService, "gemini-3-flash-preview");
+            geminiClient, productRepository, fallbackService, txManager, "gemini-3-flash-preview");
   }
 
   @Test
