@@ -3,6 +3,7 @@ package com.asoviewclone.searchservice.indexer;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.google.cloud.bigquery.BigQuery;
@@ -39,6 +40,8 @@ class PopularityScoreSyncJobTest {
     when(tableResult.iterateAll()).thenReturn(List.of(row));
     when(bigQuery.query(any(QueryJobConfiguration.class))).thenReturn(tableResult);
 
+    when(indexerService.updatePopularityScore("product-1", 5L)).thenReturn(true);
+
     PopularityScoreSyncJob job = new PopularityScoreSyncJob(bigQuery, indexerService, "test-proj");
     job.sync();
 
@@ -56,6 +59,7 @@ class PopularityScoreSyncJobTest {
 
     PopularityScoreSyncJob job = new PopularityScoreSyncJob(bigQuery, indexerService, "test-proj");
     job.sync();
-    // No exception, no calls to indexerService
+
+    verifyNoInteractions(indexerService);
   }
 }

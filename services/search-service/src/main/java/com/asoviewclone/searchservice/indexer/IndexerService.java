@@ -96,14 +96,22 @@ public class IndexerService {
     openSearchClient.getLowLevelClient().performRequest(req);
   }
 
-  /** Partial update: set only the popularityScore field on an existing document. */
-  public void updatePopularityScore(String productId, long score) {
+  /**
+   * Partial update: set only the popularityScore field on an existing document.
+   *
+   * @return true if the update succeeded, false on failure (logged as error)
+   */
+  public boolean updatePopularityScore(String productId, long score) {
     try {
-      Request req = new Request("POST", "/" + indexName + "/_update/" + productId);
+      String encodedId =
+          java.net.URLEncoder.encode(productId, java.nio.charset.StandardCharsets.UTF_8);
+      Request req = new Request("POST", "/" + indexName + "/_update/" + encodedId);
       req.setJsonEntity("{\"doc\":{\"popularityScore\":" + score + "}}");
       openSearchClient.getLowLevelClient().performRequest(req);
+      return true;
     } catch (Exception e) {
-      log.warn("Failed to update popularityScore for {}: {}", productId, e.getMessage());
+      log.error("Failed to update popularityScore for {}: {}", productId, e.getMessage(), e);
+      return false;
     }
   }
 

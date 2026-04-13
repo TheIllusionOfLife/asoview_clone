@@ -29,7 +29,7 @@ public class SecurityConfig {
                 auth.requestMatchers("/healthz", "/actuator/**")
                     .permitAll()
                     .requestMatchers("/v1/admin/**")
-                    .authenticated()
+                    .hasRole("ADMIN")
                     .anyRequest()
                     .permitAll())
         .addFilterBefore(firebaseTokenFilter, UsernamePasswordAuthenticationFilter.class);

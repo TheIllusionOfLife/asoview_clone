@@ -48,16 +48,28 @@ public class PopularityScoreSyncJob {
       QueryJobConfiguration config =
           QueryJobConfiguration.newBuilder(sql).setUseLegacySql(false).build();
       TableResult result = bigQuery.query(config);
-      int count = 0;
+      int success = 0;
+      int failed = 0;
       for (var row : result.iterateAll()) {
-        String productId = row.get("product_id").getStringValue();
-        long orderCount = row.get("order_count").getLongValue();
-        indexerService.updatePopularityScore(productId, orderCount);
-        count++;
+        try {
+          if (row.get("product_id").isNull()) {
+            continue;
+          }
+          String productId = row.get("product_id").getStringValue();
+          long orderCount = row.get("order_count").getLongValue();
+          if (indexerService.updatePopularityScore(productId, orderCount)) {
+            success++;
+          } else {
+            failed++;
+          }
+        } catch (Exception rowEx) {
+          failed++;
+          log.error("PopularityScore sync: failed to process row: {}", rowEx.getMessage(), rowEx);
+        }
       }
-      log.info("PopularityScore sync complete: updated {} products", count);
+      log.info("PopularityScore sync complete: {} succeeded, {} failed", success, failed);
     } catch (Exception e) {
-      log.warn("PopularityScore sync failed: {}", e.getMessage());
+      log.error("PopularityScore sync failed: {}", e.getMessage(), e);
     }
   }
 }

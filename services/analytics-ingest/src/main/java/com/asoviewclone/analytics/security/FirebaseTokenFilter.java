@@ -6,6 +6,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,7 +18,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * Simplified Firebase token filter for analytics-ingest. Verifies the Firebase ID token but does
- * not perform user/tenant DB lookups (analytics-ingest has no user database).
+ * not perform user/tenant DB lookups (analytics-ingest has no user database). Grants ROLE_ADMIN
+ * when the Firebase custom claim {@code admin: true} is present on the token.
  */
 @Component
 public class FirebaseTokenFilter extends OncePerRequestFilter {
@@ -28,6 +30,12 @@ public class FirebaseTokenFilter extends OncePerRequestFilter {
 
   public FirebaseTokenFilter(FirebaseAuth firebaseAuth) {
     this.firebaseAuth = firebaseAuth;
+  }
+
+  @Override
+  protected boolean shouldNotFilter(HttpServletRequest request) {
+    String uri = request.getRequestURI();
+    return uri != null && (uri.equals("/healthz") || uri.startsWith("/actuator"));
   }
 
   @Override
@@ -43,9 +51,14 @@ public class FirebaseTokenFilter extends OncePerRequestFilter {
     String token = authHeader.substring(7);
     try {
       var decodedToken = firebaseAuth.verifyIdToken(token);
+      List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+      authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+      Object adminClaim = decodedToken.getClaims().get("admin");
+      if (Boolean.TRUE.equals(adminClaim)) {
+        authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+      }
       var authentication =
-          new UsernamePasswordAuthenticationToken(
-              decodedToken.getUid(), null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+          new UsernamePasswordAuthenticationToken(decodedToken.getUid(), null, authorities);
       SecurityContextHolder.getContext().setAuthentication(authentication);
     } catch (Exception e) {
       log.warn("Firebase token verification failed: {}", e.getMessage());
