@@ -12,8 +12,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-// TODO: add admin authorization guard once analytics-ingest has its own auth filter or
-// the gateway enforces ROLE_ADMIN for /v1/admin/** paths (post-merge recommendation).
 @RestController
 @RequestMapping("/v1/admin/analytics")
 public class DashboardController {
