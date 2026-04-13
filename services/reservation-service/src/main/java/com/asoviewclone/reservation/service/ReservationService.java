@@ -65,6 +65,10 @@ public class ReservationService {
     return unwrapSpannerException(() -> repository.waitlistAtomically(reservationId));
   }
 
+  public Reservation cancel(String reservationId, String reason) {
+    return unwrapSpannerException(() -> repository.cancelAtomically(reservationId, reason));
+  }
+
   private static <T> T unwrapSpannerException(java.util.function.Supplier<T> action) {
     try {
       return action.get();
