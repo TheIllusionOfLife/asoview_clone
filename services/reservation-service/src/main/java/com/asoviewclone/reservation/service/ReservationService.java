@@ -114,9 +114,11 @@ public class ReservationService {
   }
 
   public void verifyTenantAccess(String reservationId) {
-    repository
-        .findById(reservationId)
-        .ifPresent(reservation -> TenantContext.requireTenant(reservation.tenantId()));
+    Reservation reservation =
+        repository
+            .findById(reservationId)
+            .orElseThrow(() -> new NotFoundException("Reservation not found: " + reservationId));
+    TenantContext.requireTenant(reservation.tenantId());
   }
 
   private static String getCurrentUserId() {

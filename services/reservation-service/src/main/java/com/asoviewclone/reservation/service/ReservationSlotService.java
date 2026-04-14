@@ -30,7 +30,8 @@ public class ReservationSlotService {
   }
 
   public List<ReservationSlot> listSlots(String venueId, String date) {
-    return repository.findByVenueAndDate(venueId, date);
+    String tenantId = TenantContext.getCurrentTenantId();
+    return repository.findByVenueAndDate(venueId, date, tenantId);
   }
 
   public ReservationSlot updateSlot(

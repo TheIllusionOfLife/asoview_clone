@@ -37,6 +37,7 @@ public class ReservationOperatorController {
 
   @GetMapping("/v1/op/reservations/{id}")
   public ResponseEntity<Reservation> getReservation(@PathVariable String id) {
+    reservationService.verifyTenantAccess(id);
     return reservationService
         .findById(id)
         .map(ResponseEntity::ok)

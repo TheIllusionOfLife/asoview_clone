@@ -84,19 +84,19 @@ public class ReservationSlotRepository {
     return Optional.empty();
   }
 
-  public List<ReservationSlot> findByVenueAndDate(String venueId, String date) {
-    Statement stmt =
-        Statement.newBuilder(
-                "SELECT * FROM reservation_slots"
-                    + " WHERE venue_id = @venueId AND slot_date = @date"
-                    + " ORDER BY start_time")
-            .bind("venueId")
-            .to(venueId)
-            .bind("date")
-            .to(date)
-            .build();
+  public List<ReservationSlot> findByVenueAndDate(String venueId, String date, String tenantId) {
+    String sql = "SELECT * FROM reservation_slots WHERE venue_id = @venueId AND slot_date = @date";
+    if (tenantId != null) {
+      sql += " AND tenant_id = @tenantId";
+    }
+    sql += " ORDER BY start_time";
+    Statement.Builder builder =
+        Statement.newBuilder(sql).bind("venueId").to(venueId).bind("date").to(date);
+    if (tenantId != null) {
+      builder.bind("tenantId").to(tenantId);
+    }
     List<ReservationSlot> results = new ArrayList<>();
-    try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
+    try (ResultSet rs = databaseClient.singleUse().executeQuery(builder.build())) {
       while (rs.next()) {
         results.add(fromResultSet(rs));
       }
