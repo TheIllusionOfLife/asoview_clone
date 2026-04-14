@@ -31,6 +31,14 @@ spring:
           uri: ${ANALYTICS_INGEST_URI:http://localhost:8085}
           predicates:
             - Path=/v1/admin/analytics/**
+        - id: reservation-service-op
+          uri: ${RESERVATION_SERVICE_URI:http://localhost:8083}
+          predicates:
+            - Path=/v1/op/reservation-slots/**,/v1/op/reservations/**
+        - id: reservation-service-consumer
+          uri: ${RESERVATION_SERVICE_URI:http://localhost:8083}
+          predicates:
+            - Path=/v1/reservations/**,/v1/me/reservations/**
         - id: commerce-core-public
           uri: ${COMMERCE_CORE_URI:http://localhost:8081}
           predicates:

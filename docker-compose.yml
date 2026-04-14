@@ -50,6 +50,26 @@ services:
     entrypoint: ["/bin/bash", "/usr/local/bin/spanner-init.sh"]
     restart: "no"
 
+  spanner-init-reservation:
+    image: google/cloud-sdk:slim
+    depends_on:
+      spanner-init:
+        condition: service_completed_successfully
+    environment:
+      SPANNER_EMULATOR_HOST: spanner-emulator:9010
+      SPANNER_PROJECT_ID: asoview-clone
+      SPANNER_INSTANCE_ID: asoview-clone
+      SPANNER_DATABASE_ID: asoview
+      SPANNER_DDL_DIR: /ddl
+      CLOUDSDK_AUTH_DISABLE_CREDENTIALS: "true"
+      CLOUDSDK_API_ENDPOINT_OVERRIDES_SPANNER: http://spanner-emulator:9020/
+      CLOUDSDK_CORE_PROJECT: asoview-clone
+    volumes:
+      - ./docker/spanner-init.sh:/usr/local/bin/spanner-init.sh:ro
+      - ./services/reservation-service/src/main/resources/db/spanner:/ddl:ro
+    entrypoint: ["/bin/bash", "/usr/local/bin/spanner-init.sh"]
+    restart: "no"
+
   firebase-auth-emulator:
     # andreysenov/firebase-tools is on Docker Hub (public, no auth needed). The
     # spectoolco/firebase-tools image on ghcr.io requires authentication and is

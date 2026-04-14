@@ -1,6 +1,12 @@
 spring:
   application:
     name: reservation-service
+  cloud:
+    gcp:
+      spanner:
+        project-id: ${SPANNER_PROJECT_ID:asoview-clone}
+        instance-id: ${SPANNER_INSTANCE_ID:asoview-clone}
+        database: ${SPANNER_DATABASE:asoview}
 
 server:
   port: 8083

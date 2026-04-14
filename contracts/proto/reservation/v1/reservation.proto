@@ -2,10 +2,156 @@ syntax = "proto3";
 
 package reservation.v1;
 
+import "google/protobuf/timestamp.proto";
+
 option java_multiple_files = true;
 option java_package = "com.asoviewclone.proto.reservation.v1";
 
-// Placeholder message for reservation domain contract.
-message ReservationPing {
-  string message = 1;
+// Calendar-based availability slot defined by an operator.
+message ReservationSlot {
+  string slot_id = 1;
+  string tenant_id = 2;
+  string venue_id = 3;
+  string product_id = 4;
+  string slot_date = 5;
+  string start_time = 6;
+  string end_time = 7;
+  int32 capacity = 8;
+  int32 approved_count = 9;
+  int32 waitlist_count = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+// Consumer reservation request with approval workflow.
+message Reservation {
+  string reservation_id = 1;
+  string tenant_id = 2;
+  string venue_id = 3;
+  string slot_id = 4;
+  string consumer_user_id = 5;
+  ReservationStatus status = 6;
+  string idempotency_key = 7;
+  string guest_name = 8;
+  string guest_email = 9;
+  int32 guest_count = 10;
+  string reject_reason = 11;
+  string cancel_reason = 12;
+  google.protobuf.Timestamp created_at = 13;
+  google.protobuf.Timestamp updated_at = 14;
+}
+
+enum ReservationStatus {
+  RESERVATION_STATUS_UNSPECIFIED = 0;
+  RESERVATION_STATUS_PENDING_APPROVAL = 1;
+  RESERVATION_STATUS_APPROVED = 2;
+  RESERVATION_STATUS_WAITLISTED = 3;
+  RESERVATION_STATUS_REJECTED = 4;
+  RESERVATION_STATUS_CANCELLED = 5;
+  RESERVATION_STATUS_COMPLETED = 6;
+}
+
+// --- Slot management (operator) ---
+
+message CreateSlotRequest {
+  string venue_id = 1;
+  string product_id = 2;
+  string slot_date = 3;
+  string start_time = 4;
+  string end_time = 5;
+  int32 capacity = 6;
+}
+
+message CreateSlotResponse {
+  ReservationSlot slot = 1;
+}
+
+message ListSlotsRequest {
+  string venue_id = 1;
+  string date = 2;
+}
+
+message ListSlotsResponse {
+  repeated ReservationSlot slots = 1;
+}
+
+// --- Reservation lifecycle ---
+
+message RequestReservationRequest {
+  string slot_id = 1;
+  string idempotency_key = 2;
+  string guest_name = 3;
+  string guest_email = 4;
+  int32 guest_count = 5;
+}
+
+message RequestReservationResponse {
+  Reservation reservation = 1;
+}
+
+message GetReservationRequest {
+  string reservation_id = 1;
+}
+
+message GetReservationResponse {
+  Reservation reservation = 1;
+}
+
+message ListMyReservationsRequest {
+  string user_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListMyReservationsResponse {
+  repeated Reservation reservations = 1;
+  string next_page_token = 2;
+}
+
+message ListReservationsRequest {
+  string venue_id = 1;
+  string status = 2;
+  string date = 3;
+}
+
+message ListReservationsResponse {
+  repeated Reservation reservations = 1;
+}
+
+message ApproveReservationRequest {
+  string reservation_id = 1;
+}
+
+message ApproveReservationResponse {
+  Reservation reservation = 1;
+}
+
+message RejectReservationRequest {
+  string reservation_id = 1;
+  string reason = 2;
+}
+
+message RejectReservationResponse {
+  Reservation reservation = 1;
+}
+
+message CancelReservationRequest {
+  string reservation_id = 1;
+  string reason = 2;
+}
+
+message CancelReservationResponse {
+  Reservation reservation = 1;
+}
+
+service ReservationService {
+  rpc CreateSlot(CreateSlotRequest) returns (CreateSlotResponse);
+  rpc ListSlots(ListSlotsRequest) returns (ListSlotsResponse);
+  rpc RequestReservation(RequestReservationRequest) returns (RequestReservationResponse);
+  rpc GetReservation(GetReservationRequest) returns (GetReservationResponse);
+  rpc ListMyReservations(ListMyReservationsRequest) returns (ListMyReservationsResponse);
+  rpc ListReservations(ListReservationsRequest) returns (ListReservationsResponse);
+  rpc ApproveReservation(ApproveReservationRequest) returns (ApproveReservationResponse);
+  rpc RejectReservation(RejectReservationRequest) returns (RejectReservationResponse);
+  rpc CancelReservation(CancelReservationRequest) returns (CancelReservationResponse);
 }

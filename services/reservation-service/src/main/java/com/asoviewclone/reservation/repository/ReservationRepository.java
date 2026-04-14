@@ -1,0 +1,607 @@
+package com.asoviewclone.reservation.repository;
+
+import com.asoviewclone.reservation.exception.ConflictException;
+import com.asoviewclone.reservation.exception.NotFoundException;
+import com.asoviewclone.reservation.model.Reservation;
+import com.asoviewclone.reservation.model.ReservationStatus;
+import com.google.cloud.spanner.DatabaseClient;
+import com.google.cloud.spanner.KeySet;
+import com.google.cloud.spanner.Mutation;
+import com.google.cloud.spanner.ResultSet;
+import com.google.cloud.spanner.Statement;
+import com.google.cloud.spanner.TransactionContext;
+import com.google.cloud.spanner.Value;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public class ReservationRepository {
+
+  private final DatabaseClient databaseClient;
+
+  public ReservationRepository(DatabaseClient databaseClient) {
+    this.databaseClient = databaseClient;
+  }
+
+  /**
+   * Atomically validate the slot exists and insert a new reservation in a single Spanner read-write
+   * transaction. The slot read and reservation write share the same transaction, eliminating the
+   * TOCTOU race between slot lookup and reservation creation.
+   *
+   * @throws NotFoundException if slot not found
+   */
+  public Reservation createWithSlotValidation(
+      String slotId,
+      String consumerUserId,
+      String idempotencyKey,
+      String guestName,
+      String guestEmail,
+      int guestCount) {
+    if (guestCount <= 0) {
+      throw new IllegalArgumentException("guestCount must be positive, was: " + guestCount);
+    }
+    return databaseClient
+        .readWriteTransaction()
+        .run(
+            tx -> {
+              // Read slot within the transaction to prevent TOCTOU
+              Statement slotStmt =
+                  Statement.newBuilder(
+                          "SELECT tenant_id, venue_id FROM reservation_slots"
+                              + " WHERE slot_id = @slotId")
+                      .bind("slotId")
+                      .to(slotId)
+                      .build();
+              String tenantId;
+              String venueId;
+              try (ResultSet rs = tx.executeQuery(slotStmt)) {
+                if (!rs.next()) {
+                  throw new NotFoundException("Slot not found: " + slotId);
+                }
+                tenantId = rs.getString("tenant_id");
+                venueId = rs.getString("venue_id");
+              }
+
+              String reservationId = UUID.randomUUID().toString();
+
+              tx.buffer(
+                  Mutation.newInsertBuilder("reservations")
+                      .set("reservation_id")
+                      .to(reservationId)
+                      .set("tenant_id")
+                      .to(tenantId)
+                      .set("venue_id")
+                      .to(venueId)
+                      .set("slot_id")
+                      .to(slotId)
+                      .set("consumer_user_id")
+                      .to(consumerUserId)
+                      .set("status")
+                      .to(ReservationStatus.PENDING_APPROVAL.name())
+                      .set("idempotency_key")
+                      .to(idempotencyKey)
+                      .set("guest_name")
+                      .to(guestName)
+                      .set("guest_email")
+                      .to(guestEmail)
+                      .set("guest_count")
+                      .to(guestCount)
+                      .set("created_at")
+                      .to(Value.COMMIT_TIMESTAMP)
+                      .set("updated_at")
+                      .to(Value.COMMIT_TIMESTAMP)
+                      .build());
+
+              return new Reservation(
+                  reservationId,
+                  tenantId,
+                  venueId,
+                  slotId,
+                  consumerUserId,
+                  ReservationStatus.PENDING_APPROVAL,
+                  idempotencyKey,
+                  guestName,
+                  guestEmail,
+                  guestCount,
+                  null,
+                  null,
+                  Instant.now(),
+                  Instant.now());
+            });
+  }
+
+  public Optional<Reservation> findById(String reservationId) {
+    Statement stmt =
+        Statement.newBuilder("SELECT * FROM reservations WHERE reservation_id = @id")
+            .bind("id")
+            .to(reservationId)
+            .build();
+    try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
+      if (rs.next()) {
+        return Optional.of(fromResultSet(rs));
+      }
+    }
+    return Optional.empty();
+  }
+
+  public Optional<Reservation> findByIdempotencyKey(String idempotencyKey) {
+    Statement stmt =
+        Statement.newBuilder("SELECT * FROM reservations WHERE idempotency_key = @key")
+            .bind("key")
+            .to(idempotencyKey)
+            .build();
+    try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
+      if (rs.next()) {
+        return Optional.of(fromResultSet(rs));
+      }
+    }
+    return Optional.empty();
+  }
+
+  public Optional<Reservation> findByConsumerUserIdAndIdempotencyKey(
+      String consumerUserId, String idempotencyKey) {
+    Statement stmt =
+        Statement.newBuilder(
+                "SELECT * FROM reservations"
+                    + " WHERE consumer_user_id = @userId AND idempotency_key = @key")
+            .bind("userId")
+            .to(consumerUserId)
+            .bind("key")
+            .to(idempotencyKey)
+            .build();
+    try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
+      if (rs.next()) {
+        return Optional.of(fromResultSet(rs));
+      }
+    }
+    return Optional.empty();
+  }
+
+  public List<Reservation> findByConsumerUserId(String consumerUserId) {
+    Statement stmt =
+        Statement.newBuilder(
+                "SELECT * FROM reservations WHERE consumer_user_id = @userId"
+                    + " ORDER BY created_at DESC")
+            .bind("userId")
+            .to(consumerUserId)
+            .build();
+    return executeQuery(stmt);
+  }
+
+  public List<Reservation> findByVenueAndStatus(String venueId, ReservationStatus status) {
+    Statement stmt =
+        Statement.newBuilder(
+                "SELECT * FROM reservations WHERE venue_id = @venueId AND status = @status"
+                    + " ORDER BY created_at DESC")
+            .bind("venueId")
+            .to(venueId)
+            .bind("status")
+            .to(status.name())
+            .build();
+    return executeQuery(stmt);
+  }
+
+  /**
+   * Atomically transition reservation status from expectedStatus to newStatus in a single Spanner
+   * read-write transaction. Returns the updated reservation on success.
+   *
+   * @throws NotFoundException if reservation not found
+   * @throws ConflictException if current status != expectedStatus
+   */
+  public Reservation transitionStatusAtomically(
+      String reservationId,
+      ReservationStatus expectedStatus,
+      ReservationStatus newStatus,
+      String reason) {
+    return databaseClient
+        .readWriteTransaction()
+        .run(
+            tx -> {
+              Reservation current = readInTransaction(tx, reservationId);
+              if (current == null) {
+                throw new NotFoundException("Reservation not found: " + reservationId);
+              }
+              if (current.status() != expectedStatus) {
+                throw new ConflictException(
+                    "Expected status "
+                        + expectedStatus
+                        + " but was "
+                        + current.status()
+                        + " for reservation "
+                        + reservationId);
+              }
+
+              Mutation.WriteBuilder builder =
+                  Mutation.newUpdateBuilder("reservations")
+                      .set("reservation_id")
+                      .to(reservationId)
+                      .set("status")
+                      .to(newStatus.name())
+                      .set("updated_at")
+                      .to(Value.COMMIT_TIMESTAMP);
+
+              if (reason != null && newStatus == ReservationStatus.REJECTED) {
+                builder.set("reject_reason").to(reason);
+              } else if (reason != null && newStatus == ReservationStatus.CANCELLED) {
+                builder.set("cancel_reason").to(reason);
+              }
+
+              tx.buffer(builder.build());
+
+              return new Reservation(
+                  current.reservationId(),
+                  current.tenantId(),
+                  current.venueId(),
+                  current.slotId(),
+                  current.consumerUserId(),
+                  newStatus,
+                  current.idempotencyKey(),
+                  current.guestName(),
+                  current.guestEmail(),
+                  current.guestCount(),
+                  newStatus == ReservationStatus.REJECTED ? reason : current.rejectReason(),
+                  newStatus == ReservationStatus.CANCELLED ? reason : current.cancelReason(),
+                  current.createdAt(),
+                  Instant.now());
+            });
+  }
+
+  /**
+   * Atomically approve a reservation: CAS on reservation status + increment slot approved_count +
+   * decrement waitlist_count if transitioning from WAITLISTED. Checks slot capacity within the
+   * transaction to prevent overbooking.
+   *
+   * @throws NotFoundException if reservation or slot not found
+   * @throws ConflictException if status is not PENDING_APPROVAL or WAITLISTED, or capacity exceeded
+   */
+  public Reservation approveAtomically(String reservationId) {
+    return databaseClient
+        .readWriteTransaction()
+        .run(
+            tx -> {
+              Reservation current = readInTransaction(tx, reservationId);
+              if (current == null) {
+                throw new NotFoundException("Reservation not found: " + reservationId);
+              }
+              if (current.status() != ReservationStatus.PENDING_APPROVAL
+                  && current.status() != ReservationStatus.WAITLISTED) {
+                throw new ConflictException(
+                    "Cannot approve reservation in status " + current.status());
+              }
+
+              // Read slot capacity within the same transaction
+              Statement slotStmt =
+                  Statement.newBuilder(
+                          "SELECT capacity, approved_count, waitlist_count"
+                              + " FROM reservation_slots WHERE slot_id = @slotId")
+                      .bind("slotId")
+                      .to(current.slotId())
+                      .build();
+              long capacity;
+              long approvedCount;
+              long waitlistCount;
+              try (ResultSet rs = tx.executeQuery(slotStmt)) {
+                if (!rs.next()) {
+                  throw new NotFoundException("Slot not found: " + current.slotId());
+                }
+                capacity = rs.getLong("capacity");
+                approvedCount = rs.getLong("approved_count");
+                waitlistCount = rs.getLong("waitlist_count");
+              }
+
+              if (approvedCount + current.guestCount() > capacity) {
+                throw new ConflictException(
+                    "Insufficient capacity: available="
+                        + (capacity - approvedCount)
+                        + ", requested="
+                        + current.guestCount());
+              }
+
+              // Update reservation status
+              tx.buffer(
+                  Mutation.newUpdateBuilder("reservations")
+                      .set("reservation_id")
+                      .to(reservationId)
+                      .set("status")
+                      .to(ReservationStatus.APPROVED.name())
+                      .set("updated_at")
+                      .to(Value.COMMIT_TIMESTAMP)
+                      .build());
+
+              // Update slot counters
+              Mutation.WriteBuilder slotUpdate =
+                  Mutation.newUpdateBuilder("reservation_slots")
+                      .set("slot_id")
+                      .to(current.slotId())
+                      .set("approved_count")
+                      .to(approvedCount + current.guestCount())
+                      .set("updated_at")
+                      .to(Value.COMMIT_TIMESTAMP);
+
+              if (current.status() == ReservationStatus.WAITLISTED) {
+                slotUpdate
+                    .set("waitlist_count")
+                    .to(Math.max(0, waitlistCount - current.guestCount()));
+              }
+
+              tx.buffer(slotUpdate.build());
+
+              return new Reservation(
+                  current.reservationId(),
+                  current.tenantId(),
+                  current.venueId(),
+                  current.slotId(),
+                  current.consumerUserId(),
+                  ReservationStatus.APPROVED,
+                  current.idempotencyKey(),
+                  current.guestName(),
+                  current.guestEmail(),
+                  current.guestCount(),
+                  current.rejectReason(),
+                  current.cancelReason(),
+                  current.createdAt(),
+                  Instant.now());
+            });
+  }
+
+  /**
+   * Atomically waitlist a reservation: CAS on status + increment slot waitlist_count.
+   *
+   * @throws NotFoundException if reservation or slot not found
+   * @throws ConflictException if status is not PENDING_APPROVAL
+   */
+  public Reservation waitlistAtomically(String reservationId) {
+    return databaseClient
+        .readWriteTransaction()
+        .run(
+            tx -> {
+              Reservation current = readInTransaction(tx, reservationId);
+              if (current == null) {
+                throw new NotFoundException("Reservation not found: " + reservationId);
+              }
+              if (current.status() != ReservationStatus.PENDING_APPROVAL) {
+                throw new ConflictException(
+                    "Cannot waitlist reservation in status " + current.status());
+              }
+
+              Statement slotStmt =
+                  Statement.newBuilder(
+                          "SELECT waitlist_count FROM reservation_slots WHERE slot_id = @slotId")
+                      .bind("slotId")
+                      .to(current.slotId())
+                      .build();
+              long waitlistCount;
+              try (ResultSet rs = tx.executeQuery(slotStmt)) {
+                if (!rs.next()) {
+                  throw new NotFoundException("Slot not found: " + current.slotId());
+                }
+                waitlistCount = rs.getLong("waitlist_count");
+              }
+
+              tx.buffer(
+                  Mutation.newUpdateBuilder("reservations")
+                      .set("reservation_id")
+                      .to(reservationId)
+                      .set("status")
+                      .to(ReservationStatus.WAITLISTED.name())
+                      .set("updated_at")
+                      .to(Value.COMMIT_TIMESTAMP)
+                      .build());
+
+              tx.buffer(
+                  Mutation.newUpdateBuilder("reservation_slots")
+                      .set("slot_id")
+                      .to(current.slotId())
+                      .set("waitlist_count")
+                      .to(waitlistCount + current.guestCount())
+                      .set("updated_at")
+                      .to(Value.COMMIT_TIMESTAMP)
+                      .build());
+
+              return new Reservation(
+                  current.reservationId(),
+                  current.tenantId(),
+                  current.venueId(),
+                  current.slotId(),
+                  current.consumerUserId(),
+                  ReservationStatus.WAITLISTED,
+                  current.idempotencyKey(),
+                  current.guestName(),
+                  current.guestEmail(),
+                  current.guestCount(),
+                  current.rejectReason(),
+                  current.cancelReason(),
+                  current.createdAt(),
+                  Instant.now());
+            });
+  }
+
+  /**
+   * Atomically cancel a reservation. Releases capacity if APPROVED (decrement approved_count) or
+   * WAITLISTED (decrement waitlist_count). When cancelling an APPROVED reservation, automatically
+   * promotes the oldest WAITLISTED reservation(s) that fit into the freed seats.
+   *
+   * @throws NotFoundException if reservation or slot not found
+   * @throws ConflictException if reservation is in a terminal status
+   */
+  public Reservation cancelAtomically(String reservationId, String reason) {
+    return databaseClient
+        .readWriteTransaction()
+        .run(
+            tx -> {
+              Reservation current = readInTransaction(tx, reservationId);
+              if (current == null) {
+                throw new NotFoundException("Reservation not found: " + reservationId);
+              }
+              if (current.status().isTerminal()) {
+                throw new ConflictException(
+                    "Cannot cancel reservation in terminal status " + current.status());
+              }
+
+              // Update reservation status
+              tx.buffer(
+                  Mutation.newUpdateBuilder("reservations")
+                      .set("reservation_id")
+                      .to(reservationId)
+                      .set("status")
+                      .to(ReservationStatus.CANCELLED.name())
+                      .set("cancel_reason")
+                      .to(reason)
+                      .set("updated_at")
+                      .to(Value.COMMIT_TIMESTAMP)
+                      .build());
+
+              // Release capacity and auto-promote waitlisted if applicable
+              if (current.status() == ReservationStatus.APPROVED
+                  || current.status() == ReservationStatus.WAITLISTED) {
+                Statement slotStmt =
+                    Statement.newBuilder(
+                            "SELECT capacity, approved_count, waitlist_count"
+                                + " FROM reservation_slots WHERE slot_id = @slotId")
+                        .bind("slotId")
+                        .to(current.slotId())
+                        .build();
+                long capacity;
+                long approvedCount;
+                long waitlistCount;
+                try (ResultSet rs = tx.executeQuery(slotStmt)) {
+                  if (!rs.next()) {
+                    throw new NotFoundException("Slot not found: " + current.slotId());
+                  }
+                  capacity = rs.getLong("capacity");
+                  approvedCount = rs.getLong("approved_count");
+                  waitlistCount = rs.getLong("waitlist_count");
+                }
+
+                long newApprovedCount;
+                long newWaitlistCount = waitlistCount;
+
+                if (current.status() == ReservationStatus.APPROVED) {
+                  newApprovedCount = Math.max(0, approvedCount - current.guestCount());
+
+                  // Auto-promote oldest waitlisted reservations that fit in freed seats
+                  long availableSeats = capacity - newApprovedCount;
+                  if (availableSeats > 0 && waitlistCount > 0) {
+                    Statement waitlistStmt =
+                        Statement.newBuilder(
+                                "SELECT * FROM reservations"
+                                    + " WHERE slot_id = @slotId AND status = @status"
+                                    + " ORDER BY created_at")
+                            .bind("slotId")
+                            .to(current.slotId())
+                            .bind("status")
+                            .to(ReservationStatus.WAITLISTED.name())
+                            .build();
+                    List<Reservation> toPromote = new ArrayList<>();
+                    long remainingSeats = availableSeats;
+                    try (ResultSet wlRs = tx.executeQuery(waitlistStmt)) {
+                      while (wlRs.next() && remainingSeats > 0) {
+                        Reservation wl = fromResultSet(wlRs);
+                        if (wl.guestCount() <= remainingSeats) {
+                          toPromote.add(wl);
+                          remainingSeats -= wl.guestCount();
+                        }
+                      }
+                    }
+
+                    for (Reservation wl : toPromote) {
+                      tx.buffer(
+                          Mutation.newUpdateBuilder("reservations")
+                              .set("reservation_id")
+                              .to(wl.reservationId())
+                              .set("status")
+                              .to(ReservationStatus.APPROVED.name())
+                              .set("updated_at")
+                              .to(Value.COMMIT_TIMESTAMP)
+                              .build());
+                      newApprovedCount += wl.guestCount();
+                      newWaitlistCount -= wl.guestCount();
+                    }
+                  }
+                } else {
+                  // WAITLISTED cancellation: just decrement waitlist
+                  newApprovedCount = approvedCount;
+                  newWaitlistCount = Math.max(0, waitlistCount - current.guestCount());
+                }
+
+                tx.buffer(
+                    Mutation.newUpdateBuilder("reservation_slots")
+                        .set("slot_id")
+                        .to(current.slotId())
+                        .set("approved_count")
+                        .to(newApprovedCount)
+                        .set("waitlist_count")
+                        .to(Math.max(0, newWaitlistCount))
+                        .set("updated_at")
+                        .to(Value.COMMIT_TIMESTAMP)
+                        .build());
+              }
+
+              return new Reservation(
+                  current.reservationId(),
+                  current.tenantId(),
+                  current.venueId(),
+                  current.slotId(),
+                  current.consumerUserId(),
+                  ReservationStatus.CANCELLED,
+                  current.idempotencyKey(),
+                  current.guestName(),
+                  current.guestEmail(),
+                  current.guestCount(),
+                  current.rejectReason(),
+                  reason,
+                  current.createdAt(),
+                  Instant.now());
+            });
+  }
+
+  private Reservation readInTransaction(TransactionContext tx, String reservationId) {
+    Statement stmt =
+        Statement.newBuilder("SELECT * FROM reservations WHERE reservation_id = @id")
+            .bind("id")
+            .to(reservationId)
+            .build();
+    try (ResultSet rs = tx.executeQuery(stmt)) {
+      if (rs.next()) {
+        return fromResultSet(rs);
+      }
+    }
+    return null;
+  }
+
+  public void deleteAll() {
+    databaseClient.write(List.of(Mutation.delete("reservations", KeySet.all())));
+  }
+
+  private List<Reservation> executeQuery(Statement stmt) {
+    List<Reservation> results = new ArrayList<>();
+    try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
+      while (rs.next()) {
+        results.add(fromResultSet(rs));
+      }
+    }
+    return results;
+  }
+
+  private Reservation fromResultSet(ResultSet rs) {
+    return new Reservation(
+        rs.getString("reservation_id"),
+        rs.getString("tenant_id"),
+        rs.getString("venue_id"),
+        rs.getString("slot_id"),
+        rs.getString("consumer_user_id"),
+        ReservationStatus.valueOf(rs.getString("status")),
+        rs.getString("idempotency_key"),
+        rs.getString("guest_name"),
+        rs.getString("guest_email"),
+        Math.toIntExact(rs.getLong("guest_count")),
+        rs.isNull("reject_reason") ? null : rs.getString("reject_reason"),
+        rs.isNull("cancel_reason") ? null : rs.getString("cancel_reason"),
+        rs.getTimestamp("created_at").toSqlTimestamp().toInstant(),
+        rs.getTimestamp("updated_at").toSqlTimestamp().toInstant());
+  }
+}
