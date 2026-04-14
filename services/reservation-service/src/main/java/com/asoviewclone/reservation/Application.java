@@ -6,7 +6,9 @@ import com.google.cloud.spring.autoconfigure.spanner.SpannerRepositoriesAutoConf
 import com.google.cloud.spring.autoconfigure.spanner.SpannerTransactionManagerAutoConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableAsync;
 
+@EnableAsync
 @SpringBootApplication(
     exclude = {
       GcpSpannerAutoConfiguration.class,
