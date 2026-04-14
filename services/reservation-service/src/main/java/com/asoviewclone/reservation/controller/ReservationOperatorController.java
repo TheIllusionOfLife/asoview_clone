@@ -28,8 +28,7 @@ public class ReservationOperatorController {
 
   @GetMapping("/v1/op/reservations")
   public List<Reservation> listReservations(
-      @RequestParam String venueId,
-      @RequestParam(required = false) ReservationStatus status) {
+      @RequestParam String venueId, @RequestParam(required = false) ReservationStatus status) {
     if (status == null) {
       return reservationService.findByVenue(venueId);
     }

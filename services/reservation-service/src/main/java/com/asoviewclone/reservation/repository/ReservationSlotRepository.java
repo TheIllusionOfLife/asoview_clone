@@ -3,7 +3,6 @@ package com.asoviewclone.reservation.repository;
 import com.asoviewclone.reservation.exception.ConflictException;
 import com.asoviewclone.reservation.exception.NotFoundException;
 import com.asoviewclone.reservation.model.ReservationSlot;
-import com.asoviewclone.reservation.model.SlotUtilization;
 import com.google.cloud.spanner.DatabaseClient;
 import com.google.cloud.spanner.Key;
 import com.google.cloud.spanner.Mutation;
@@ -117,8 +116,7 @@ public class ReservationSlotRepository {
             tx -> {
               // Read current slot
               Statement slotStmt =
-                  Statement.newBuilder(
-                          "SELECT * FROM reservation_slots WHERE slot_id = @slotId")
+                  Statement.newBuilder("SELECT * FROM reservation_slots WHERE slot_id = @slotId")
                       .bind("slotId")
                       .to(slotId)
                       .build();
@@ -163,9 +161,7 @@ public class ReservationSlotRepository {
             });
   }
 
-  /**
-   * Hard-delete a slot. Blocked if any non-terminal reservation references this slot.
-   */
+  /** Hard-delete a slot. Blocked if any non-terminal reservation references this slot. */
   public void deleteSlot(String slotId) {
     databaseClient
         .readWriteTransaction()
@@ -210,8 +206,7 @@ public class ReservationSlotRepository {
     }
   }
 
-  public com.asoviewclone.reservation.model.SlotUtilization getUtilization(
-      String venueId) {
+  public com.asoviewclone.reservation.model.SlotUtilization getUtilization(String venueId) {
     Statement stmt =
         Statement.newBuilder(
                 "SELECT COUNT(*) AS total_slots,"
@@ -224,19 +219,15 @@ public class ReservationSlotRepository {
     try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
       if (rs.next()) {
         return new com.asoviewclone.reservation.model.SlotUtilization(
-            rs.getLong("total_slots"),
-            rs.getLong("total_capacity"),
-            rs.getLong("total_approved"));
+            rs.getLong("total_slots"), rs.getLong("total_capacity"), rs.getLong("total_approved"));
       }
     }
-    return new com.asoviewclone.reservation.model.SlotUtilization(
-        0, 0, 0);
+    return new com.asoviewclone.reservation.model.SlotUtilization(0, 0, 0);
   }
 
   public List<String> findDistinctVenueIds() {
     Statement stmt =
-        Statement.of(
-            "SELECT DISTINCT venue_id FROM reservation_slots ORDER BY venue_id");
+        Statement.of("SELECT DISTINCT venue_id FROM reservation_slots ORDER BY venue_id");
     List<String> venueIds = new ArrayList<>();
     try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
       while (rs.next()) {

@@ -1,8 +1,6 @@
 package com.asoviewclone.reservation.controller;
 
 import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -207,8 +205,7 @@ class ReservationOperatorControllerTest {
 
   @Test
   void getAuditLog_returnsList() throws Exception {
-    AuditLog log =
-        new AuditLog("log-1", "res-1", "CREATED", "user-1", null, Instant.now());
+    AuditLog log = new AuditLog("log-1", "res-1", "CREATED", "user-1", null, Instant.now());
     when(auditLogRepository.findByReservationId("res-1")).thenReturn(List.of(log));
 
     mockMvc

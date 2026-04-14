@@ -30,7 +30,9 @@ public final class TenantContext {
     String userTenantId = getCurrentTenantId();
     if (userTenantId != null && !userTenantId.equals(resourceTenantId)) {
       throw new org.springframework.security.access.AccessDeniedException(
-          "Tenant mismatch: user tenant " + userTenantId + " cannot access resource tenant "
+          "Tenant mismatch: user tenant "
+              + userTenantId
+              + " cannot access resource tenant "
               + resourceTenantId);
     }
   }

@@ -36,8 +36,7 @@ class DashboardControllerTest {
   void getDashboard_returnsSummary() throws Exception {
     when(reservationRepository.countByStatus("venue-1"))
         .thenReturn(Map.of("PENDING_APPROVAL", 3L, "APPROVED", 5L));
-    when(slotRepository.getUtilization("venue-1"))
-        .thenReturn(new SlotUtilization(10, 100, 50));
+    when(slotRepository.getUtilization("venue-1")).thenReturn(new SlotUtilization(10, 100, 50));
 
     mockMvc
         .perform(get("/v1/op/dashboard?venueId=venue-1"))

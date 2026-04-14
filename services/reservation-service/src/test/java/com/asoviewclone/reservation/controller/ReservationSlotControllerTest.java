@@ -118,8 +118,18 @@ class ReservationSlotControllerTest {
   void updateSlot_returns200() throws Exception {
     ReservationSlot updated =
         new ReservationSlot(
-            "slot-1", "tenant-1", "venue-1", "product-1", "2026-05-01", "09:00", "11:00", 20, 0,
-            0, Instant.now(), Instant.now());
+            "slot-1",
+            "tenant-1",
+            "venue-1",
+            "product-1",
+            "2026-05-01",
+            "09:00",
+            "11:00",
+            20,
+            0,
+            0,
+            Instant.now(),
+            Instant.now());
     when(slotService.updateSlot(eq("slot-1"), eq("09:00"), eq("11:00"), eq(20L)))
         .thenReturn(updated);
 
@@ -156,9 +166,7 @@ class ReservationSlotControllerTest {
   void deleteSlot_returns204() throws Exception {
     doNothing().when(slotService).deleteSlot("slot-1");
 
-    mockMvc
-        .perform(delete("/v1/op/reservation-slots/slot-1"))
-        .andExpect(status().isNoContent());
+    mockMvc.perform(delete("/v1/op/reservation-slots/slot-1")).andExpect(status().isNoContent());
   }
 
   @Test
@@ -167,9 +175,7 @@ class ReservationSlotControllerTest {
         .when(slotService)
         .deleteSlot("slot-1");
 
-    mockMvc
-        .perform(delete("/v1/op/reservation-slots/slot-1"))
-        .andExpect(status().isConflict());
+    mockMvc.perform(delete("/v1/op/reservation-slots/slot-1")).andExpect(status().isConflict());
   }
 
   @Test
@@ -178,8 +184,6 @@ class ReservationSlotControllerTest {
         .when(slotService)
         .deleteSlot("slot-999");
 
-    mockMvc
-        .perform(delete("/v1/op/reservation-slots/slot-999"))
-        .andExpect(status().isNotFound());
+    mockMvc.perform(delete("/v1/op/reservation-slots/slot-999")).andExpect(status().isNotFound());
   }
 }
