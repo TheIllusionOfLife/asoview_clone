@@ -13,7 +13,9 @@ import com.google.cloud.spanner.TransactionContext;
 import com.google.cloud.spanner.Value;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Repository;
@@ -603,6 +605,23 @@ public class ReservationRepository {
       }
     }
     return null;
+  }
+
+  public Map<String, Long> countByStatus(String venueId) {
+    Statement stmt =
+        Statement.newBuilder(
+                "SELECT status, COUNT(*) AS cnt FROM reservations"
+                    + " WHERE venue_id = @venueId GROUP BY status")
+            .bind("venueId")
+            .to(venueId)
+            .build();
+    Map<String, Long> counts = new LinkedHashMap<>();
+    try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
+      while (rs.next()) {
+        counts.put(rs.getString("status"), rs.getLong("cnt"));
+      }
+    }
+    return counts;
   }
 
   public void deleteAll() {

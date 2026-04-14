@@ -3,6 +3,7 @@ package com.asoviewclone.reservation.repository;
 import com.asoviewclone.reservation.exception.ConflictException;
 import com.asoviewclone.reservation.exception.NotFoundException;
 import com.asoviewclone.reservation.model.ReservationSlot;
+import com.asoviewclone.reservation.model.SlotUtilization;
 import com.google.cloud.spanner.DatabaseClient;
 import com.google.cloud.spanner.Key;
 import com.google.cloud.spanner.Mutation;
@@ -207,6 +208,42 @@ public class ReservationSlotRepository {
             "Cannot modify slot with active reservations (count=" + rs.getLong("cnt") + ")");
       }
     }
+  }
+
+  public com.asoviewclone.reservation.model.SlotUtilization getUtilization(
+      String venueId) {
+    Statement stmt =
+        Statement.newBuilder(
+                "SELECT COUNT(*) AS total_slots,"
+                    + " COALESCE(SUM(capacity), 0) AS total_capacity,"
+                    + " COALESCE(SUM(approved_count), 0) AS total_approved"
+                    + " FROM reservation_slots WHERE venue_id = @venueId")
+            .bind("venueId")
+            .to(venueId)
+            .build();
+    try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
+      if (rs.next()) {
+        return new com.asoviewclone.reservation.model.SlotUtilization(
+            rs.getLong("total_slots"),
+            rs.getLong("total_capacity"),
+            rs.getLong("total_approved"));
+      }
+    }
+    return new com.asoviewclone.reservation.model.SlotUtilization(
+        0, 0, 0);
+  }
+
+  public List<String> findDistinctVenueIds() {
+    Statement stmt =
+        Statement.of(
+            "SELECT DISTINCT venue_id FROM reservation_slots ORDER BY venue_id");
+    List<String> venueIds = new ArrayList<>();
+    try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
+      while (rs.next()) {
+        venueIds.add(rs.getString("venue_id"));
+      }
+    }
+    return venueIds;
   }
 
   public void deleteAll() {
