@@ -96,6 +96,10 @@ public class ReservationRepository {
                       .to(Value.COMMIT_TIMESTAMP)
                       .build());
 
+              tx.buffer(
+                  AuditLogRepository.createMutation(
+                      reservationId, "CREATED", consumerUserId, null));
+
               return new Reservation(
                   reservationId,
                   tenantId,
@@ -241,6 +245,9 @@ public class ReservationRepository {
               }
 
               tx.buffer(builder.build());
+              tx.buffer(
+                  AuditLogRepository.createMutation(
+                      reservationId, newStatus.name(), null, reason));
 
               return new Reservation(
                   current.reservationId(),
@@ -321,6 +328,9 @@ public class ReservationRepository {
                       .set("updated_at")
                       .to(Value.COMMIT_TIMESTAMP)
                       .build());
+              tx.buffer(
+                  AuditLogRepository.createMutation(
+                      reservationId, "APPROVED", null, null));
 
               // Update slot counters
               Mutation.WriteBuilder slotUpdate =
@@ -401,6 +411,9 @@ public class ReservationRepository {
                       .set("updated_at")
                       .to(Value.COMMIT_TIMESTAMP)
                       .build());
+              tx.buffer(
+                  AuditLogRepository.createMutation(
+                      reservationId, "WAITLISTED", null, null));
 
               tx.buffer(
                   Mutation.newUpdateBuilder("reservation_slots")
@@ -464,6 +477,9 @@ public class ReservationRepository {
                       .set("updated_at")
                       .to(Value.COMMIT_TIMESTAMP)
                       .build());
+              tx.buffer(
+                  AuditLogRepository.createMutation(
+                      reservationId, "CANCELLED", null, reason));
 
               // Release capacity and auto-promote waitlisted if applicable
               if (current.status() == ReservationStatus.APPROVED
@@ -528,6 +544,12 @@ public class ReservationRepository {
                               .set("updated_at")
                               .to(Value.COMMIT_TIMESTAMP)
                               .build());
+                      tx.buffer(
+                          AuditLogRepository.createMutation(
+                              wl.reservationId(),
+                              "APPROVED",
+                              null,
+                              "Auto-promoted from waitlist"));
                       newApprovedCount += wl.guestCount();
                       newWaitlistCount -= wl.guestCount();
                     }

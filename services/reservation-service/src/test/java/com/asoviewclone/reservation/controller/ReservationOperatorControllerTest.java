@@ -9,8 +9,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.asoviewclone.reservation.model.AuditLog;
 import com.asoviewclone.reservation.model.Reservation;
 import com.asoviewclone.reservation.model.ReservationStatus;
+import com.asoviewclone.reservation.repository.AuditLogRepository;
 import com.asoviewclone.reservation.service.ReservationService;
 import com.google.firebase.auth.FirebaseAuth;
 import java.time.Instant;
@@ -34,6 +36,7 @@ class ReservationOperatorControllerTest {
 
   @Autowired private MockMvc mockMvc;
   @MockitoBean private ReservationService reservationService;
+  @MockitoBean private AuditLogRepository auditLogRepository;
   @MockitoBean private FirebaseAuth firebaseAuth;
 
   private static final Reservation SAMPLE =
@@ -200,5 +203,18 @@ class ReservationOperatorControllerTest {
         .perform(get("/v1/op/reservations?venueId=venue-1"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$", hasSize(1)));
+  }
+
+  @Test
+  void getAuditLog_returnsList() throws Exception {
+    AuditLog log =
+        new AuditLog("log-1", "res-1", "CREATED", "user-1", null, Instant.now());
+    when(auditLogRepository.findByReservationId("res-1")).thenReturn(List.of(log));
+
+    mockMvc
+        .perform(get("/v1/op/reservations/res-1/audit"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(1)))
+        .andExpect(jsonPath("$[0].action").value("CREATED"));
   }
 }
