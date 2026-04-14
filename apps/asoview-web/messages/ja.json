@@ -36,6 +36,7 @@
     "favorites": "お気に入り",
     "points": "ポイント",
     "orders": "予約履歴",
+    "reservations": "予約リクエスト",
     "signIn": "ログイン"
   },
   "search": {
@@ -133,6 +134,42 @@
   "recommendations": {
     "popular": "人気の体験",
     "similar": "似た体験"
+  },
+  "reservations": {
+    "pageTitle": "予約リクエスト",
+    "loading": "読み込み中…",
+    "empty": "予約リクエストはまだありません。",
+    "loadError": "予約リクエストの取得に失敗しました",
+    "prev": "前へ",
+    "next": "次へ",
+    "detailTitle": "予約詳細",
+    "guestName": "お名前",
+    "guestEmail": "メールアドレス",
+    "guestCount": "人数",
+    "slotId": "スロットID",
+    "venueId": "会場ID",
+    "createdAt": "リクエスト日時",
+    "status": "ステータス",
+    "rejectReason": "却下理由",
+    "cancelReason": "キャンセル理由",
+    "cancelButton": "キャンセル",
+    "cancelling": "キャンセル中…",
+    "cancelReasonLabel": "キャンセル理由",
+    "cancelReasonPlaceholder": "キャンセルの理由を入力してください",
+    "cancelConfirm": "キャンセルする",
+    "cancelDismiss": "戻る",
+    "cancelSuccess": "キャンセルしました",
+    "cancelError": "キャンセルに失敗しました",
+    "notFound": "予約が見つかりません",
+    "peopleSuffix": "{n}名",
+    "statusLabels": {
+      "PENDING_APPROVAL": "承認待ち",
+      "APPROVED": "承認済み",
+      "WAITLISTED": "キャンセル待ち",
+      "REJECTED": "却下",
+      "CANCELLED": "キャンセル済み",
+      "COMPLETED": "完了"
+    }
   },
   "wallet": {
     "apple": {

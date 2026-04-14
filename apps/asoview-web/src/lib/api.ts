@@ -440,6 +440,103 @@ export function getPointsLedger(
   });
 }
 
+// ---------- Reservations ----------
+
+export type ReservationResponse = {
+  reservationId: string;
+  tenantId: string;
+  venueId: string;
+  slotId: string;
+  consumerUserId: string;
+  status: ReservationStatusType;
+  idempotencyKey: string;
+  guestName: string;
+  guestEmail: string;
+  guestCount: number;
+  rejectReason: string | null;
+  cancelReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ReservationStatusType =
+  | "PENDING_APPROVAL"
+  | "APPROVED"
+  | "WAITLISTED"
+  | "REJECTED"
+  | "CANCELLED"
+  | "COMPLETED";
+
+export type SlotAvailability = {
+  slotId: string;
+  productId: string;
+  slotDate: string;
+  startTime: string;
+  endTime: string;
+  capacity: number;
+  approvedCount: number;
+  remainingCapacity: number;
+};
+
+export function listAvailableSlots(
+  venueId: string,
+  date: string,
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<SlotAvailability[]> {
+  return apiRequest<SlotAvailability[]>(
+    `/v1/reservation-slots?venueId=${encodeURIComponent(venueId)}&date=${encodeURIComponent(date)}`,
+    { ...options, method: "GET" },
+  );
+}
+
+export function requestReservation(
+  input: {
+    slotId: string;
+    idempotencyKey: string;
+    guestName: string;
+    guestEmail: string;
+    guestCount: number;
+  },
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<ReservationResponse> {
+  return apiRequest<ReservationResponse>("/v1/reservations", {
+    ...options,
+    method: "POST",
+    body: input,
+  });
+}
+
+export function getReservation(
+  id: string,
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<ReservationResponse> {
+  return apiRequest<ReservationResponse>(`/v1/reservations/${encodeURIComponent(id)}`, {
+    ...options,
+    method: "GET",
+  });
+}
+
+export function listMyReservations(
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<ReservationResponse[]> {
+  return apiRequest<ReservationResponse[]>("/v1/me/reservations", {
+    ...options,
+    method: "GET",
+  });
+}
+
+export function cancelReservation(
+  id: string,
+  reason: string,
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<ReservationResponse> {
+  return apiRequest<ReservationResponse>(`/v1/reservations/${encodeURIComponent(id)}/cancel`, {
+    ...options,
+    method: "PUT",
+    body: { reason },
+  });
+}
+
 export const api = {
   get: <T>(path: string, options: Omit<RequestOptions, "method" | "body"> = {}) =>
     apiRequest<T>(path, { ...options, method: "GET" }),

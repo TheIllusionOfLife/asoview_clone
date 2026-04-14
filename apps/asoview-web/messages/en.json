@@ -36,6 +36,7 @@
     "favorites": "Favorites",
     "points": "Points",
     "orders": "Bookings",
+    "reservations": "Reservations",
     "signIn": "Sign in"
   },
   "search": {
@@ -133,6 +134,42 @@
   "recommendations": {
     "popular": "Popular experiences",
     "similar": "Similar experiences"
+  },
+  "reservations": {
+    "pageTitle": "Reservations",
+    "loading": "Loading…",
+    "empty": "You have no reservations yet.",
+    "loadError": "Failed to load reservations",
+    "prev": "Prev",
+    "next": "Next",
+    "detailTitle": "Reservation Detail",
+    "guestName": "Name",
+    "guestEmail": "Email",
+    "guestCount": "Guests",
+    "slotId": "Slot ID",
+    "venueId": "Venue ID",
+    "createdAt": "Requested at",
+    "status": "Status",
+    "rejectReason": "Rejection reason",
+    "cancelReason": "Cancellation reason",
+    "cancelButton": "Cancel",
+    "cancelling": "Cancelling…",
+    "cancelReasonLabel": "Reason for cancellation",
+    "cancelReasonPlaceholder": "Please enter a reason for cancellation",
+    "cancelConfirm": "Confirm cancellation",
+    "cancelDismiss": "Go back",
+    "cancelSuccess": "Reservation cancelled",
+    "cancelError": "Failed to cancel reservation",
+    "notFound": "Reservation not found",
+    "peopleSuffix": "{n} guests",
+    "statusLabels": {
+      "PENDING_APPROVAL": "Pending",
+      "APPROVED": "Approved",
+      "WAITLISTED": "Waitlisted",
+      "REJECTED": "Rejected",
+      "CANCELLED": "Cancelled",
+      "COMPLETED": "Completed"
+    }
   },
   "wallet": {
     "apple": {
