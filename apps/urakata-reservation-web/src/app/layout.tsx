@@ -1,5 +1,7 @@
+import "./globals.css";
+
 export const metadata = {
-  title: "urakata-reservation-web",
+  title: "UraKata Reservation",
 };
 
 export default function RootLayout({
@@ -7,9 +9,5 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <html lang="ja">
-      <body>{children}</body>
-    </html>
-  );
+  return children;
 }
