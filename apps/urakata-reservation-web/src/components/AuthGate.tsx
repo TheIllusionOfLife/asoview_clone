@@ -42,7 +42,10 @@ function Sidebar() {
         </div>
         <nav className="px-4 space-y-1">
           {links.map((link) => {
-            const isActive = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
+            const isActive =
+              link.href === "/"
+                ? pathname === "/"
+                : pathname === link.href || pathname.startsWith(`${link.href}/`);
             return (
               <Link
                 key={link.href}
@@ -73,7 +76,10 @@ function Sidebar() {
         <div
           className="fixed inset-0 z-30 bg-black/20 md:hidden"
           onClick={() => setOpen(false)}
-          onKeyDown={() => {}}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setOpen(false);
+          }}
+          tabIndex={-1}
           role="presentation"
         />
       )}
@@ -85,6 +91,7 @@ function AuthContent({ children }: { children: ReactNode }) {
   const { user, ready } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const tc = useTranslations("common");
 
   useEffect(() => {
     if (ready && !user && pathname !== "/login") {
@@ -95,7 +102,7 @@ function AuthContent({ children }: { children: ReactNode }) {
   if (!ready) {
     return (
       <p className="flex items-center justify-center min-h-screen text-[var(--color-text-muted)]">
-        Loading...
+        {tc("loading")}
       </p>
     );
   }

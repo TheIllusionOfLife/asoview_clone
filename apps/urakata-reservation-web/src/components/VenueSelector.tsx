@@ -27,6 +27,7 @@ export function VenueSelector({ value, onChange }: Props) {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        aria-label={t("selectVenue")}
         className="px-3 py-2 border border-[var(--color-border)] rounded-[var(--radius-md)] text-sm"
       >
         <option value="">{t("selectVenue")}</option>

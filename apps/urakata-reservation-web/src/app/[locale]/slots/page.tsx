@@ -90,6 +90,7 @@ export default function SlotsPage() {
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
+          aria-label={t("date")}
           className="px-3 py-2 border border-[var(--color-border)] rounded-[var(--radius-md)] text-sm"
         />
       </div>

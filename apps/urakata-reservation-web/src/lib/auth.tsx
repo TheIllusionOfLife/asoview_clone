@@ -94,9 +94,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setIdTokenGetter(getIdToken);
-    return () => {
-      setIdTokenGetter(async () => null);
-    };
   }, [getIdToken]);
 
   const value = useMemo<AuthState>(
