@@ -41,6 +41,9 @@ public class ReservationRepository {
       String guestName,
       String guestEmail,
       int guestCount) {
+    if (guestCount <= 0) {
+      throw new IllegalArgumentException("guestCount must be positive, was: " + guestCount);
+    }
     return databaseClient
         .readWriteTransaction()
         .run(

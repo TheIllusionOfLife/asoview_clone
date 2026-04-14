@@ -129,7 +129,9 @@ public class SpannerEmulatorConfig {
                   "CREATE INDEX idx_reservations_venue_status"
                       + " ON reservations(venue_id, status, created_at)",
                   "CREATE INDEX idx_reservations_consumer"
-                      + " ON reservations(consumer_user_id, created_at)"))
+                      + " ON reservations(consumer_user_id, created_at)",
+                  "CREATE INDEX idx_reservations_slot_status_created"
+                      + " ON reservations(slot_id, status, created_at)"))
           .get();
     } catch (ExecutionException e) {
       throw new RuntimeException("Failed to initialize Spanner emulator", e);

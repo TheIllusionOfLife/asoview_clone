@@ -104,9 +104,6 @@ public class ReservationService {
       if (e.getCause() instanceof ConflictException ce) {
         throw ce;
       }
-      if (e.getCause() instanceof IllegalStateException ise) {
-        throw ise;
-      }
       throw e;
     }
   }
