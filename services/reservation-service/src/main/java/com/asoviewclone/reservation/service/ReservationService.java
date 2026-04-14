@@ -6,6 +6,7 @@ import com.asoviewclone.reservation.model.Reservation;
 import com.asoviewclone.reservation.model.ReservationStatus;
 import com.asoviewclone.reservation.repository.ReservationRepository;
 import com.asoviewclone.reservation.repository.ReservationSlotRepository;
+import com.asoviewclone.reservation.security.TenantContext;
 import com.google.cloud.spanner.ErrorCode;
 import com.google.cloud.spanner.SpannerException;
 import java.util.List;
@@ -77,10 +78,12 @@ public class ReservationService {
   }
 
   public Reservation approve(String reservationId) {
+    verifyTenantAccess(reservationId);
     return unwrapSpannerException(() -> repository.approveAtomically(reservationId));
   }
 
   public Reservation reject(String reservationId, String reason) {
+    verifyTenantAccess(reservationId);
     return unwrapSpannerException(
         () ->
             repository.transitionStatusAtomically(
@@ -91,11 +94,19 @@ public class ReservationService {
   }
 
   public Reservation waitlist(String reservationId) {
+    verifyTenantAccess(reservationId);
     return unwrapSpannerException(() -> repository.waitlistAtomically(reservationId));
   }
 
   public Reservation cancel(String reservationId, String reason) {
+    verifyTenantAccess(reservationId);
     return unwrapSpannerException(() -> repository.cancelAtomically(reservationId, reason));
+  }
+
+  private void verifyTenantAccess(String reservationId) {
+    repository
+        .findById(reservationId)
+        .ifPresent(reservation -> TenantContext.requireTenant(reservation.tenantId()));
   }
 
   private static <T> T unwrapSpannerException(java.util.function.Supplier<T> action) {
