@@ -2,9 +2,17 @@
 
 import { VenueSelector } from "@/components/VenueSelector";
 import { Link } from "@/i18n/navigation";
-import { api } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
+
+function localToday(): string {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 type Slot = {
   slotId: string;
@@ -22,14 +30,16 @@ export default function SlotsPage() {
   const t = useTranslations("slots");
   const tc = useTranslations("common");
   const [venueId, setVenueId] = useState("");
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(localToday);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   const fetchSlots = useCallback(async () => {
     if (!venueId || !date) return;
     setLoading(true);
+    setFetchError(false);
     try {
       const data = await api.get<Slot[]>(
         `/v1/op/reservation-slots?venueId=${encodeURIComponent(venueId)}&date=${encodeURIComponent(date)}`,
@@ -37,6 +47,7 @@ export default function SlotsPage() {
       setSlots(data);
     } catch {
       setSlots([]);
+      setFetchError(true);
     } finally {
       setLoading(false);
     }
@@ -51,8 +62,13 @@ export default function SlotsPage() {
       await api.delete(`/v1/op/reservation-slots/${slotId}`);
       setDeleteConfirm(null);
       fetchSlots();
-    } catch {
-      alert(t("blocked"));
+    } catch (err) {
+      setDeleteConfirm(null);
+      if (err instanceof ApiError && err.status === 409) {
+        alert(t("blocked"));
+      } else {
+        alert(tc("error"));
+      }
     }
   };
 
@@ -80,7 +96,20 @@ export default function SlotsPage() {
 
       {loading && <p className="text-[var(--color-text-muted)]">{tc("loading")}</p>}
 
-      {!loading && slots.length === 0 && venueId && (
+      {!loading && fetchError && venueId && (
+        <div className="text-center py-8">
+          <p className="text-[var(--color-danger)] mb-3">{tc("error")}</p>
+          <button
+            type="button"
+            onClick={fetchSlots}
+            className="px-4 py-2 border border-[var(--color-border)] rounded-[var(--radius-md)] text-sm"
+          >
+            {tc("retry")}
+          </button>
+        </div>
+      )}
+
+      {!loading && !fetchError && slots.length === 0 && venueId && (
         <p className="text-[var(--color-text-muted)]">{tc("noData")}</p>
       )}
 

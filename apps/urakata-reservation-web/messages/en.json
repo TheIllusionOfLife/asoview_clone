@@ -65,7 +65,8 @@
     "reasonPlaceholder": "Enter reason",
     "confirm": "Confirm",
     "auditLog": "Audit Log",
-    "noActions": "No actions"
+    "noActions": "No actions",
+    "slotId": "Slot ID"
   },
   "status": {
     "PENDING_APPROVAL": "Pending",

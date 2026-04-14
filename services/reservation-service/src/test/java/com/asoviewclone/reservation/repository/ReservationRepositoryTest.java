@@ -102,4 +102,21 @@ class ReservationRepositoryTest {
         repository.findByVenueAndStatus("v-1", ReservationStatus.PENDING_APPROVAL, null);
     assertThat(pending).hasSize(2);
   }
+
+  @Test
+  void findByVenueAndStatus_filteredByTenant() {
+    // All slots created with tenant "t-1", so reservations inherit "t-1"
+    repository.createWithSlotValidation(slot1.slotId(), "u-1", "idem-t1", "A", "a@e.com", 1);
+    repository.createWithSlotValidation(slot2.slotId(), "u-2", "idem-t2", "B", "b@e.com", 1);
+
+    // Matching tenant returns all
+    List<Reservation> matching =
+        repository.findByVenueAndStatus("v-1", ReservationStatus.PENDING_APPROVAL, "t-1");
+    assertThat(matching).hasSize(2);
+
+    // Non-matching tenant returns none
+    List<Reservation> other =
+        repository.findByVenueAndStatus("v-1", ReservationStatus.PENDING_APPROVAL, "t-other");
+    assertThat(other).isEmpty();
+  }
 }

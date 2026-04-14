@@ -43,6 +43,7 @@ export { mockFirebaseAuth, injectMockAuth };
 export const test = base.extend<{ authedPage: Page }>({
   authedPage: async ({ page }, use) => {
     await mockFirebaseAuth(page);
+    await injectMockAuth(page);
     await use(page);
   },
 });

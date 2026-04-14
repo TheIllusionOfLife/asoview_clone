@@ -41,20 +41,23 @@ function Sidebar() {
           <h1 className="text-lg font-bold text-[var(--color-primary)]">{t("title")}</h1>
         </div>
         <nav className="px-4 space-y-1">
-          {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`block px-4 py-2 rounded-[var(--radius-md)] text-sm transition-colors ${
-                pathname === link.href
-                  ? "bg-[var(--color-primary)] text-white"
-                  : "text-[var(--color-text-muted)] hover:bg-[var(--color-surface-alt)]"
-              }`}
-              onClick={() => setOpen(false)}
-            >
-              {link.label}
-            </Link>
-          ))}
+          {links.map((link) => {
+            const isActive = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`block px-4 py-2 rounded-[var(--radius-md)] text-sm transition-colors ${
+                  isActive
+                    ? "bg-[var(--color-primary)] text-white"
+                    : "text-[var(--color-text-muted)] hover:bg-[var(--color-surface-alt)]"
+                }`}
+                onClick={() => setOpen(false)}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </nav>
         <div className="absolute bottom-0 w-full p-4 border-t border-[var(--color-border)]">
           <button

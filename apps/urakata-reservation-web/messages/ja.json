@@ -65,7 +65,8 @@
     "reasonPlaceholder": "理由を入力してください",
     "confirm": "確認",
     "auditLog": "操作履歴",
-    "noActions": "操作なし"
+    "noActions": "操作なし",
+    "slotId": "スロットID"
   },
   "status": {
     "PENDING_APPROVAL": "承認待ち",

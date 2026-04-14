@@ -5,7 +5,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Link } from "@/i18n/navigation";
 import { ApiError, api } from "@/lib/api";
 import { useTranslations } from "next-intl";
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 
 type Reservation = {
   reservationId: string;
@@ -60,6 +60,7 @@ export default function ReservationDetailPage({
       setAudit(logs);
     } catch {
       setReservation(null);
+      setAudit([]);
     } finally {
       setLoading(false);
     }
@@ -69,9 +70,18 @@ export default function ReservationDetailPage({
     fetchData();
   }, [fetchData]);
 
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
   const showToast = (msg: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast(msg);
-    setTimeout(() => setToast(null), 3000);
+    toastTimerRef.current = setTimeout(() => setToast(null), 3000);
   };
 
   const handleAction = async (
@@ -143,7 +153,7 @@ export default function ReservationDetailPage({
             <p className="font-medium">{new Date(reservation.createdAt).toLocaleString()}</p>
           </div>
           <div>
-            <p className="text-sm text-[var(--color-text-muted)]">Slot ID</p>
+            <p className="text-sm text-[var(--color-text-muted)]">{t("slotId")}</p>
             <p className="font-medium text-sm">{reservation.slotId}</p>
           </div>
         </div>

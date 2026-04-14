@@ -97,6 +97,7 @@ test.describe("slot API contract", () => {
       return { status: res.status, body: await res.json() };
     });
     expect(putCalled).toBe(true);
+    expect(result.status).toBe(200);
     expect(result.body.capacity).toBe(20);
   });
 
