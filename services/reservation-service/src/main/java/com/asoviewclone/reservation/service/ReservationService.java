@@ -68,6 +68,10 @@ public class ReservationService {
     return repository.findByConsumerUserId(consumerUserId);
   }
 
+  public List<Reservation> findByVenue(String venueId) {
+    return repository.findByVenue(venueId);
+  }
+
   public List<Reservation> findByVenueAndStatus(String venueId, ReservationStatus status) {
     return repository.findByVenueAndStatus(venueId, status);
   }

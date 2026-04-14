@@ -1,6 +1,8 @@
 package com.asoviewclone.reservation.controller;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -162,5 +164,41 @@ class ReservationOperatorControllerTest {
                     """))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("CANCELLED"));
+  }
+
+  @Test
+  void waitlist_returns200() throws Exception {
+    Reservation waitlisted =
+        new Reservation(
+            "res-1",
+            "tenant-1",
+            "venue-1",
+            "slot-1",
+            "user-1",
+            ReservationStatus.WAITLISTED,
+            "idem-1",
+            "Taro",
+            "t@e.com",
+            2,
+            null,
+            null,
+            Instant.now(),
+            Instant.now());
+    when(reservationService.waitlist("res-1")).thenReturn(waitlisted);
+
+    mockMvc
+        .perform(put("/v1/op/reservations/res-1/waitlist"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("WAITLISTED"));
+  }
+
+  @Test
+  void listReservations_withoutStatus_returnsAll() throws Exception {
+    when(reservationService.findByVenue("venue-1")).thenReturn(List.of(SAMPLE));
+
+    mockMvc
+        .perform(get("/v1/op/reservations?venueId=venue-1"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(1)));
   }
 }

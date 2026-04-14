@@ -23,7 +23,11 @@ public class ReservationOperatorController {
 
   @GetMapping("/v1/op/reservations")
   public List<Reservation> listReservations(
-      @RequestParam String venueId, @RequestParam ReservationStatus status) {
+      @RequestParam String venueId,
+      @RequestParam(required = false) ReservationStatus status) {
+    if (status == null) {
+      return reservationService.findByVenue(venueId);
+    }
     return reservationService.findByVenueAndStatus(venueId, status);
   }
 
@@ -43,6 +47,11 @@ public class ReservationOperatorController {
   @PutMapping("/v1/op/reservations/{id}/reject")
   public Reservation reject(@PathVariable String id, @RequestBody ReasonRequest request) {
     return reservationService.reject(id, request.reason());
+  }
+
+  @PutMapping("/v1/op/reservations/{id}/waitlist")
+  public Reservation waitlist(@PathVariable String id) {
+    return reservationService.waitlist(id);
   }
 
   @PutMapping("/v1/op/reservations/{id}/cancel")

@@ -172,6 +172,16 @@ public class ReservationRepository {
     return executeQuery(stmt);
   }
 
+  public List<Reservation> findByVenue(String venueId) {
+    Statement stmt =
+        Statement.newBuilder(
+                "SELECT * FROM reservations WHERE venue_id = @venueId ORDER BY created_at DESC")
+            .bind("venueId")
+            .to(venueId)
+            .build();
+    return executeQuery(stmt);
+  }
+
   public List<Reservation> findByVenueAndStatus(String venueId, ReservationStatus status) {
     Statement stmt =
         Statement.newBuilder(
