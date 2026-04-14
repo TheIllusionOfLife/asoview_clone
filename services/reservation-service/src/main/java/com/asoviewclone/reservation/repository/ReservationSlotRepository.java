@@ -1,10 +1,14 @@
 package com.asoviewclone.reservation.repository;
 
+import com.asoviewclone.reservation.exception.ConflictException;
+import com.asoviewclone.reservation.exception.NotFoundException;
 import com.asoviewclone.reservation.model.ReservationSlot;
 import com.google.cloud.spanner.DatabaseClient;
+import com.google.cloud.spanner.Key;
 import com.google.cloud.spanner.Mutation;
 import com.google.cloud.spanner.ResultSet;
 import com.google.cloud.spanner.Statement;
+import com.google.cloud.spanner.Value;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -98,6 +102,111 @@ public class ReservationSlotRepository {
       }
     }
     return results;
+  }
+
+  /**
+   * Update slot time range and capacity. Blocked if any non-terminal reservation references this
+   * slot (PENDING_APPROVAL, APPROVED, WAITLISTED).
+   */
+  public ReservationSlot updateSlot(
+      String slotId, String startTime, String endTime, long capacity) {
+    return databaseClient
+        .readWriteTransaction()
+        .run(
+            tx -> {
+              // Read current slot
+              Statement slotStmt =
+                  Statement.newBuilder(
+                          "SELECT * FROM reservation_slots WHERE slot_id = @slotId")
+                      .bind("slotId")
+                      .to(slotId)
+                      .build();
+              ReservationSlot current;
+              try (ResultSet rs = tx.executeQuery(slotStmt)) {
+                if (!rs.next()) {
+                  throw new NotFoundException("Slot not found: " + slotId);
+                }
+                current = fromResultSet(rs);
+              }
+
+              // Guard: no non-terminal reservations
+              guardNoActiveReservations(tx, slotId);
+
+              tx.buffer(
+                  Mutation.newUpdateBuilder("reservation_slots")
+                      .set("slot_id")
+                      .to(slotId)
+                      .set("start_time")
+                      .to(startTime)
+                      .set("end_time")
+                      .to(endTime)
+                      .set("capacity")
+                      .to(capacity)
+                      .set("updated_at")
+                      .to(Value.COMMIT_TIMESTAMP)
+                      .build());
+
+              return new ReservationSlot(
+                  current.slotId(),
+                  current.tenantId(),
+                  current.venueId(),
+                  current.productId(),
+                  current.slotDate(),
+                  startTime,
+                  endTime,
+                  capacity,
+                  current.approvedCount(),
+                  current.waitlistCount(),
+                  current.createdAt(),
+                  Instant.now());
+            });
+  }
+
+  /**
+   * Hard-delete a slot. Blocked if any non-terminal reservation references this slot.
+   */
+  public void deleteSlot(String slotId) {
+    databaseClient
+        .readWriteTransaction()
+        .run(
+            tx -> {
+              // Verify slot exists
+              Statement slotStmt =
+                  Statement.newBuilder(
+                          "SELECT slot_id FROM reservation_slots WHERE slot_id = @slotId")
+                      .bind("slotId")
+                      .to(slotId)
+                      .build();
+              try (ResultSet rs = tx.executeQuery(slotStmt)) {
+                if (!rs.next()) {
+                  throw new NotFoundException("Slot not found: " + slotId);
+                }
+              }
+
+              // Guard: no non-terminal reservations
+              guardNoActiveReservations(tx, slotId);
+
+              tx.buffer(Mutation.delete("reservation_slots", Key.of(slotId)));
+              return null;
+            });
+  }
+
+  private void guardNoActiveReservations(
+      com.google.cloud.spanner.TransactionContext tx, String slotId) {
+    Statement guard =
+        Statement.newBuilder(
+                "SELECT COUNT(*) AS cnt FROM reservations"
+                    + " WHERE slot_id = @slotId"
+                    + " AND status IN ('PENDING_APPROVAL', 'APPROVED', 'WAITLISTED')")
+            .bind("slotId")
+            .to(slotId)
+            .build();
+    try (ResultSet rs = tx.executeQuery(guard)) {
+      if (rs.next() && rs.getLong("cnt") > 0) {
+        throw new ConflictException(
+            "Cannot modify slot with active reservations (count=" + rs.getLong("cnt") + ")");
+      }
+    }
   }
 
   public void deleteAll() {
