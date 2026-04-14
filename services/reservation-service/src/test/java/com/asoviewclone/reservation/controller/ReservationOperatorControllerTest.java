@@ -7,8 +7,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.asoviewclone.reservation.model.AuditLog;
 import com.asoviewclone.reservation.model.Reservation;
 import com.asoviewclone.reservation.model.ReservationStatus;
+import com.asoviewclone.reservation.repository.AuditLogRepository;
 import com.asoviewclone.reservation.service.ReservationService;
 import com.google.firebase.auth.FirebaseAuth;
 import java.time.Instant;
@@ -32,6 +34,7 @@ class ReservationOperatorControllerTest {
 
   @Autowired private MockMvc mockMvc;
   @MockitoBean private ReservationService reservationService;
+  @MockitoBean private AuditLogRepository auditLogRepository;
   @MockitoBean private FirebaseAuth firebaseAuth;
 
   private static final Reservation SAMPLE =
@@ -162,5 +165,53 @@ class ReservationOperatorControllerTest {
                     """))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("CANCELLED"));
+  }
+
+  @Test
+  void waitlist_returns200() throws Exception {
+    Reservation waitlisted =
+        new Reservation(
+            "res-1",
+            "tenant-1",
+            "venue-1",
+            "slot-1",
+            "user-1",
+            ReservationStatus.WAITLISTED,
+            "idem-1",
+            "Taro",
+            "t@e.com",
+            2,
+            null,
+            null,
+            Instant.now(),
+            Instant.now());
+    when(reservationService.waitlist("res-1")).thenReturn(waitlisted);
+
+    mockMvc
+        .perform(put("/v1/op/reservations/res-1/waitlist"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("WAITLISTED"));
+  }
+
+  @Test
+  void listReservations_withoutStatus_returnsAll() throws Exception {
+    when(reservationService.findByVenue("venue-1")).thenReturn(List.of(SAMPLE));
+
+    mockMvc
+        .perform(get("/v1/op/reservations?venueId=venue-1"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(1)));
+  }
+
+  @Test
+  void getAuditLog_returnsList() throws Exception {
+    AuditLog log = new AuditLog("log-1", "res-1", "CREATED", "user-1", null, Instant.now());
+    when(auditLogRepository.findByReservationId("res-1")).thenReturn(List.of(log));
+
+    mockMvc
+        .perform(get("/v1/op/reservations/res-1/audit"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$", hasSize(1)))
+        .andExpect(jsonPath("$[0].action").value("CREATED"));
   }
 }

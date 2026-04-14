@@ -1,0 +1,88 @@
+{
+  "app": {
+    "title": "UraKata Reservation",
+    "dashboard": "Dashboard",
+    "slots": "Slot Management",
+    "reservations": "Reservations",
+    "login": "Login",
+    "logout": "Logout"
+  },
+  "login": {
+    "title": "Admin Login",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign In",
+    "error": "Login failed",
+    "noAdmin": "Admin access required"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "pending": "Pending",
+    "approved": "Approved",
+    "waitlisted": "Waitlisted",
+    "slotUtilization": "Slot Utilization",
+    "totalSlots": "Total Slots",
+    "totalCapacity": "Total Capacity",
+    "totalApproved": "Approved Count",
+    "selectVenue": "Select venue"
+  },
+  "slots": {
+    "title": "Slot Management",
+    "create": "Create Slot",
+    "edit": "Edit Slot",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this slot? This cannot be undone.",
+    "venue": "Venue",
+    "date": "Date",
+    "startTime": "Start Time",
+    "endTime": "End Time",
+    "capacity": "Capacity",
+    "approved": "Approved",
+    "waitlisted": "Waitlisted",
+    "save": "Save",
+    "cancel": "Cancel",
+    "blocked": "Cannot modify: active reservations exist",
+    "productId": "Product ID",
+    "endTimeAfterStart": "End time must be after start time",
+    "errorCreateFailed": "Failed to create slot"
+  },
+  "reservations": {
+    "title": "Reservations",
+    "all": "All",
+    "detail": "Reservation Detail",
+    "guestName": "Guest Name",
+    "guestEmail": "Email",
+    "guestCount": "Guests",
+    "status": "Status",
+    "slotDate": "Date",
+    "slotTime": "Time",
+    "createdAt": "Created",
+    "approve": "Approve",
+    "reject": "Reject",
+    "waitlist": "Waitlist",
+    "cancel": "Cancel",
+    "reason": "Reason",
+    "reasonPlaceholder": "Enter reason",
+    "confirm": "Confirm",
+    "auditLog": "Audit Log",
+    "noActions": "No actions",
+    "slotId": "Slot ID",
+    "byActor": "by {actor}"
+  },
+  "status": {
+    "PENDING_APPROVAL": "Pending",
+    "APPROVED": "Approved",
+    "WAITLISTED": "Waitlisted",
+    "REJECTED": "Rejected",
+    "CANCELLED": "Cancelled",
+    "COMPLETED": "Completed"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "noData": "No data",
+    "success": "Success",
+    "back": "Back",
+    "retry": "Retry"
+  }
+}

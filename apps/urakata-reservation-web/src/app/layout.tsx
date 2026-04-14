@@ -1,5 +1,7 @@
+import "./globals.css";
+
 export const metadata = {
-  title: "urakata-reservation-web",
+  title: "UraKata Reservation",
 };
 
 export default function RootLayout({

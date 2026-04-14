@@ -6,10 +6,13 @@ import com.asoviewclone.reservation.model.Reservation;
 import com.asoviewclone.reservation.model.ReservationStatus;
 import com.asoviewclone.reservation.repository.ReservationRepository;
 import com.asoviewclone.reservation.repository.ReservationSlotRepository;
+import com.asoviewclone.reservation.security.TenantContext;
 import com.google.cloud.spanner.ErrorCode;
 import com.google.cloud.spanner.SpannerException;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -68,30 +71,59 @@ public class ReservationService {
     return repository.findByConsumerUserId(consumerUserId);
   }
 
+  public List<Reservation> findByVenue(String venueId) {
+    String tenantId = TenantContext.getCurrentTenantId();
+    return repository.findByVenue(venueId, tenantId);
+  }
+
   public List<Reservation> findByVenueAndStatus(String venueId, ReservationStatus status) {
-    return repository.findByVenueAndStatus(venueId, status);
+    String tenantId = TenantContext.getCurrentTenantId();
+    return repository.findByVenueAndStatus(venueId, status, tenantId);
   }
 
   public Reservation approve(String reservationId) {
-    return unwrapSpannerException(() -> repository.approveAtomically(reservationId));
+    verifyTenantAccess(reservationId);
+    String actorUserId = getCurrentUserId();
+    return unwrapSpannerException(() -> repository.approveAtomically(reservationId, actorUserId));
   }
 
   public Reservation reject(String reservationId, String reason) {
+    verifyTenantAccess(reservationId);
+    String actorUserId = getCurrentUserId();
     return unwrapSpannerException(
         () ->
             repository.transitionStatusAtomically(
                 reservationId,
                 ReservationStatus.PENDING_APPROVAL,
                 ReservationStatus.REJECTED,
-                reason));
+                reason,
+                actorUserId));
   }
 
   public Reservation waitlist(String reservationId) {
-    return unwrapSpannerException(() -> repository.waitlistAtomically(reservationId));
+    verifyTenantAccess(reservationId);
+    String actorUserId = getCurrentUserId();
+    return unwrapSpannerException(() -> repository.waitlistAtomically(reservationId, actorUserId));
   }
 
   public Reservation cancel(String reservationId, String reason) {
-    return unwrapSpannerException(() -> repository.cancelAtomically(reservationId, reason));
+    verifyTenantAccess(reservationId);
+    String actorUserId = getCurrentUserId();
+    return unwrapSpannerException(
+        () -> repository.cancelAtomically(reservationId, reason, actorUserId));
+  }
+
+  public void verifyTenantAccess(String reservationId) {
+    Reservation reservation =
+        repository
+            .findById(reservationId)
+            .orElseThrow(() -> new NotFoundException("Reservation not found: " + reservationId));
+    TenantContext.requireTenant(reservation.tenantId());
+  }
+
+  private static String getCurrentUserId() {
+    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+    return auth != null ? (String) auth.getPrincipal() : null;
   }
 
   private static <T> T unwrapSpannerException(java.util.function.Supplier<T> action) {

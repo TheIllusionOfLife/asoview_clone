@@ -54,6 +54,10 @@ public class FirebaseTokenFilter extends OncePerRequestFilter {
       }
       var authentication =
           new UsernamePasswordAuthenticationToken(decodedToken.getUid(), null, authorities);
+      Object tenantClaim = decodedToken.getClaims().get("tenantId");
+      if (tenantClaim instanceof String tenantId) {
+        authentication.setDetails(tenantId);
+      }
       SecurityContextHolder.getContext().setAuthentication(authentication);
     } catch (com.google.firebase.auth.FirebaseAuthException e) {
       log.warn("Firebase token verification failed: {}", e.getMessage());

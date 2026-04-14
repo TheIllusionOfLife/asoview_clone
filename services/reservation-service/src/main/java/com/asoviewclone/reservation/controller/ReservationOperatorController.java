@@ -1,7 +1,9 @@
 package com.asoviewclone.reservation.controller;
 
+import com.asoviewclone.reservation.model.AuditLog;
 import com.asoviewclone.reservation.model.Reservation;
 import com.asoviewclone.reservation.model.ReservationStatus;
+import com.asoviewclone.reservation.repository.AuditLogRepository;
 import com.asoviewclone.reservation.service.ReservationService;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
@@ -16,19 +18,26 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReservationOperatorController {
 
   private final ReservationService reservationService;
+  private final AuditLogRepository auditLogRepository;
 
-  public ReservationOperatorController(ReservationService reservationService) {
+  public ReservationOperatorController(
+      ReservationService reservationService, AuditLogRepository auditLogRepository) {
     this.reservationService = reservationService;
+    this.auditLogRepository = auditLogRepository;
   }
 
   @GetMapping("/v1/op/reservations")
   public List<Reservation> listReservations(
-      @RequestParam String venueId, @RequestParam ReservationStatus status) {
+      @RequestParam String venueId, @RequestParam(required = false) ReservationStatus status) {
+    if (status == null) {
+      return reservationService.findByVenue(venueId);
+    }
     return reservationService.findByVenueAndStatus(venueId, status);
   }
 
   @GetMapping("/v1/op/reservations/{id}")
   public ResponseEntity<Reservation> getReservation(@PathVariable String id) {
+    reservationService.verifyTenantAccess(id);
     return reservationService
         .findById(id)
         .map(ResponseEntity::ok)
@@ -43,6 +52,17 @@ public class ReservationOperatorController {
   @PutMapping("/v1/op/reservations/{id}/reject")
   public Reservation reject(@PathVariable String id, @RequestBody ReasonRequest request) {
     return reservationService.reject(id, request.reason());
+  }
+
+  @GetMapping("/v1/op/reservations/{id}/audit")
+  public List<AuditLog> getAuditLog(@PathVariable String id) {
+    reservationService.verifyTenantAccess(id);
+    return auditLogRepository.findByReservationId(id);
+  }
+
+  @PutMapping("/v1/op/reservations/{id}/waitlist")
+  public Reservation waitlist(@PathVariable String id) {
+    return reservationService.waitlist(id);
   }
 
   @PutMapping("/v1/op/reservations/{id}/cancel")

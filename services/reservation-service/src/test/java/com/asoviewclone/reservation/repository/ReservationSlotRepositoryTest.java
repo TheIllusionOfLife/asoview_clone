@@ -48,7 +48,7 @@ class ReservationSlotRepositoryTest {
     repository.create("tenant-1", "venue-1", "product-1", "2026-05-02", "09:00", "10:00", 8);
     repository.create("tenant-1", "venue-2", "product-2", "2026-05-01", "09:00", "10:00", 3);
 
-    List<ReservationSlot> result = repository.findByVenueAndDate("venue-1", "2026-05-01");
+    List<ReservationSlot> result = repository.findByVenueAndDate("venue-1", "2026-05-01", null);
     assertThat(result).hasSize(2);
     assertThat(result).allMatch(s -> s.venueId().equals("venue-1"));
     assertThat(result).allMatch(s -> s.slotDate().equals("2026-05-01"));
@@ -58,7 +58,27 @@ class ReservationSlotRepositoryTest {
   void findByVenueAndDate_emptyWhenNoMatch() {
     repository.create("tenant-1", "venue-1", "product-1", "2026-05-01", "09:00", "10:00", 10);
 
-    List<ReservationSlot> result = repository.findByVenueAndDate("venue-1", "2026-12-31");
+    List<ReservationSlot> result = repository.findByVenueAndDate("venue-1", "2026-12-31", null);
     assertThat(result).isEmpty();
+  }
+
+  @Test
+  void findByVenueAndDate_filteredByTenant() {
+    repository.create("tenant-1", "venue-1", "product-1", "2026-05-01", "09:00", "10:00", 10);
+    repository.create("tenant-2", "venue-1", "product-1", "2026-05-01", "10:00", "11:00", 5);
+
+    List<ReservationSlot> tenant1 =
+        repository.findByVenueAndDate("venue-1", "2026-05-01", "tenant-1");
+    assertThat(tenant1).hasSize(1);
+    assertThat(tenant1).allMatch(s -> s.tenantId().equals("tenant-1"));
+
+    List<ReservationSlot> tenant2 =
+        repository.findByVenueAndDate("venue-1", "2026-05-01", "tenant-2");
+    assertThat(tenant2).hasSize(1);
+    assertThat(tenant2).allMatch(s -> s.tenantId().equals("tenant-2"));
+
+    // Null tenantId returns all
+    List<ReservationSlot> all = repository.findByVenueAndDate("venue-1", "2026-05-01", null);
+    assertThat(all).hasSize(2);
   }
 }

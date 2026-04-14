@@ -99,7 +99,41 @@ class ReservationRepositoryTest {
     repository.createWithSlotValidation(slot2.slotId(), "u-2", "idem-2", "B", "b@e.com", 1);
 
     List<Reservation> pending =
-        repository.findByVenueAndStatus("v-1", ReservationStatus.PENDING_APPROVAL);
+        repository.findByVenueAndStatus("v-1", ReservationStatus.PENDING_APPROVAL, null);
     assertThat(pending).hasSize(2);
+  }
+
+  @Test
+  void findByVenueAndStatus_filteredByTenant() {
+    // slot1-slot3 belong to tenant "t-1". Create a slot for "t-2" in the same venue.
+    ReservationSlot slotT2 =
+        slotRepository.create("t-2", "v-1", "p-1", "2026-05-01", "12:00", "13:00", 10);
+
+    // Create reservations: 2 for t-1, 1 for t-2
+    repository.createWithSlotValidation(slot1.slotId(), "u-1", "idem-t1", "A", "a@e.com", 1);
+    repository.createWithSlotValidation(slot2.slotId(), "u-2", "idem-t2", "B", "b@e.com", 1);
+    repository.createWithSlotValidation(slotT2.slotId(), "u-3", "idem-t3", "C", "c@e.com", 1);
+
+    // Null tenant returns all 3
+    List<Reservation> all =
+        repository.findByVenueAndStatus("v-1", ReservationStatus.PENDING_APPROVAL, null);
+    assertThat(all).hasSize(3);
+
+    // t-1 filter excludes the t-2 reservation
+    List<Reservation> t1Only =
+        repository.findByVenueAndStatus("v-1", ReservationStatus.PENDING_APPROVAL, "t-1");
+    assertThat(t1Only).hasSize(2);
+    assertThat(t1Only).allMatch(r -> r.tenantId().equals("t-1"));
+
+    // t-2 filter returns only its reservation
+    List<Reservation> t2Only =
+        repository.findByVenueAndStatus("v-1", ReservationStatus.PENDING_APPROVAL, "t-2");
+    assertThat(t2Only).hasSize(1);
+    assertThat(t2Only).allMatch(r -> r.tenantId().equals("t-2"));
+
+    // Non-existent tenant returns none
+    List<Reservation> other =
+        repository.findByVenueAndStatus("v-1", ReservationStatus.PENDING_APPROVAL, "t-other");
+    assertThat(other).isEmpty();
   }
 }

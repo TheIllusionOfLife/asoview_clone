@@ -13,7 +13,9 @@ import com.google.cloud.spanner.TransactionContext;
 import com.google.cloud.spanner.Value;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Repository;
@@ -96,6 +98,10 @@ public class ReservationRepository {
                       .to(Value.COMMIT_TIMESTAMP)
                       .build());
 
+              tx.buffer(
+                  AuditLogRepository.createMutation(
+                      reservationId, "CREATED", consumerUserId, null));
+
               return new Reservation(
                   reservationId,
                   tenantId,
@@ -172,17 +178,32 @@ public class ReservationRepository {
     return executeQuery(stmt);
   }
 
-  public List<Reservation> findByVenueAndStatus(String venueId, ReservationStatus status) {
-    Statement stmt =
-        Statement.newBuilder(
-                "SELECT * FROM reservations WHERE venue_id = @venueId AND status = @status"
-                    + " ORDER BY created_at DESC")
-            .bind("venueId")
-            .to(venueId)
-            .bind("status")
-            .to(status.name())
-            .build();
-    return executeQuery(stmt);
+  public List<Reservation> findByVenue(String venueId, String tenantId) {
+    String sql = "SELECT * FROM reservations WHERE venue_id = @venueId";
+    if (tenantId != null) {
+      sql += " AND tenant_id = @tenantId";
+    }
+    sql += " ORDER BY created_at DESC";
+    Statement.Builder builder = Statement.newBuilder(sql).bind("venueId").to(venueId);
+    if (tenantId != null) {
+      builder.bind("tenantId").to(tenantId);
+    }
+    return executeQuery(builder.build());
+  }
+
+  public List<Reservation> findByVenueAndStatus(
+      String venueId, ReservationStatus status, String tenantId) {
+    String sql = "SELECT * FROM reservations WHERE venue_id = @venueId AND status = @status";
+    if (tenantId != null) {
+      sql += " AND tenant_id = @tenantId";
+    }
+    sql += " ORDER BY created_at DESC";
+    Statement.Builder builder =
+        Statement.newBuilder(sql).bind("venueId").to(venueId).bind("status").to(status.name());
+    if (tenantId != null) {
+      builder.bind("tenantId").to(tenantId);
+    }
+    return executeQuery(builder.build());
   }
 
   /**
@@ -196,7 +217,8 @@ public class ReservationRepository {
       String reservationId,
       ReservationStatus expectedStatus,
       ReservationStatus newStatus,
-      String reason) {
+      String reason,
+      String actorUserId) {
     return databaseClient
         .readWriteTransaction()
         .run(
@@ -231,6 +253,9 @@ public class ReservationRepository {
               }
 
               tx.buffer(builder.build());
+              tx.buffer(
+                  AuditLogRepository.createMutation(
+                      reservationId, newStatus.name(), actorUserId, reason));
 
               return new Reservation(
                   current.reservationId(),
@@ -258,7 +283,7 @@ public class ReservationRepository {
    * @throws NotFoundException if reservation or slot not found
    * @throws ConflictException if status is not PENDING_APPROVAL or WAITLISTED, or capacity exceeded
    */
-  public Reservation approveAtomically(String reservationId) {
+  public Reservation approveAtomically(String reservationId, String actorUserId) {
     return databaseClient
         .readWriteTransaction()
         .run(
@@ -311,6 +336,8 @@ public class ReservationRepository {
                       .set("updated_at")
                       .to(Value.COMMIT_TIMESTAMP)
                       .build());
+              tx.buffer(
+                  AuditLogRepository.createMutation(reservationId, "APPROVED", actorUserId, null));
 
               // Update slot counters
               Mutation.WriteBuilder slotUpdate =
@@ -354,7 +381,7 @@ public class ReservationRepository {
    * @throws NotFoundException if reservation or slot not found
    * @throws ConflictException if status is not PENDING_APPROVAL
    */
-  public Reservation waitlistAtomically(String reservationId) {
+  public Reservation waitlistAtomically(String reservationId, String actorUserId) {
     return databaseClient
         .readWriteTransaction()
         .run(
@@ -391,6 +418,9 @@ public class ReservationRepository {
                       .set("updated_at")
                       .to(Value.COMMIT_TIMESTAMP)
                       .build());
+              tx.buffer(
+                  AuditLogRepository.createMutation(
+                      reservationId, "WAITLISTED", actorUserId, null));
 
               tx.buffer(
                   Mutation.newUpdateBuilder("reservation_slots")
@@ -428,7 +458,7 @@ public class ReservationRepository {
    * @throws NotFoundException if reservation or slot not found
    * @throws ConflictException if reservation is in a terminal status
    */
-  public Reservation cancelAtomically(String reservationId, String reason) {
+  public Reservation cancelAtomically(String reservationId, String reason, String actorUserId) {
     return databaseClient
         .readWriteTransaction()
         .run(
@@ -454,6 +484,9 @@ public class ReservationRepository {
                       .set("updated_at")
                       .to(Value.COMMIT_TIMESTAMP)
                       .build());
+              tx.buffer(
+                  AuditLogRepository.createMutation(
+                      reservationId, "CANCELLED", actorUserId, reason));
 
               // Release capacity and auto-promote waitlisted if applicable
               if (current.status() == ReservationStatus.APPROVED
@@ -518,6 +551,9 @@ public class ReservationRepository {
                               .set("updated_at")
                               .to(Value.COMMIT_TIMESTAMP)
                               .build());
+                      tx.buffer(
+                          AuditLogRepository.createMutation(
+                              wl.reservationId(), "APPROVED", null, "Auto-promoted from waitlist"));
                       newApprovedCount += wl.guestCount();
                       newWaitlistCount -= wl.guestCount();
                     }
@@ -571,6 +607,25 @@ public class ReservationRepository {
       }
     }
     return null;
+  }
+
+  public Map<String, Long> countByStatus(String venueId, String tenantId) {
+    String sql = "SELECT status, COUNT(*) AS cnt FROM reservations WHERE venue_id = @venueId";
+    if (tenantId != null) {
+      sql += " AND tenant_id = @tenantId";
+    }
+    sql += " GROUP BY status";
+    Statement.Builder builder = Statement.newBuilder(sql).bind("venueId").to(venueId);
+    if (tenantId != null) {
+      builder.bind("tenantId").to(tenantId);
+    }
+    Map<String, Long> counts = new LinkedHashMap<>();
+    try (ResultSet rs = databaseClient.singleUse().executeQuery(builder.build())) {
+      while (rs.next()) {
+        counts.put(rs.getString("status"), rs.getLong("cnt"));
+      }
+    }
+    return counts;
   }
 
   public void deleteAll() {
