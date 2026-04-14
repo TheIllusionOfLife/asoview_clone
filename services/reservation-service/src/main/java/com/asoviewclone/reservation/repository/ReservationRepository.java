@@ -595,7 +595,7 @@ public class ReservationRepository {
         rs.getString("idempotency_key"),
         rs.getString("guest_name"),
         rs.getString("guest_email"),
-        (int) rs.getLong("guest_count"),
+        Math.toIntExact(rs.getLong("guest_count")),
         rs.isNull("reject_reason") ? null : rs.getString("reject_reason"),
         rs.isNull("cancel_reason") ? null : rs.getString("cancel_reason"),
         rs.getTimestamp("created_at").toSqlTimestamp().toInstant(),

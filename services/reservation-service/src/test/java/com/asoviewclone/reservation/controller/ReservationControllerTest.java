@@ -81,6 +81,32 @@ class ReservationControllerTest {
 
   @Test
   @WithMockUser(username = "user-1")
+  void requestReservation_replay_returns200() throws Exception {
+    when(reservationService.requestReservation(
+            anyString(), anyString(), anyString(), anyString(), eq("user-1"), anyInt()))
+        .thenReturn(new CreateResult(SAMPLE, false));
+
+    mockMvc
+        .perform(
+            post("/v1/reservations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "slotId": "slot-1",
+                      "idempotencyKey": "idem-1",
+                      "guestName": "Taro Yamada",
+                      "guestEmail": "taro@example.com",
+                      "guestCount": 2
+                    }
+                    """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.reservationId").value("res-1"))
+        .andExpect(jsonPath("$.status").value("PENDING_APPROVAL"));
+  }
+
+  @Test
+  @WithMockUser(username = "user-1")
   void getReservation_returns200() throws Exception {
     when(reservationService.findById("res-1")).thenReturn(Optional.of(SAMPLE));
 

@@ -1,11 +1,13 @@
 package com.asoviewclone.reservation.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.asoviewclone.reservation.model.Reservation;
 import com.asoviewclone.reservation.model.ReservationSlot;
 import com.asoviewclone.reservation.model.ReservationStatus;
 import com.asoviewclone.reservation.testutil.SpannerEmulatorConfig;
+import com.google.cloud.spanner.SpannerException;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,6 +67,19 @@ class ReservationRepositoryTest {
     Optional<Reservation> existing = repository.findByIdempotencyKey("idem-dup");
     assertThat(existing).isPresent();
     assertThat(existing.get().reservationId()).isEqualTo(first.reservationId());
+
+    // Verify INSERT-FIRST: second create with same key throws ALREADY_EXISTS
+    assertThatThrownBy(
+            () ->
+                repository.createWithSlotValidation(
+                    slot1.slotId(), "user-1", "idem-dup", "Taro", "t@e.com", 1))
+        .isInstanceOf(SpannerException.class)
+        .hasMessageContaining("ALREADY_EXISTS");
+
+    // Verify no duplicate row was created
+    List<Reservation> all = repository.findByConsumerUserId("user-1");
+    assertThat(all).hasSize(1);
+    assertThat(all.get(0).reservationId()).isEqualTo(first.reservationId());
   }
 
   @Test
