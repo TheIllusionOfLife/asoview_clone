@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 
 export default function LoginPage() {
   const t = useTranslations("login");
+  const tc = useTranslations("common");
   const { user, ready, signInWithEmail } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -70,7 +71,7 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full py-2 px-4 bg-[var(--color-primary)] text-white rounded-[var(--radius-md)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 transition-colors"
           >
-            {loading ? "..." : t("submit")}
+            {loading ? tc("loading") : t("submit")}
           </button>
         </form>
       </div>

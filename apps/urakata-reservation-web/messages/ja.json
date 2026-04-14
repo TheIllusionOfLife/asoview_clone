@@ -66,7 +66,8 @@
     "confirm": "確認",
     "auditLog": "操作履歴",
     "noActions": "操作なし",
-    "slotId": "スロットID"
+    "slotId": "スロットID",
+    "byActor": "{actor} による"
   },
   "status": {
     "PENDING_APPROVAL": "承認待ち",

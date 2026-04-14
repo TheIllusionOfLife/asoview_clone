@@ -30,8 +30,12 @@ public class ReservationSlotController {
   @ResponseStatus(HttpStatus.CREATED)
   public ReservationSlot createSlot(@RequestBody CreateSlotRequest request) {
     String tenantId = TenantContext.getCurrentTenantId();
+    if (tenantId == null && request.tenantId() != null) {
+      tenantId = request.tenantId();
+    }
     if (tenantId == null) {
-      tenantId = "default-tenant";
+      throw new IllegalArgumentException(
+          "tenantId is required: provide it in the request body or via JWT claims");
     }
     return slotService.createSlot(
         tenantId,
@@ -61,6 +65,7 @@ public class ReservationSlotController {
   }
 
   record CreateSlotRequest(
+      String tenantId,
       String venueId,
       String productId,
       String slotDate,

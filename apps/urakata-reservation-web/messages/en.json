@@ -66,7 +66,8 @@
     "confirm": "Confirm",
     "auditLog": "Audit Log",
     "noActions": "No actions",
-    "slotId": "Slot ID"
+    "slotId": "Slot ID",
+    "byActor": "by {actor}"
   },
   "status": {
     "PENDING_APPROVAL": "Pending",

@@ -65,6 +65,7 @@ class ReservationSlotControllerTest {
                 .content(
                     """
                     {
+                      "tenantId": "tenant-1",
                       "venueId": "venue-1",
                       "productId": "product-1",
                       "slotDate": "2026-05-01",

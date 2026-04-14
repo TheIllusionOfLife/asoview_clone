@@ -236,7 +236,7 @@ export default function ReservationDetailPage({
                   )}
                   <p className="text-xs text-[var(--color-text-muted)]">
                     {new Date(entry.createdAt).toLocaleString()}
-                    {entry.actorUserId && ` by ${entry.actorUserId}`}
+                    {entry.actorUserId && ` — ${t("byActor", { actor: entry.actorUserId })}`}
                   </p>
                 </div>
               </div>
