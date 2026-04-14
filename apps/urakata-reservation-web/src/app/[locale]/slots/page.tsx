@@ -37,7 +37,11 @@ export default function SlotsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   const fetchSlots = useCallback(async () => {
-    if (!venueId || !date) return;
+    if (!venueId || !date) {
+      setSlots([]);
+      setFetchError(false);
+      return;
+    }
     setLoading(true);
     setFetchError(false);
     try {
