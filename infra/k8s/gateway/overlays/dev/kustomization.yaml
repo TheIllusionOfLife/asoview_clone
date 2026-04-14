@@ -6,3 +6,13 @@ resources:
 images:
   - name: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/gateway
     newTag: latest
+patches:
+  - target:
+      kind: Deployment
+      name: gateway
+    patch: |
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: RESERVATION_SERVICE_URI
+          value: http://reservation-service.core-services.svc.cluster.local:8083
