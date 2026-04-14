@@ -3,6 +3,7 @@ package com.asoviewclone.reservation.controller;
 import com.asoviewclone.reservation.model.SlotUtilization;
 import com.asoviewclone.reservation.repository.ReservationRepository;
 import com.asoviewclone.reservation.repository.ReservationSlotRepository;
+import com.asoviewclone.reservation.security.TenantContext;
 import java.util.List;
 import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,14 +24,16 @@ public class DashboardController {
 
   @GetMapping("/v1/op/dashboard")
   public DashboardSummary getDashboard(@RequestParam String venueId) {
-    Map<String, Long> counts = reservationRepository.countByStatus(venueId);
-    SlotUtilization utilization = slotRepository.getUtilization(venueId);
+    String tenantId = TenantContext.getCurrentTenantId();
+    Map<String, Long> counts = reservationRepository.countByStatus(venueId, tenantId);
+    SlotUtilization utilization = slotRepository.getUtilization(venueId, tenantId);
     return new DashboardSummary(counts, utilization);
   }
 
   @GetMapping("/v1/op/me/venues")
   public List<String> getMyVenues() {
-    return slotRepository.findDistinctVenueIds();
+    String tenantId = TenantContext.getCurrentTenantId();
+    return slotRepository.findDistinctVenueIds(tenantId);
   }
 
   public record DashboardSummary(

@@ -1,6 +1,7 @@
 package com.asoviewclone.reservation.controller;
 
 import com.asoviewclone.reservation.model.ReservationSlot;
+import com.asoviewclone.reservation.security.TenantContext;
 import com.asoviewclone.reservation.service.ReservationSlotService;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -28,8 +29,12 @@ public class ReservationSlotController {
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
   public ReservationSlot createSlot(@RequestBody CreateSlotRequest request) {
+    String tenantId = TenantContext.getCurrentTenantId();
+    if (tenantId == null) {
+      tenantId = "default-tenant";
+    }
     return slotService.createSlot(
-        "default-tenant",
+        tenantId,
         request.venueId(),
         request.productId(),
         request.slotDate(),

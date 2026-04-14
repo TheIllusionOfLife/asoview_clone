@@ -1,10 +1,10 @@
 "use client";
 
-import { useTranslations } from "next-intl";
-import { api } from "@/lib/api";
-import { VenueSelector } from "@/components/VenueSelector";
 import { StatusBadge } from "@/components/StatusBadge";
+import { VenueSelector } from "@/components/VenueSelector";
 import { Link } from "@/i18n/navigation";
+import { api } from "@/lib/api";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 
 type Reservation = {
@@ -44,9 +44,7 @@ export default function ReservationsPage() {
       if (status !== "ALL") {
         params.set("status", status);
       }
-      const data = await api.get<Reservation[]>(
-        `/v1/op/reservations?${params.toString()}`,
-      );
+      const data = await api.get<Reservation[]>(`/v1/op/reservations?${params.toString()}`);
       setReservations(data);
     } catch {
       setReservations([]);

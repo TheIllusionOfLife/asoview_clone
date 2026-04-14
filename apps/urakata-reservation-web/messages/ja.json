@@ -42,7 +42,9 @@
     "save": "保存",
     "cancel": "キャンセル",
     "blocked": "アクティブな予約があるため変更できません",
-    "productId": "商品ID"
+    "productId": "商品ID",
+    "endTimeAfterStart": "終了時間は開始時間より後にしてください",
+    "errorCreateFailed": "スロットの作成に失敗しました"
   },
   "reservations": {
     "title": "予約管理",
@@ -78,6 +80,7 @@
     "error": "エラーが発生しました",
     "noData": "データがありません",
     "success": "成功しました",
-    "back": "戻る"
+    "back": "戻る",
+    "retry": "再試行"
   }
 }

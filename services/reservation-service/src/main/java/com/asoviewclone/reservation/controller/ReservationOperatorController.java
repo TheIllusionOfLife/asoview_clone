@@ -55,6 +55,7 @@ public class ReservationOperatorController {
 
   @GetMapping("/v1/op/reservations/{id}/audit")
   public List<AuditLog> getAuditLog(@PathVariable String id) {
+    reservationService.verifyTenantAccess(id);
     return auditLogRepository.findByReservationId(id);
   }
 

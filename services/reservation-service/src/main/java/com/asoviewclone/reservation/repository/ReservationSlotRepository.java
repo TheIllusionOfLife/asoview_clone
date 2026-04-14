@@ -106,10 +106,11 @@ public class ReservationSlotRepository {
 
   /**
    * Update slot time range and capacity. Blocked if any non-terminal reservation references this
-   * slot (PENDING_APPROVAL, APPROVED, WAITLISTED).
+   * slot (PENDING_APPROVAL, APPROVED, WAITLISTED). Verifies tenant ownership when tenantId is
+   * non-null.
    */
   public ReservationSlot updateSlot(
-      String slotId, String startTime, String endTime, long capacity) {
+      String slotId, String tenantId, String startTime, String endTime, long capacity) {
     return databaseClient
         .readWriteTransaction()
         .run(
@@ -126,6 +127,12 @@ public class ReservationSlotRepository {
                   throw new NotFoundException("Slot not found: " + slotId);
                 }
                 current = fromResultSet(rs);
+              }
+
+              // Verify tenant ownership
+              if (tenantId != null && !tenantId.equals(current.tenantId())) {
+                throw new org.springframework.security.access.AccessDeniedException(
+                    "Tenant mismatch on slot " + slotId);
               }
 
               // Guard: no non-terminal reservations
@@ -161,22 +168,30 @@ public class ReservationSlotRepository {
             });
   }
 
-  /** Hard-delete a slot. Blocked if any non-terminal reservation references this slot. */
-  public void deleteSlot(String slotId) {
+  /**
+   * Hard-delete a slot. Blocked if any non-terminal reservation references this slot. Verifies
+   * tenant ownership when tenantId is non-null.
+   */
+  public void deleteSlot(String slotId, String tenantId) {
     databaseClient
         .readWriteTransaction()
         .run(
             tx -> {
-              // Verify slot exists
+              // Verify slot exists and check tenant
               Statement slotStmt =
                   Statement.newBuilder(
-                          "SELECT slot_id FROM reservation_slots WHERE slot_id = @slotId")
+                          "SELECT slot_id, tenant_id FROM reservation_slots WHERE slot_id = @slotId")
                       .bind("slotId")
                       .to(slotId)
                       .build();
               try (ResultSet rs = tx.executeQuery(slotStmt)) {
                 if (!rs.next()) {
                   throw new NotFoundException("Slot not found: " + slotId);
+                }
+                String slotTenantId = rs.getString("tenant_id");
+                if (tenantId != null && !tenantId.equals(slotTenantId)) {
+                  throw new org.springframework.security.access.AccessDeniedException(
+                      "Tenant mismatch on slot " + slotId);
                 }
               }
 
@@ -206,17 +221,21 @@ public class ReservationSlotRepository {
     }
   }
 
-  public com.asoviewclone.reservation.model.SlotUtilization getUtilization(String venueId) {
-    Statement stmt =
-        Statement.newBuilder(
-                "SELECT COUNT(*) AS total_slots,"
-                    + " COALESCE(SUM(capacity), 0) AS total_capacity,"
-                    + " COALESCE(SUM(approved_count), 0) AS total_approved"
-                    + " FROM reservation_slots WHERE venue_id = @venueId")
-            .bind("venueId")
-            .to(venueId)
-            .build();
-    try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
+  public com.asoviewclone.reservation.model.SlotUtilization getUtilization(
+      String venueId, String tenantId) {
+    String sql =
+        "SELECT COUNT(*) AS total_slots,"
+            + " COALESCE(SUM(capacity), 0) AS total_capacity,"
+            + " COALESCE(SUM(approved_count), 0) AS total_approved"
+            + " FROM reservation_slots WHERE venue_id = @venueId";
+    if (tenantId != null) {
+      sql += " AND tenant_id = @tenantId";
+    }
+    Statement.Builder builder = Statement.newBuilder(sql).bind("venueId").to(venueId);
+    if (tenantId != null) {
+      builder.bind("tenantId").to(tenantId);
+    }
+    try (ResultSet rs = databaseClient.singleUse().executeQuery(builder.build())) {
       if (rs.next()) {
         return new com.asoviewclone.reservation.model.SlotUtilization(
             rs.getLong("total_slots"), rs.getLong("total_capacity"), rs.getLong("total_approved"));
@@ -225,11 +244,18 @@ public class ReservationSlotRepository {
     return new com.asoviewclone.reservation.model.SlotUtilization(0, 0, 0);
   }
 
-  public List<String> findDistinctVenueIds() {
-    Statement stmt =
-        Statement.of("SELECT DISTINCT venue_id FROM reservation_slots ORDER BY venue_id");
+  public List<String> findDistinctVenueIds(String tenantId) {
+    String sql = "SELECT DISTINCT venue_id FROM reservation_slots";
+    if (tenantId != null) {
+      sql += " WHERE tenant_id = @tenantId";
+    }
+    sql += " ORDER BY venue_id";
+    Statement.Builder builder = Statement.newBuilder(sql);
+    if (tenantId != null) {
+      builder.bind("tenantId").to(tenantId);
+    }
     List<String> venueIds = new ArrayList<>();
-    try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
+    try (ResultSet rs = databaseClient.singleUse().executeQuery(builder.build())) {
       while (rs.next()) {
         venueIds.add(rs.getString("venue_id"));
       }

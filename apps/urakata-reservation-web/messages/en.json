@@ -42,7 +42,9 @@
     "save": "Save",
     "cancel": "Cancel",
     "blocked": "Cannot modify: active reservations exist",
-    "productId": "Product ID"
+    "productId": "Product ID",
+    "endTimeAfterStart": "End time must be after start time",
+    "errorCreateFailed": "Failed to create slot"
   },
   "reservations": {
     "title": "Reservations",
@@ -78,6 +80,7 @@
     "error": "An error occurred",
     "noData": "No data",
     "success": "Success",
-    "back": "Back"
+    "back": "Back",
+    "retry": "Retry"
   }
 }

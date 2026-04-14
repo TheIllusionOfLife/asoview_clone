@@ -34,9 +34,10 @@ class DashboardControllerTest {
 
   @Test
   void getDashboard_returnsSummary() throws Exception {
-    when(reservationRepository.countByStatus("venue-1"))
+    when(reservationRepository.countByStatus("venue-1", null))
         .thenReturn(Map.of("PENDING_APPROVAL", 3L, "APPROVED", 5L));
-    when(slotRepository.getUtilization("venue-1")).thenReturn(new SlotUtilization(10, 100, 50));
+    when(slotRepository.getUtilization("venue-1", null))
+        .thenReturn(new SlotUtilization(10, 100, 50));
 
     mockMvc
         .perform(get("/v1/op/dashboard?venueId=venue-1"))
@@ -50,7 +51,7 @@ class DashboardControllerTest {
 
   @Test
   void getMyVenues_returnsList() throws Exception {
-    when(slotRepository.findDistinctVenueIds()).thenReturn(List.of("venue-1", "venue-2"));
+    when(slotRepository.findDistinctVenueIds(null)).thenReturn(List.of("venue-1", "venue-2"));
 
     mockMvc
         .perform(get("/v1/op/me/venues"))

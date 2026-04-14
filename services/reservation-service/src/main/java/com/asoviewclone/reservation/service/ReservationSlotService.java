@@ -4,6 +4,7 @@ import com.asoviewclone.reservation.exception.ConflictException;
 import com.asoviewclone.reservation.exception.NotFoundException;
 import com.asoviewclone.reservation.model.ReservationSlot;
 import com.asoviewclone.reservation.repository.ReservationSlotRepository;
+import com.asoviewclone.reservation.security.TenantContext;
 import com.google.cloud.spanner.SpannerException;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -34,14 +35,16 @@ public class ReservationSlotService {
 
   public ReservationSlot updateSlot(
       String slotId, String startTime, String endTime, long capacity) {
+    String tenantId = TenantContext.getCurrentTenantId();
     return unwrapSpannerException(
-        () -> repository.updateSlot(slotId, startTime, endTime, capacity));
+        () -> repository.updateSlot(slotId, tenantId, startTime, endTime, capacity));
   }
 
   public void deleteSlot(String slotId) {
+    String tenantId = TenantContext.getCurrentTenantId();
     unwrapSpannerException(
         () -> {
-          repository.deleteSlot(slotId);
+          repository.deleteSlot(slotId, tenantId);
           return null;
         });
   }

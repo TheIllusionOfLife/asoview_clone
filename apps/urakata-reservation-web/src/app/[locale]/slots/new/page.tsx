@@ -1,9 +1,9 @@
 "use client";
 
-import { useTranslations } from "next-intl";
-import { api } from "@/lib/api";
 import { VenueSelector } from "@/components/VenueSelector";
 import { useRouter } from "@/i18n/navigation";
+import { api } from "@/lib/api";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 export default function CreateSlotPage() {
@@ -21,7 +21,7 @@ export default function CreateSlotPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (endTime <= startTime) {
-      setError("End time must be after start time");
+      setError(t("endTimeAfterStart"));
       return;
     }
     setError(null);
@@ -37,7 +37,7 @@ export default function CreateSlotPage() {
       });
       router.push("/slots");
     } catch {
-      setError("Failed to create slot");
+      setError(t("errorCreateFailed"));
     } finally {
       setLoading(false);
     }

@@ -1,10 +1,10 @@
 "use client";
 
-import { useTranslations } from "next-intl";
-import { api, ApiError } from "@/lib/api";
-import { StatusBadge } from "@/components/StatusBadge";
 import { ReasonModal } from "@/components/ReasonModal";
+import { StatusBadge } from "@/components/StatusBadge";
 import { Link } from "@/i18n/navigation";
+import { ApiError, api } from "@/lib/api";
+import { useTranslations } from "next-intl";
 import { use, useCallback, useEffect, useState } from "react";
 
 type Reservation = {
@@ -166,8 +166,7 @@ export default function ReservationDetailPage({
 
       {!isTerminal && (
         <div className="flex gap-3 mb-6">
-          {(reservation.status === "PENDING_APPROVAL" ||
-            reservation.status === "WAITLISTED") && (
+          {(reservation.status === "PENDING_APPROVAL" || reservation.status === "WAITLISTED") && (
             <button
               type="button"
               onClick={() => handleAction("approve")}

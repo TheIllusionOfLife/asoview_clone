@@ -1,9 +1,9 @@
 "use client";
 
-import { useTranslations } from "next-intl";
-import { api } from "@/lib/api";
 import { VenueSelector } from "@/components/VenueSelector";
 import { Link } from "@/i18n/navigation";
+import { api } from "@/lib/api";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 
 type Slot = {
@@ -101,7 +101,7 @@ export default function SlotsPage() {
                 </div>
                 <div className="flex gap-2">
                   <Link
-                    href={`/slots/${slot.slotId}/edit`}
+                    href={`/slots/${slot.slotId}/edit?startTime=${encodeURIComponent(slot.startTime)}&endTime=${encodeURIComponent(slot.endTime)}&capacity=${slot.capacity}`}
                     className="text-sm text-[var(--color-primary)] hover:underline"
                   >
                     {t("edit")}

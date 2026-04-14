@@ -99,7 +99,7 @@ class ReservationRepositoryTest {
     repository.createWithSlotValidation(slot2.slotId(), "u-2", "idem-2", "B", "b@e.com", 1);
 
     List<Reservation> pending =
-        repository.findByVenueAndStatus("v-1", ReservationStatus.PENDING_APPROVAL);
+        repository.findByVenueAndStatus("v-1", ReservationStatus.PENDING_APPROVAL, null);
     assertThat(pending).hasSize(2);
   }
 }

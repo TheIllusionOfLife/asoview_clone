@@ -1,9 +1,9 @@
 "use client";
 
-import { useTranslations } from "next-intl";
-import { Link, usePathname } from "@/i18n/navigation";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { AuthProvider, useAuth } from "@/lib/auth";
-import { type ReactNode, useState } from "react";
+import { useTranslations } from "next-intl";
+import { type ReactNode, useEffect, useState } from "react";
 
 function Sidebar() {
   const t = useTranslations("app");
@@ -25,10 +25,17 @@ function Sidebar() {
         onClick={() => setOpen(!open)}
       >
         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M4 6h16M4 12h16M4 18h16"
+          />
         </svg>
       </button>
-      <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-[var(--color-border)] transform transition-transform md:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-[var(--color-border)] transform transition-transform md:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}
+      >
         <div className="p-6">
           <h1 className="text-lg font-bold text-[var(--color-primary)]">{t("title")}</h1>
         </div>
@@ -73,16 +80,23 @@ function Sidebar() {
 function AuthContent({ children }: { children: ReactNode }) {
   const { user, ready } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (ready && !user && pathname !== "/login") {
+      router.replace("/login");
+    }
+  }, [ready, user, pathname, router]);
 
   if (!ready) {
-    return <p className="flex items-center justify-center min-h-screen text-[var(--color-text-muted)]">Loading...</p>;
+    return (
+      <p className="flex items-center justify-center min-h-screen text-[var(--color-text-muted)]">
+        Loading...
+      </p>
+    );
   }
 
   if (!user && pathname !== "/login") {
-    // Client-side redirect to login
-    if (typeof window !== "undefined") {
-      window.location.href = `/ja/login`;
-    }
     return null;
   }
 

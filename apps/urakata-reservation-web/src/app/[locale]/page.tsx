@@ -1,9 +1,9 @@
 "use client";
 
-import { useTranslations } from "next-intl";
-import { api } from "@/lib/api";
 import { VenueSelector } from "@/components/VenueSelector";
 import { Link } from "@/i18n/navigation";
+import { api } from "@/lib/api";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 
 type DashboardSummary = {
@@ -22,10 +22,12 @@ export default function DashboardPage() {
   const [venueId, setVenueId] = useState("");
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
 
   const fetchDashboard = useCallback(async () => {
     if (!venueId) return;
     setLoading(true);
+    setError(false);
     try {
       const data = await api.get<DashboardSummary>(
         `/v1/op/dashboard?venueId=${encodeURIComponent(venueId)}`,
@@ -33,6 +35,7 @@ export default function DashboardPage() {
       setSummary(data);
     } catch {
       setSummary(null);
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -126,9 +129,20 @@ export default function DashboardPage() {
         </>
       )}
 
-      {!loading && !venueId && (
-        <p className="text-[var(--color-text-muted)]">{t("selectVenue")}</p>
+      {!loading && error && venueId && (
+        <div className="text-center py-8">
+          <p className="text-[var(--color-danger)] mb-3">{tc("error")}</p>
+          <button
+            type="button"
+            onClick={fetchDashboard}
+            className="px-4 py-2 border border-[var(--color-border)] rounded-[var(--radius-md)] text-sm"
+          >
+            {tc("retry")}
+          </button>
+        </div>
       )}
+
+      {!loading && !venueId && <p className="text-[var(--color-text-muted)]">{t("selectVenue")}</p>}
     </div>
   );
 }

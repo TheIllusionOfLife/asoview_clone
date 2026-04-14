@@ -34,7 +34,7 @@ export function ReasonModal({ action, onConfirm, onCancel }: Props) {
           </button>
           <button
             type="button"
-            onClick={() => onConfirm(reason)}
+            onClick={() => onConfirm(reason.trim())}
             disabled={!reason.trim()}
             className="px-4 py-2 bg-[var(--color-danger)] text-white rounded-[var(--radius-md)] text-sm disabled:opacity-50"
           >

@@ -52,6 +52,22 @@ spec:
               value: "3000"
             - name: HOSTNAME
               value: 0.0.0.0
+            - name: NEXT_PUBLIC_API_BASE_URL
+              value: "https://asoview-clone-dev.duckdns.org"
+            - name: NEXT_PUBLIC_FIREBASE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: firebase-config
+                  key: api-key
+            - name: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+              value: "asoview-clone-dev.firebaseapp.com"
+            - name: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+              value: "asoview-clone-dev"
+            - name: NEXT_PUBLIC_FIREBASE_APP_ID
+              valueFrom:
+                secretKeyRef:
+                  name: firebase-config
+                  key: app-id
           ports:
             - name: http
               containerPort: 3000

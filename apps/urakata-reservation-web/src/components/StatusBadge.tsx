@@ -16,7 +16,15 @@ export function StatusBadge({ status }: { status: string }) {
   const colors = statusColors[status] ?? "bg-gray-100 text-gray-800";
   return (
     <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${colors}`}>
-      {t(status as "PENDING_APPROVAL" | "APPROVED" | "WAITLISTED" | "REJECTED" | "CANCELLED" | "COMPLETED")}
+      {t(
+        status as
+          | "PENDING_APPROVAL"
+          | "APPROVED"
+          | "WAITLISTED"
+          | "REJECTED"
+          | "CANCELLED"
+          | "COMPLETED",
+      )}
     </span>
   );
 }

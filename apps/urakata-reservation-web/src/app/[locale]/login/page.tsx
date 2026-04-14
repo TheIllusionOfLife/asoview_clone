@@ -1,8 +1,8 @@
 "use client";
 
-import { useTranslations } from "next-intl";
-import { useAuth } from "@/lib/auth";
 import { useRouter } from "@/i18n/navigation";
+import { useAuth } from "@/lib/auth";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 export default function LoginPage() {
@@ -64,9 +64,7 @@ export default function LoginPage() {
               className="w-full px-3 py-2 border border-[var(--color-border)] rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
             />
           </div>
-          {error && (
-            <p className="text-sm text-[var(--color-danger)]">{error}</p>
-          )}
+          {error && <p className="text-sm text-[var(--color-danger)]">{error}</p>}
           <button
             type="submit"
             disabled={loading}

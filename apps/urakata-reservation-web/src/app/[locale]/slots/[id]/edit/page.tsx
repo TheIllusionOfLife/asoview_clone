@@ -1,9 +1,11 @@
 "use client";
 
-import { useTranslations } from "next-intl";
-import { api, ApiError } from "@/lib/api";
 import { useRouter } from "@/i18n/navigation";
+import { ApiError, api } from "@/lib/api";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+
+// Slot data is passed via URL search params from the slot list page
 import { use } from "react";
 
 type Slot = {
@@ -26,21 +28,6 @@ export default function EditSlotPage({ params }: { params: Promise<{ id: string 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    // Fetch slot by listing all slots and finding the one with matching ID
-    // (no direct GET by ID endpoint exists, so we load from slot list context)
-    // For now, we use a simple approach: the edit page gets slot data from the API
-    api
-      .get<Slot[]>(`/v1/op/reservation-slots?venueId=&date=`)
-      .then(() => {
-        // Fallback: we cannot fetch by ID directly from list without venueId/date
-        // The slot data should be passed via URL params or fetched differently
-      })
-      .catch(() => {});
-  }, [id]);
-
-  // Since we don't have a GET-by-ID endpoint for slots, use URL search params
-  // from the referring page. For now, render a form that takes current values.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const s = params.get("startTime");
