@@ -135,6 +135,23 @@
     "popular": "人気の体験",
     "similar": "似た体験"
   },
+  "reservationForm": {
+    "title": "予約リクエスト",
+    "dateLabel": "日付",
+    "loadingSlots": "空き枠を読み込み中…",
+    "loadError": "空き枠の取得に失敗しました",
+    "noSlots": "この日に空き枠はありません。",
+    "slotGroupLabel": "予約可能な時間枠",
+    "full": "満席",
+    "remaining": "残り {n}",
+    "nameLabel": "お名前",
+    "emailLabel": "メールアドレス",
+    "guestCountLabel": "人数",
+    "peopleSuffix": "名",
+    "submitButton": "予約リクエストを送信",
+    "submitting": "送信中…",
+    "submitError": "予約リクエストの送信に失敗しました"
+  },
   "reservations": {
     "pageTitle": "予約リクエスト",
     "loading": "読み込み中…",

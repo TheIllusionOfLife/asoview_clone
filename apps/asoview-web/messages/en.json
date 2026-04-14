@@ -135,6 +135,23 @@
     "popular": "Popular experiences",
     "similar": "Similar experiences"
   },
+  "reservationForm": {
+    "title": "Request Reservation",
+    "dateLabel": "Date",
+    "loadingSlots": "Loading available slots…",
+    "loadError": "Failed to load available slots",
+    "noSlots": "No slots available for this date.",
+    "slotGroupLabel": "Available time slots",
+    "full": "Full",
+    "remaining": "{n} left",
+    "nameLabel": "Name",
+    "emailLabel": "Email",
+    "guestCountLabel": "Guests",
+    "peopleSuffix": " guests",
+    "submitButton": "Submit reservation request",
+    "submitting": "Submitting…",
+    "submitError": "Failed to submit reservation request"
+  },
   "reservations": {
     "pageTitle": "Reservations",
     "loading": "Loading…",
