@@ -75,15 +75,34 @@ class ConsumerSlotControllerTest {
   void listAvailableSlots_filtersFullSlots() throws Exception {
     ReservationSlot available =
         new ReservationSlot(
-            "slot-1", "t-1", "v-1", "p-1", "2026-05-01", "09:00", "10:00", 10, 3, 0,
-            Instant.now(), Instant.now());
+            "slot-1",
+            "t-1",
+            "v-1",
+            "p-1",
+            "2026-05-01",
+            "09:00",
+            "10:00",
+            10,
+            3,
+            0,
+            Instant.now(),
+            Instant.now());
     ReservationSlot full =
         new ReservationSlot(
-            "slot-2", "t-1", "v-1", "p-1", "2026-05-01", "10:00", "11:00", 5, 5, 0,
-            Instant.now(), Instant.now());
+            "slot-2",
+            "t-1",
+            "v-1",
+            "p-1",
+            "2026-05-01",
+            "10:00",
+            "11:00",
+            5,
+            5,
+            0,
+            Instant.now(),
+            Instant.now());
 
-    when(slotService.listPublicSlots("v-1", "2026-05-01"))
-        .thenReturn(List.of(available, full));
+    when(slotService.listPublicSlots("v-1", "2026-05-01")).thenReturn(List.of(available, full));
 
     // Both returned by service; controller includes all (full slots shown with remaining=0)
     mockMvc

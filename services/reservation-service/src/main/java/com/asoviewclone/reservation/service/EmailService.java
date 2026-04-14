@@ -25,7 +25,8 @@ public class EmailService {
   @Async
   public void sendReservationConfirmation(Reservation reservation) {
     if (reservation.guestEmail() == null || reservation.guestEmail().isBlank()) {
-      log.debug("Skipping confirmation email: no guest email for reservation {}",
+      log.debug(
+          "Skipping confirmation email: no guest email for reservation {}",
           reservation.reservationId());
       return;
     }
@@ -37,9 +38,7 @@ public class EmailService {
     message.setText(
         "%s 様\n\n予約リクエストを受け付けました。\n\n予約ID: %s\n人数: %d名\n\nステータスが変更されましたらメールでお知らせいたします。"
             .formatted(
-                reservation.guestName(),
-                reservation.reservationId(),
-                reservation.guestCount()));
+                reservation.guestName(), reservation.reservationId(), reservation.guestCount()));
 
     sendSafely(message, reservation.reservationId());
   }
@@ -47,7 +46,8 @@ public class EmailService {
   @Async
   public void sendStatusChangeNotification(Reservation reservation) {
     if (reservation.guestEmail() == null || reservation.guestEmail().isBlank()) {
-      log.debug("Skipping status notification: no guest email for reservation {}",
+      log.debug(
+          "Skipping status notification: no guest email for reservation {}",
           reservation.reservationId());
       return;
     }

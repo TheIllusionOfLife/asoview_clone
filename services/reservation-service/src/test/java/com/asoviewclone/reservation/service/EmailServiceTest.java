@@ -58,8 +58,20 @@ class EmailServiceTest {
   void sendStatusChangeNotification_approved() {
     Reservation approved =
         new Reservation(
-            "res-1", "t-1", "v-1", "s-1", "u-1", ReservationStatus.APPROVED, "idem-1",
-            "Taro Yamada", "taro@example.com", 2, null, null, Instant.now(), Instant.now());
+            "res-1",
+            "t-1",
+            "v-1",
+            "s-1",
+            "u-1",
+            ReservationStatus.APPROVED,
+            "idem-1",
+            "Taro Yamada",
+            "taro@example.com",
+            2,
+            null,
+            null,
+            Instant.now(),
+            Instant.now());
 
     emailService.sendStatusChangeNotification(approved);
 
@@ -76,9 +88,20 @@ class EmailServiceTest {
   void sendStatusChangeNotification_rejected_includesReason() {
     Reservation rejected =
         new Reservation(
-            "res-1", "t-1", "v-1", "s-1", "u-1", ReservationStatus.REJECTED, "idem-1",
-            "Taro Yamada", "taro@example.com", 2, "Fully booked", null,
-            Instant.now(), Instant.now());
+            "res-1",
+            "t-1",
+            "v-1",
+            "s-1",
+            "u-1",
+            ReservationStatus.REJECTED,
+            "idem-1",
+            "Taro Yamada",
+            "taro@example.com",
+            2,
+            "Fully booked",
+            null,
+            Instant.now(),
+            Instant.now());
 
     emailService.sendStatusChangeNotification(rejected);
 
@@ -93,9 +116,20 @@ class EmailServiceTest {
   void sendStatusChangeNotification_cancelled_includesReason() {
     Reservation cancelled =
         new Reservation(
-            "res-1", "t-1", "v-1", "s-1", "u-1", ReservationStatus.CANCELLED, "idem-1",
-            "Taro Yamada", "taro@example.com", 2, null, "Changed plans",
-            Instant.now(), Instant.now());
+            "res-1",
+            "t-1",
+            "v-1",
+            "s-1",
+            "u-1",
+            ReservationStatus.CANCELLED,
+            "idem-1",
+            "Taro Yamada",
+            "taro@example.com",
+            2,
+            null,
+            "Changed plans",
+            Instant.now(),
+            Instant.now());
 
     emailService.sendStatusChangeNotification(cancelled);
 
@@ -110,8 +144,20 @@ class EmailServiceTest {
   void sendReservationConfirmation_skipsWhenNoEmail() {
     Reservation noEmail =
         new Reservation(
-            "res-1", "t-1", "v-1", "s-1", "u-1", ReservationStatus.PENDING_APPROVAL, "idem-1",
-            "Taro Yamada", null, 2, null, null, Instant.now(), Instant.now());
+            "res-1",
+            "t-1",
+            "v-1",
+            "s-1",
+            "u-1",
+            ReservationStatus.PENDING_APPROVAL,
+            "idem-1",
+            "Taro Yamada",
+            null,
+            2,
+            null,
+            null,
+            Instant.now(),
+            Instant.now());
 
     emailService.sendReservationConfirmation(noEmail);
 
