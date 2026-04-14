@@ -34,9 +34,7 @@ test.describe("reservation API contract", () => {
     });
     await page.goto("/ja/login");
     const result = await page.evaluate(async () => {
-      const res = await fetch(
-        "/v1/op/reservations?venueId=venue-1&status=PENDING_APPROVAL",
-      );
+      const res = await fetch("/v1/op/reservations?venueId=venue-1&status=PENDING_APPROVAL");
       return { status: res.status, body: await res.json() };
     });
     expect(getCalled).toBe(true);
@@ -44,9 +42,7 @@ test.describe("reservation API contract", () => {
     expect(result.body[0].guestName).toBe("Taro Yamada");
   });
 
-  test("GET /v1/op/reservations returns list (without status = ALL)", async ({
-    page,
-  }) => {
+  test("GET /v1/op/reservations returns list (without status = ALL)", async ({ page }) => {
     let url: URL | null = null;
     await page.route("**/v1/op/reservations?*", (route) => {
       url = new URL(route.request().url());
@@ -57,12 +53,10 @@ test.describe("reservation API contract", () => {
       await fetch("/v1/op/reservations?venueId=venue-1");
     });
     expect(url).not.toBeNull();
-    expect(url!.searchParams.get("status")).toBeNull();
+    expect(url?.searchParams.get("status")).toBeNull();
   });
 
-  test("PUT /v1/op/reservations/{id}/approve transitions status", async ({
-    page,
-  }) => {
+  test("PUT /v1/op/reservations/{id}/approve transitions status", async ({ page }) => {
     let approveCalled = false;
     await page.route("**/v1/op/reservations/res-1/approve", (route) => {
       approveCalled = true;
@@ -99,13 +93,11 @@ test.describe("reservation API contract", () => {
       return { status: res.status, body: await res.json() };
     });
     expect(body).not.toBeNull();
-    expect(body!.reason).toBe("No");
+    expect(body?.reason).toBe("No");
     expect(result.body.status).toBe("REJECTED");
   });
 
-  test("PUT /v1/op/reservations/{id}/waitlist transitions status", async ({
-    page,
-  }) => {
+  test("PUT /v1/op/reservations/{id}/waitlist transitions status", async ({ page }) => {
     await page.route("**/v1/op/reservations/res-1/waitlist", (route) => {
       route.fulfill({
         json: { ...MOCK_RESERVATION, status: "WAITLISTED" },
@@ -138,13 +130,11 @@ test.describe("reservation API contract", () => {
       });
       return { body: await res.json() };
     });
-    expect(body!.reason).toBe("Done");
+    expect(body?.reason).toBe("Done");
     expect(result.body.status).toBe("CANCELLED");
   });
 
-  test("GET /v1/op/reservations/{id}/audit returns audit log", async ({
-    page,
-  }) => {
+  test("GET /v1/op/reservations/{id}/audit returns audit log", async ({ page }) => {
     await page.route("**/v1/op/reservations/res-1/audit", (route) => {
       route.fulfill({
         json: [

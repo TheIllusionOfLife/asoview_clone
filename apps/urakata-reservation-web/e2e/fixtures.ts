@@ -1,4 +1,4 @@
-import { test as base, type Page } from "@playwright/test";
+import { type Page, test as base } from "@playwright/test";
 
 /**
  * Bypass Firebase auth by intercepting the Firebase Auth REST API.
@@ -19,9 +19,7 @@ async function mockFirebaseAuth(page: Page) {
   );
 
   // Mock Firebase config fetch
-  await page.route("**/__/firebase/**", (route) =>
-    route.fulfill({ status: 200, body: "{}" }),
-  );
+  await page.route("**/__/firebase/**", (route) => route.fulfill({ status: 200, body: "{}" }));
 }
 
 /**

@@ -25,6 +25,7 @@ function Sidebar() {
         onClick={() => setOpen(!open)}
       >
         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <title>Menu</title>
           <path
             strokeLinecap="round"
             strokeLinejoin="round"

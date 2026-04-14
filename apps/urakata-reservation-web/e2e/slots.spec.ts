@@ -35,9 +35,7 @@ test.describe("slot API contract", () => {
     });
     await page.goto("/ja/login");
     const result = await page.evaluate(async () => {
-      const res = await fetch(
-        "/v1/op/reservation-slots?venueId=venue-1&date=2026-06-01",
-      );
+      const res = await fetch("/v1/op/reservation-slots?venueId=venue-1&date=2026-06-01");
       return { status: res.status, body: await res.json() };
     });
     expect(getCalled).toBe(true);
@@ -77,8 +75,8 @@ test.describe("slot API contract", () => {
     });
     expect(result.status).toBe(201);
     expect(postBody).not.toBeNull();
-    expect(postBody!.venueId).toBe("venue-1");
-    expect(postBody!.capacity).toBe(10);
+    expect(postBody?.venueId).toBe("venue-1");
+    expect(postBody?.capacity).toBe(10);
   });
 
   test("PUT /v1/op/reservation-slots/{id} updates slot", async ({ page }) => {
@@ -121,9 +119,7 @@ test.describe("slot API contract", () => {
     expect(result.status).toBe(204);
   });
 
-  test("DELETE /v1/op/reservation-slots/{id} returns 409 when blocked", async ({
-    page,
-  }) => {
+  test("DELETE /v1/op/reservation-slots/{id} returns 409 when blocked", async ({ page }) => {
     await page.route("**/v1/op/reservation-slots/slot-1", (route) => {
       if (route.request().method() === "DELETE") {
         route.fulfill({
