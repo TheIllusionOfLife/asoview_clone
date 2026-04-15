@@ -33,3 +33,33 @@ resource "google_service_account_iam_member" "commerce_core_workload_identity" {
   role               = "roles/iam.workloadIdentityUser"
   member             = "serviceAccount:${var.project_id}.svc.id.goog[core-services/commerce-core]"
 }
+
+# ticketing-service runs under a dedicated GSA that only gets
+# roles/spanner.databaseUser (no Cloud SQL, no broader project access).
+# Spanner-level fine-grained enforcement is layered on via the
+# `ticketing_service` database role defined in
+# services/commerce-core/src/main/resources/db/spanner/V10__spanner_fine_grained_roles.sql
+# plus roles/spanner.fineGrainedAccessUser on the database with a
+# condition matching that role. Adding the fineGrainedAccessUser
+# binding is deferred until the application code invokes
+# setDatabaseRole("ticketing_service") on the DatabaseClient — otherwise
+# the role grants are inert but still serve as defense-in-depth ready
+# to enforce once wired.
+
+resource "google_service_account" "ticketing_service" {
+  account_id   = "ticketing-service"
+  display_name = "ticketing-service workload identity"
+  project      = var.project_id
+}
+
+resource "google_project_iam_member" "ticketing_service_spanner" {
+  project = var.project_id
+  role    = "roles/spanner.databaseUser"
+  member  = "serviceAccount:${google_service_account.ticketing_service.email}"
+}
+
+resource "google_service_account_iam_member" "ticketing_service_workload_identity" {
+  service_account_id = google_service_account.ticketing_service.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[core-services/ticketing-service]"
+}

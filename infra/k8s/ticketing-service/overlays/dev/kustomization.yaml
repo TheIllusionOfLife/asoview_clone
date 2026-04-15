@@ -7,6 +7,10 @@ images:
   - name: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/ticketing-service
     newTag: latest
 patches:
+  - path: serviceaccount-patch.yaml
+    target:
+      kind: ServiceAccount
+      name: ticketing-service
   - target:
       kind: Deployment
       name: ticketing-service

@@ -37,3 +37,8 @@ output "commerce_core_gsa_email" {
   value       = google_service_account.commerce_core.email
   description = "GSA email to patch into infra/k8s/commerce-core/overlays/dev kustomize annotation."
 }
+
+output "ticketing_service_gsa_email" {
+  value       = google_service_account.ticketing_service.email
+  description = "GSA email to patch into infra/k8s/ticketing-service/overlays/dev kustomize annotation."
+}

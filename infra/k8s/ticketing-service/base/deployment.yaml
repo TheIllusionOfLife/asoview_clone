@@ -26,6 +26,7 @@ spec:
       labels:
         app: ticketing-service
     spec:
+      serviceAccountName: ticketing-service
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
