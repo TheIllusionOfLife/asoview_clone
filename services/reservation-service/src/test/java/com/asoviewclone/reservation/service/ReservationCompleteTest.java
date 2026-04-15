@@ -47,6 +47,25 @@ class ReservationCompleteTest {
     Reservation completed = reservationService.complete(reservation.reservationId());
 
     assertThat(completed.status()).isEqualTo(ReservationStatus.COMPLETED);
+
+    // approved_count must NOT be decremented: the slot capacity was consumed
+    ReservationSlot afterComplete = slotRepository.findById(slot.slotId()).orElseThrow();
+    assertThat(afterComplete.approvedCount()).isEqualTo(2);
+  }
+
+  @Test
+  void complete_alreadyCompleted_fails() {
+    ReservationSlot slot =
+        slotRepository.create("t-1", "v-1", "p-1", "2026-06-01", "09:00", "10:00", 10);
+    Reservation reservation =
+        reservationRepository.createWithSlotValidation(
+            slot.slotId(), "u-1", "idem-complete-twice", "Taro", "t@e.com", 1);
+
+    reservationService.approve(reservation.reservationId());
+    reservationService.complete(reservation.reservationId());
+
+    assertThatThrownBy(() -> reservationService.complete(reservation.reservationId()))
+        .isInstanceOf(ConflictException.class);
   }
 
   @Test
