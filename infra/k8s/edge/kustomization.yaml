@@ -13,3 +13,4 @@ kind: Kustomization
 resources:
   - clusterissuer.yaml
   - ingress.yaml
+  - externalname-services.yaml

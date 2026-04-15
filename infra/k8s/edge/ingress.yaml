@@ -31,6 +31,8 @@ spec:
   tls:
     - hosts:
         - asoview-clone-dev.duckdns.org
+        - asoview-tickets.duckdns.org
+        - asoview-operator.duckdns.org
       secretName: asoview-clone-tls
   rules:
     - host: asoview-clone-dev.duckdns.org
@@ -48,5 +50,43 @@ spec:
             backend:
               service:
                 name: web
+                port:
+                  number: 3000
+    # Consumer ticket display PWA. Backing Service lives in consumer-web;
+    # urakata-ticket-web-external is the ExternalName alias in edge so the
+    # namespace-local ingress rule can reference it.
+    - host: asoview-tickets.duckdns.org
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: urakata-ticket-web-external
+                port:
+                  number: 3000
+    # Operator reservation UI. Backing Service lives in operator-web.
+    - host: asoview-operator.duckdns.org
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: urakata-reservation-web-external
                 port:
                   number: 3000
