@@ -7,6 +7,7 @@ import com.asoviewclone.commercecore.catalog.model.ProductStatus;
 import com.asoviewclone.commercecore.catalog.model.ProductVariant;
 import com.asoviewclone.commercecore.catalog.repository.ProductRepository;
 import com.asoviewclone.commercecore.catalog.repository.ProductVariantRepository;
+import com.asoviewclone.commercecore.entitlements.service.VenueTenantResolver;
 import com.asoviewclone.commercecore.identity.model.Tenant;
 import com.asoviewclone.commercecore.identity.model.Venue;
 import com.asoviewclone.commercecore.identity.repository.TenantRepository;
@@ -21,7 +22,9 @@ import com.google.cloud.spanner.Mutation;
 import com.google.cloud.spanner.ResultSet;
 import com.google.cloud.spanner.Statement;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.UUID;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,6 +50,7 @@ class TicketPassBackfillJobTest {
   @Autowired private ProductVariantRepository productVariantRepository;
   @Autowired private TenantRepository tenantRepository;
   @Autowired private VenueRepository venueRepository;
+  @Autowired private VenueTenantResolver resolver;
 
   @BeforeEach
   void purgeSpannerState() {
@@ -87,6 +91,30 @@ class TicketPassBackfillJobTest {
     assertThat(countPassesWithVenue(f.variantId, f.venueId, f.tenantId)).isEqualTo(3);
     assertThat(countPassesWithVenue(f.variantId, knownVenue, knownTenant)).isEqualTo(2);
     assertThat(passVenueId(orphanPassId)).isNull();
+  }
+
+  @Test
+  void run_terminatesWhenUnresolvableExceedsBatchSize() {
+    // Regression for the bug Devin caught: when unresolvable rows >= maxRowsPerBatch,
+    // the WHERE venue_id IS NULL filter keeps returning a full-sized batch of already-
+    // known unresolvables. candidates.size() never falls below the limit, so the
+    // short-batch exit never triggers. The no-progress guard must kick in instead.
+    //
+    // Seed 5 unresolvable passes and run with batch-mutations=4 (maxRowsPerBatch=2) so
+    // even the first batch cannot drain the pool. If the loop doesn't terminate, the
+    // timeout assertion fails deterministically.
+    for (int i = 0; i < 5; i++) {
+      seedPass(UUID.randomUUID().toString(), UUID.randomUUID().toString(), null, null);
+    }
+    TicketPassBackfillJob tinyBatchJob = new TicketPassBackfillJob(spannerClient, resolver, 4);
+
+    TicketPassBackfillJob.Report report =
+        Assertions.assertTimeoutPreemptively(Duration.ofSeconds(20), tinyBatchJob::run);
+
+    assertThat(report.updated()).isEqualTo(0);
+    // Exact count depends on Spanner scan order across batches; the invariant is just
+    // that we terminated and discovered at least the first batch's worth.
+    assertThat(report.unresolved()).isBetween(2, 5);
   }
 
   @Test

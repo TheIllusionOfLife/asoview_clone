@@ -60,6 +60,7 @@ public class TicketPassBackfillJob {
       }
 
       List<Mutation> mutations = new ArrayList<>();
+      int newUnresolvedThisBatch = 0;
       for (Candidate c : candidates) {
         if (unresolvedIds.contains(c.passId)) {
           // Already reported on a previous batch; skip silently so the report counts each
@@ -73,6 +74,7 @@ public class TicketPassBackfillJob {
               c.passId,
               c.productVariantId);
           unresolvedIds.add(c.passId);
+          newUnresolvedThisBatch++;
           continue;
         }
         mutations.add(
@@ -91,14 +93,15 @@ public class TicketPassBackfillJob {
         updated += mutations.size();
       }
 
-      // Termination rule: cursor exhausted when the batch returned fewer rows than the
-      // requested limit. We cannot break on empty mutations — a batch of all-unresolvable
-      // rows still consumes the limit but produces zero writes, and further batches may
-      // contain resolvable rows. Since readBatch filters on NULL and we UPDATE those NULLs
-      // in-place, resolved rows fall out of subsequent queries naturally; unresolvable
-      // rows persist but are deduped via unresolvedIds, so we terminate on the next
-      // short batch.
-      if (candidates.size() < maxRowsPerBatch) {
+      // Termination. Two independent reasons to stop:
+      //   1. Short batch -> cursor exhausted, no rows left matching WHERE venue_id IS NULL.
+      //   2. No progress -> every candidate in this full-sized batch was already in
+      //      unresolvedIds (nothing written, nothing newly discovered). Without this guard,
+      //      a population of >=maxRowsPerBatch unresolvable rows would spin forever: the
+      //      NULL-filter query keeps re-serving them, the dedup set keeps skipping them,
+      //      and candidates.size() stays at the limit.
+      boolean madeProgress = !mutations.isEmpty() || newUnresolvedThisBatch > 0;
+      if (candidates.size() < maxRowsPerBatch || !madeProgress) {
         break;
       }
     }
