@@ -77,6 +77,7 @@ public class EmailService {
       case REJECTED -> "予約が却下されました";
       case WAITLISTED -> "予約がキャンセル待ちになりました";
       case CANCELLED -> "予約がキャンセルされました";
+      case COMPLETED -> "予約が完了しました";
       default -> "予約ステータスが変更されました";
     };
   }

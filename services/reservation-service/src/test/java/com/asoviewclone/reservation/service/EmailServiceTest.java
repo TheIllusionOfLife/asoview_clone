@@ -146,6 +146,35 @@ class EmailServiceTest {
   }
 
   @Test
+  void sendStatusChangeNotification_completed_hasSpecificSubject() {
+    Reservation completed =
+        new Reservation(
+            "res-1",
+            "t-1",
+            "v-1",
+            "s-1",
+            "u-1",
+            ReservationStatus.COMPLETED,
+            "idem-1",
+            "Taro Yamada",
+            "taro@example.com",
+            2,
+            null,
+            null,
+            Instant.now(),
+            Instant.now());
+
+    emailService.sendStatusChangeNotification(completed);
+
+    ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+    verify(mailSender).send(captor.capture());
+
+    SimpleMailMessage msg = captor.getValue();
+    assertThat(msg.getSubject()).isEqualTo("予約が完了しました");
+    assertThat(msg.getText()).contains("完了");
+  }
+
+  @Test
   void sendReservationConfirmation_skipsWhenNoEmail() {
     Reservation noEmail =
         new Reservation(
