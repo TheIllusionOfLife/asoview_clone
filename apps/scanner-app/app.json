@@ -6,10 +6,22 @@
     "scheme": "asoview-scanner",
     "platforms": ["ios", "android"],
     "ios": {
-      "bundleIdentifier": "com.asoviewclone.scanner"
+      "bundleIdentifier": "com.asoviewclone.scanner",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Scanner uses the camera to read ticket QR codes at venue gates."
+      }
     },
     "android": {
-      "package": "com.asoviewclone.scanner"
-    }
+      "package": "com.asoviewclone.scanner",
+      "permissions": ["android.permission.CAMERA"]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Scanner uses the camera to read ticket QR codes at venue gates."
+        }
+      ]
+    ]
   }
 }
