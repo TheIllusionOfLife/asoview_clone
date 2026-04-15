@@ -55,12 +55,18 @@ claims="$(jq -nc \
   --argjson venues "$venues_json" \
   '{roles: [$roles], scannerVenues: $venues}')"
 
-curl -sS -X POST \
+update_response="$(curl -sS -X POST \
   "https://identitytoolkit.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/accounts:update?key=${API_KEY}" \
   -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
-  -d "{\"localId\":\"${uid}\",\"customAttributes\":$(echo "$claims" | jq -Rs .)}" \
-  > /dev/null
+  -d "{\"localId\":\"${uid}\",\"customAttributes\":$(echo "$claims" | jq -Rs .)}")"
+
+if echo "$update_response" | jq -e '.error' >/dev/null 2>&1; then
+  err_msg="$(echo "$update_response" | jq -r '.error.message // "unknown error"')"
+  echo "ERROR: Identity Toolkit accounts:update failed: ${err_msg}" >&2
+  echo "       full response: ${update_response}" >&2
+  exit 1
+fi
 
 echo "Granted ${SCANNER_USER_EMAIL} claims: ${claims}"
 echo "User must sign out and back in to receive the updated token."

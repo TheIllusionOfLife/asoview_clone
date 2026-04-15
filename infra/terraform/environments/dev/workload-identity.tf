@@ -65,10 +65,19 @@ resource "google_service_account_iam_member" "ticketing_service_workload_identit
 }
 
 # FGAC role enforcement. Required once SpannerConfig is configured to set the
-# `ticketing_service` database role on SpannerOptions. The fineGrainedAccessUser
-# binding is conditioned to only grant access when the client explicitly sets
-# that role, which means workloads without the role still hit the base
-# databaseUser grants above.
+# `ticketing_service` database role on SpannerOptions.
+#
+# Scoping note: the fineGrainedAccessUser role is granted at the project level
+# here. Its actual effect is constrained by Spanner database roles defined in
+# V10__spanner_fine_grained_roles.sql — the GSA can only exercise privileges
+# granted to database roles that Spanner itself attaches to the client session.
+# The V10 DDL grants `ticketing_service` role only SELECT/INSERT on
+# scan_audit_log + UPDATE on ticket_passes, so attempting DELETE on
+# scan_audit_log returns PERMISSION_DENIED even with this IAM binding in place.
+#
+# IAM conditions on fineGrainedAccessUser aren't applicable here: the role is
+# scoped via Spanner DDL, not via request attributes. If we later add a second
+# FGAC-gated database, narrow this binding to that database's resource name.
 resource "google_project_iam_member" "ticketing_service_fgac" {
   project = var.project_id
   role    = "roles/spanner.fineGrainedAccessUser"

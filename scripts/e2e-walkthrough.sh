@@ -86,7 +86,7 @@ NOW="$(date +%s)"
 PAYLOAD="{\"id\":\"evt_e2e_${NOW}\",\"type\":\"payment_intent.succeeded\",\"data\":{\"object\":{\"id\":\"pi_e2e_${NOW}\",\"metadata\":{\"paymentId\":\"${PAYMENT_ID}\"}}}}"
 SIG_PAYLOAD="${NOW}.${PAYLOAD}"
 SIGNATURE="$(printf '%s' "$SIG_PAYLOAD" | openssl dgst -sha256 -hmac "$STRIPE_WEBHOOK_SECRET" -binary | xxd -p -c 256)"
-curl -sS -X POST "${API_BASE_URL}/v1/webhooks/stripe" \
+curl -sS -X POST "${API_BASE_URL}/v1/payments/webhooks/stripe" \
   -H "Stripe-Signature: t=${NOW},v1=${SIGNATURE}" \
   -H "Content-Type: application/json" \
   -d "$PAYLOAD" > /dev/null

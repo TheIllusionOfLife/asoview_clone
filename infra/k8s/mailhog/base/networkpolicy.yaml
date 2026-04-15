@@ -20,5 +20,18 @@ spec:
           port: 1025
         - protocol: TCP
           port: 8025
+  # MailHog is a local SMTP capture sink; it has no need to egress. Allow only
+  # kube-dns so liveness/readiness resolution works.
   egress:
-    - {}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

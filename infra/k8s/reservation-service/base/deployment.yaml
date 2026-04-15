@@ -78,12 +78,13 @@ spec:
                 secretKeyRef:
                   name: smtp-config
                   key: from
-            # MailHog is SMTP-auth-less in dev, so disable STARTTLS + auth
-            # here. Prod overlay re-enables both.
+            # Secure defaults in base. The dev overlay flips these to "false"
+            # because MailHog is SMTP-auth-less; a real provider (SendGrid,
+            # Gmail, etc.) requires auth + STARTTLS.
             - name: MAIL_SMTP_AUTH
-              value: "false"
+              value: "true"
             - name: MAIL_SMTP_STARTTLS
-              value: "false"
+              value: "true"
           ports:
             - name: http
               containerPort: 8083
