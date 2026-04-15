@@ -7,6 +7,10 @@ import com.asoviewclone.commercecore.catalog.repository.ProductRepository;
 import com.google.genai.Client;
 import com.google.genai.types.GenerateContentResponse;
 import jakarta.annotation.PostConstruct;
+import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,8 +27,9 @@ import org.springframework.stereotype.Service;
 public class ChatService {
 
   private static final Logger log = LoggerFactory.getLogger(ChatService.class);
-  private final String model;
+  private static final Duration GEMINI_TIMEOUT = Duration.ofSeconds(15);
 
+  private final String model;
   private final Client geminiClient;
   private final ProductRepository productRepository;
   private String catalogContext;
@@ -64,13 +69,25 @@ public class ChatService {
   public ChatResponse chat(String message) {
     try {
       String prompt = buildPrompt(message);
-      GenerateContentResponse response = geminiClient.models.generateContent(model, prompt, null);
-      String text = response.text();
+      // Wrap the Gemini call in a 15 s timeout so a hung upstream doesn't tie up a tomcat
+      // thread indefinitely. Gemini's SDK doesn't expose a deadline on generateContent(),
+      // so we run it on a CompletableFuture and time out at the caller.
+      String text =
+          CompletableFuture.supplyAsync(
+                  () -> {
+                    GenerateContentResponse response =
+                        geminiClient.models.generateContent(model, prompt, null);
+                    return response.text();
+                  })
+              .get(GEMINI_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
       if (text == null || text.isBlank()) {
         log.warn("Gemini returned null/blank response for model={}", model);
         return new ChatResponse("回答を生成できませんでした。もう一度お試しください。");
       }
       return new ChatResponse(text);
+    } catch (TimeoutException e) {
+      log.warn("Gemini chat timed out after {} ms", GEMINI_TIMEOUT.toMillis());
+      return new ChatResponse("応答に時間がかかっています。しばらくしてから再度お試しください。");
     } catch (Exception e) {
       log.error("Gemini chat failed", e);
       return new ChatResponse("申し訳ございません。現在チャットをご利用いただけません。");

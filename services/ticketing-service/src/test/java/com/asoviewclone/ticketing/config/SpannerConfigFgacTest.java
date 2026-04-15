@@ -12,8 +12,8 @@ import org.springframework.test.context.TestPropertySource;
 
 /**
  * Asserts the FGAC role plumbing sets {@code SpannerOptions.databaseRole} when configured, and
- * leaves it null otherwise. Doesn't exercise Spanner IAM — the Spanner emulator used by the rest
- * of the test suite doesn't implement CREATE ROLE / GRANT. Live-cluster enforcement is verified
+ * leaves it null otherwise. Doesn't exercise Spanner IAM — the Spanner emulator used by the rest of
+ * the test suite doesn't implement CREATE ROLE / GRANT. Live-cluster enforcement is verified
  * manually (see PR body for the {@code gcloud spanner databases execute-sql} DELETE check).
  */
 class SpannerConfigFgacTest {
