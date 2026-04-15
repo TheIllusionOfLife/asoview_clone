@@ -6,3 +6,23 @@ resources:
 images:
   - name: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/ticketing-service
     newTag: latest
+patches:
+  - target:
+      kind: Deployment
+      name: ticketing-service
+    patch: |
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: SPANNER_PROJECT_ID
+          value: asoview-clone-dev
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: SPANNER_INSTANCE_ID
+          value: asoview-clone
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: SPANNER_DATABASE
+          value: asoview

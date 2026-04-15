@@ -1,4 +1,4 @@
-package com.asoviewclone.commercecore.entitlements.model;
+package com.asoviewclone.ticketing.model;
 
 public enum TicketPassStatus {
   VALID,
