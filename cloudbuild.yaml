@@ -192,10 +192,24 @@ steps:
   - id: build-urakata-ticket-web
     name: gcr.io/cloud-builders/docker
     waitFor: ['-']
+    # --build-arg is required: NEXT_PUBLIC_* values are inlined into the
+    # client bundle at build time. Runtime env vars in deployment.yaml
+    # only affect the Next.js server; the browser bundle would ship with
+    # undefined Firebase config without these flags.
     args:
       - build
       - -f
       - apps/urakata-ticket-web/Dockerfile
+      - --build-arg
+      - NEXT_PUBLIC_API_BASE_URL=https://${_DOMAIN}/api
+      - --build-arg
+      - NEXT_PUBLIC_FIREBASE_API_KEY=${_FIREBASE_API_KEY}
+      - --build-arg
+      - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${_FIREBASE_AUTH_DOMAIN}
+      - --build-arg
+      - NEXT_PUBLIC_FIREBASE_PROJECT_ID=${_FIREBASE_PROJECT_ID}
+      - --build-arg
+      - NEXT_PUBLIC_FIREBASE_APP_ID=${_FIREBASE_APP_ID}
       - -t
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/urakata-ticket-web:$SHORT_SHA
       - -t

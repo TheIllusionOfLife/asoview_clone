@@ -53,7 +53,7 @@ spec:
             - name: HOSTNAME
               value: 0.0.0.0
             - name: NEXT_PUBLIC_API_BASE_URL
-              value: "https://asoview-clone-dev.duckdns.org"
+              value: "https://asoview-clone-dev.duckdns.org/api"
             - name: NEXT_PUBLIC_FIREBASE_API_KEY
               valueFrom:
                 secretKeyRef:

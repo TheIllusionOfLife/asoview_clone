@@ -3,7 +3,7 @@
 import { Link, useRouter } from "@/i18n/navigation";
 import { ApiError, type TicketPass, listMyTickets } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useState } from "react";
@@ -11,12 +11,15 @@ import { useCallback, useEffect, useState } from "react";
 export default function TicketDetailPage() {
   const t = useTranslations("tickets");
   const tc = useTranslations("common");
+  const locale = useLocale();
   const { ready, user } = useAuth();
   const router = useRouter();
   const params = useParams<{ passId: string }>();
   const passId = params.passId;
   const [ticket, setTicket] = useState<TicketPass | null>(null);
-  const [loading, setLoading] = useState(false);
+  // Start at true so the initial render shows "loading" instead of briefly
+  // rendering the "no longer valid" card before the first fetch resolves.
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   const fetchTicket = useCallback(async () => {
@@ -34,6 +37,7 @@ export default function TicketDetailPage() {
         router.replace("/login");
         return;
       }
+      console.error("Failed to load ticket detail", e);
       setTicket(null);
       setError(true);
     } finally {
@@ -124,13 +128,13 @@ export default function TicketDetailPage() {
             {ticket.validFrom && (
               <div className="flex justify-between gap-4">
                 <dt className="text-[var(--color-text-muted)]">{t("validFrom")}</dt>
-                <dd>{new Date(ticket.validFrom).toLocaleString()}</dd>
+                <dd>{new Date(ticket.validFrom).toLocaleString(locale)}</dd>
               </div>
             )}
             {ticket.validUntil && (
               <div className="flex justify-between gap-4">
                 <dt className="text-[var(--color-text-muted)]">{t("validUntil")}</dt>
-                <dd>{new Date(ticket.validUntil).toLocaleString()}</dd>
+                <dd>{new Date(ticket.validUntil).toLocaleString(locale)}</dd>
               </div>
             )}
           </dl>

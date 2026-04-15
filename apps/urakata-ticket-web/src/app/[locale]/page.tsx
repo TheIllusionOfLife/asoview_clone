@@ -1,49 +1,23 @@
 "use client";
 
-import { Link } from "@/i18n/navigation";
-import { type TicketPass, listMyTickets } from "@/lib/api";
+import { Link, useRouter } from "@/i18n/navigation";
+import { ApiError, type TicketPass, listMyTickets } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { useTranslations } from "next-intl";
+import { statusBadgeClass, statusLabel, statusOrder } from "@/lib/ticketStatus";
+import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
-
-function statusBadgeClass(status: TicketPass["status"]): string {
-  switch (status) {
-    case "VALID":
-      return "bg-[var(--color-success)] text-white";
-    case "USED":
-      return "bg-[var(--color-text-muted)] text-white";
-    case "EXPIRED":
-      return "bg-[var(--color-warning)] text-white";
-    case "REVOKED":
-      return "bg-[var(--color-danger)] text-white";
-  }
-}
-
-function statusLabel(status: TicketPass["status"], t: (k: string) => string): string {
-  switch (status) {
-    case "VALID":
-      return t("valid");
-    case "USED":
-      return t("used");
-    case "EXPIRED":
-      return t("expired");
-    case "REVOKED":
-      return t("revoked");
-  }
-}
-
-function statusOrder(status: TicketPass["status"]): number {
-  // VALID first, then USED/EXPIRED/REVOKED together.
-  return status === "VALID" ? 0 : 1;
-}
 
 export default function TicketListPage() {
   const t = useTranslations("tickets");
   const ta = useTranslations("app");
   const tc = useTranslations("common");
+  const locale = useLocale();
   const { ready, user, signOut } = useAuth();
+  const router = useRouter();
   const [tickets, setTickets] = useState<TicketPass[] | null>(null);
-  const [loading, setLoading] = useState(false);
+  // Start at true to avoid a flash of "no tickets" before the first fetch
+  // resolves — initial mount always triggers a fetch.
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   const fetchTickets = useCallback(async () => {
@@ -58,13 +32,18 @@ export default function TicketListPage() {
         return (b.validFrom ?? "").localeCompare(a.validFrom ?? "");
       });
       setTickets(data);
-    } catch {
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        router.replace("/login");
+        return;
+      }
+      console.error("Failed to load ticket list", e);
       setTickets(null);
       setError(true);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (ready && user) fetchTickets();
@@ -127,7 +106,7 @@ export default function TicketListPage() {
                     </p>
                     {tk.validUntil && (
                       <p className="text-xs text-[var(--color-text-muted)] mt-1">
-                        {t("validUntil")}: {new Date(tk.validUntil).toLocaleString()}
+                        {t("validUntil")}: {new Date(tk.validUntil).toLocaleString(locale)}
                       </p>
                     )}
                   </div>

@@ -73,10 +73,11 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
       signal: ctrl.signal,
     });
-  } catch {
+  } catch (err) {
     clearTimeout(timer);
     if (options.signal) options.signal.removeEventListener("abort", onExternalAbort);
-    throw new ApiError(0, "Network error");
+    const message = err instanceof Error ? err.message : "Network error";
+    throw new ApiError(0, message);
   }
   clearTimeout(timer);
   if (options.signal) options.signal.removeEventListener("abort", onExternalAbort);
