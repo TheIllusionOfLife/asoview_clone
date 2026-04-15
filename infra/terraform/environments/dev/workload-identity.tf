@@ -63,3 +63,38 @@ resource "google_service_account_iam_member" "ticketing_service_workload_identit
   role               = "roles/iam.workloadIdentityUser"
   member             = "serviceAccount:${var.project_id}.svc.id.goog[core-services/ticketing-service]"
 }
+
+# FGAC role enforcement. Required once SpannerConfig is configured to set the
+# `ticketing_service` database role on SpannerOptions. The fineGrainedAccessUser
+# binding is conditioned to only grant access when the client explicitly sets
+# that role, which means workloads without the role still hit the base
+# databaseUser grants above.
+resource "google_project_iam_member" "ticketing_service_fgac" {
+  project = var.project_id
+  role    = "roles/spanner.fineGrainedAccessUser"
+  member  = "serviceAccount:${google_service_account.ticketing_service.email}"
+}
+
+# External Secrets Operator syncs Google Secret Manager secrets into in-cluster
+# k8s Secrets. The operator itself is installed via Argo CD
+# (infra/argocd/applications/_external-secrets.yaml); this GSA is bound to its
+# KSA so the ClusterSecretStore can authenticate to GSM.
+
+resource "google_service_account" "external_secrets_operator" {
+  account_id   = "external-secrets-operator"
+  display_name = "External Secrets Operator → Google Secret Manager"
+  project      = var.project_id
+}
+
+resource "google_project_iam_member" "external_secrets_operator_accessor" {
+  project = var.project_id
+  role    = "roles/secretmanager.secretAccessor"
+  member  = "serviceAccount:${google_service_account.external_secrets_operator.email}"
+}
+
+resource "google_service_account_iam_member" "external_secrets_operator_workload_identity" {
+  service_account_id = google_service_account.external_secrets_operator.name
+  role               = "roles/iam.workloadIdentityUser"
+  # ESO installs its controller KSA at external-secrets/external-secrets by default.
+  member = "serviceAccount:${var.project_id}.svc.id.goog[external-secrets/external-secrets]"
+}

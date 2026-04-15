@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mailhog
+  namespace: core-services
+spec:
+  podSelector:
+    matchLabels:
+      app: mailhog
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    # Everything inside core-services can SMTP to MailHog (reservation-service,
+    # commerce-core) plus tests that port-forward into the namespace.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: core-services
+      ports:
+        - protocol: TCP
+          port: 1025
+        - protocol: TCP
+          port: 8025
+  egress:
+    - {}
