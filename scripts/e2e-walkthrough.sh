@@ -40,12 +40,15 @@ fail_count=0
 step() {
   local name="$1"
   shift
+  # Avoid ((counter++)) — under `set -e`, the post-increment expression returns
+  # the pre-value, and a value of 0 counts as a non-zero exit status, aborting
+  # the script. $((counter + 1)) form always evaluates to non-zero.
   if "$@"; then
     echo "  PASS  $name"
-    ((pass_count++))
+    pass_count=$((pass_count + 1))
   else
     echo "  FAIL  $name" >&2
-    ((fail_count++))
+    fail_count=$((fail_count + 1))
   fi
 }
 

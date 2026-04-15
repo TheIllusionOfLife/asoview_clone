@@ -10,7 +10,7 @@ test.describe("AI recommendations", () => {
     "AI disabled — skipping recommendations check",
   );
 
-  test("signed-in user sees recommendation cards", async ({ page, request }) => {
+  test("signed-in user gets recommendation list from API", async ({ request }) => {
     const email = process.env.E2E_TEST_EMAIL;
     const password = process.env.E2E_TEST_PASSWORD;
     const apiKey = process.env.E2E_FIREBASE_API_KEY;
@@ -23,8 +23,9 @@ test.describe("AI recommendations", () => {
         data: { email, password, returnSecureToken: true },
       },
     );
-    expect(signInResponse.ok()).toBeTruthy();
+    expect(signInResponse.ok(), "Firebase sign-in failed").toBeTruthy();
     const { idToken } = await signInResponse.json();
+    expect(idToken, "Missing idToken in sign-in response").toBeTruthy();
 
     const recsResponse = await request.get(
       `${process.env.API_BASE_URL ?? "https://asoview-clone-dev.duckdns.org/api"}/v1/me/recommendations?limit=5`,

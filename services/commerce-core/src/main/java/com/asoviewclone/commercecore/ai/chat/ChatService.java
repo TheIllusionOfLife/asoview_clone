@@ -12,6 +12,7 @@ import java.time.Duration;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -102,29 +103,37 @@ public class ChatService {
 
   public ChatResponse chat(String message) {
     String prompt = buildPrompt(message);
-    // Wrap the Gemini call in a 15 s timeout so a hung upstream doesn't tie up a tomcat
-    // thread indefinitely. Gemini's SDK doesn't expose a deadline on generateContent(),
-    // so we submit to a dedicated executor and cancel on timeout to free the pooled thread.
-    Future<String> future =
-        geminiExecutor.submit(
-            () -> {
-              GenerateContentResponse response =
-                  geminiClient.models.generateContent(model, prompt, null);
-              return response.text();
-            });
+    Future<String> future = null;
     try {
+      // Wrap the Gemini call in a 15 s timeout so a hung upstream doesn't tie up a tomcat
+      // thread indefinitely. Gemini's SDK doesn't expose a deadline on generateContent(),
+      // so we submit to a dedicated executor and cancel on timeout to free the pooled thread.
+      future =
+          geminiExecutor.submit(
+              () -> {
+                GenerateContentResponse response =
+                    geminiClient.models.generateContent(model, prompt, null);
+                return response.text();
+              });
       String text = future.get(GEMINI_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
       if (text == null || text.isBlank()) {
         log.warn("Gemini returned null/blank response for model={}", model);
         return new ChatResponse("回答を生成できませんでした。もう一度お試しください。");
       }
       return new ChatResponse(text);
+    } catch (RejectedExecutionException e) {
+      log.warn("Gemini executor rejected submission (queue full or shut down)");
+      return new ChatResponse("応答に時間がかかっています。しばらくしてから再度お試しください。");
     } catch (TimeoutException e) {
-      future.cancel(true);
+      if (future != null) {
+        future.cancel(true);
+      }
       log.warn("Gemini chat timed out after {} ms", GEMINI_TIMEOUT.toMillis());
       return new ChatResponse("応答に時間がかかっています。しばらくしてから再度お試しください。");
     } catch (InterruptedException e) {
-      future.cancel(true);
+      if (future != null) {
+        future.cancel(true);
+      }
       Thread.currentThread().interrupt();
       log.warn("Gemini chat interrupted");
       return new ChatResponse("応答に時間がかかっています。しばらくしてから再度お試しください。");

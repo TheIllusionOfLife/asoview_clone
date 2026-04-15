@@ -13,6 +13,8 @@
 # From then on, adding a new sibling Application only requires editing this
 # allowlist + pushing.
 #
+# The file starts with `_` so `ls` keeps it visually distinct from the
+# allowlist members, but the resource name is RFC1123-valid (`apps-root`).
 # _root.yaml is NOT in its own allowlist — the bootstrap apply is the single
 # imperative step. Self-reference would cause Argo to manage the Application
 # that manages itself, which works but makes `kubectl delete` semantics
@@ -20,7 +22,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: _root
+  name: apps-root
   namespace: argocd
   labels:
     app.kubernetes.io/part-of: asoview-clone-dev
