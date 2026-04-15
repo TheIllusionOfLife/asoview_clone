@@ -3,6 +3,8 @@ kind: Kustomization
 namespace: operator-web
 resources:
   - deployment.yaml
+  - networkpolicy.yaml
+  - pdb.yaml
 images:
   - name: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/urakata-reservation-web
     newTag: latest

@@ -65,6 +65,11 @@ public class ReservationOperatorController {
     return reservationService.waitlist(id);
   }
 
+  @PutMapping("/v1/op/reservations/{id}/complete")
+  public Reservation complete(@PathVariable String id) {
+    return reservationService.complete(id);
+  }
+
   @PutMapping("/v1/op/reservations/{id}/cancel")
   public Reservation cancel(@PathVariable String id, @RequestBody ReasonRequest request) {
     return reservationService.cancel(id, request.reason());

@@ -120,6 +120,22 @@ public class ReservationService {
     return result;
   }
 
+  public Reservation complete(String reservationId) {
+    verifyTenantAccess(reservationId);
+    String actorUserId = getCurrentUserId();
+    Reservation result =
+        unwrapSpannerException(
+            () ->
+                repository.transitionStatusAtomically(
+                    reservationId,
+                    ReservationStatus.APPROVED,
+                    ReservationStatus.COMPLETED,
+                    null,
+                    actorUserId));
+    emailService.sendStatusChangeNotification(result);
+    return result;
+  }
+
   public Reservation cancel(String reservationId, String reason) {
     verifyTenantAccess(reservationId);
     String actorUserId = getCurrentUserId();
