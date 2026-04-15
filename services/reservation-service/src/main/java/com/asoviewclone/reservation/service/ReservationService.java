@@ -20,11 +20,15 @@ public class ReservationService {
 
   private final ReservationRepository repository;
   private final ReservationSlotRepository slotRepository;
+  private final EmailService emailService;
 
   public ReservationService(
-      ReservationRepository repository, ReservationSlotRepository slotRepository) {
+      ReservationRepository repository,
+      ReservationSlotRepository slotRepository,
+      EmailService emailService) {
     this.repository = repository;
     this.slotRepository = slotRepository;
+    this.emailService = emailService;
   }
 
   public record CreateResult(Reservation reservation, boolean created) {}
@@ -40,6 +44,7 @@ public class ReservationService {
       Reservation reservation =
           repository.createWithSlotValidation(
               slotId, consumerUserId, idempotencyKey, guestName, guestEmail, guestCount);
+      emailService.sendReservationConfirmation(reservation);
       return new CreateResult(reservation, true);
     } catch (SpannerException e) {
       if (e.getErrorCode() == ErrorCode.ALREADY_EXISTS) {
@@ -84,33 +89,48 @@ public class ReservationService {
   public Reservation approve(String reservationId) {
     verifyTenantAccess(reservationId);
     String actorUserId = getCurrentUserId();
-    return unwrapSpannerException(() -> repository.approveAtomically(reservationId, actorUserId));
+    Reservation result =
+        unwrapSpannerException(() -> repository.approveAtomically(reservationId, actorUserId));
+    emailService.sendStatusChangeNotification(result);
+    return result;
   }
 
   public Reservation reject(String reservationId, String reason) {
     verifyTenantAccess(reservationId);
     String actorUserId = getCurrentUserId();
-    return unwrapSpannerException(
-        () ->
-            repository.transitionStatusAtomically(
-                reservationId,
-                ReservationStatus.PENDING_APPROVAL,
-                ReservationStatus.REJECTED,
-                reason,
-                actorUserId));
+    Reservation result =
+        unwrapSpannerException(
+            () ->
+                repository.transitionStatusAtomically(
+                    reservationId,
+                    ReservationStatus.PENDING_APPROVAL,
+                    ReservationStatus.REJECTED,
+                    reason,
+                    actorUserId));
+    emailService.sendStatusChangeNotification(result);
+    return result;
   }
 
   public Reservation waitlist(String reservationId) {
     verifyTenantAccess(reservationId);
     String actorUserId = getCurrentUserId();
-    return unwrapSpannerException(() -> repository.waitlistAtomically(reservationId, actorUserId));
+    Reservation result =
+        unwrapSpannerException(() -> repository.waitlistAtomically(reservationId, actorUserId));
+    emailService.sendStatusChangeNotification(result);
+    return result;
   }
 
   public Reservation cancel(String reservationId, String reason) {
     verifyTenantAccess(reservationId);
     String actorUserId = getCurrentUserId();
-    return unwrapSpannerException(
-        () -> repository.cancelAtomically(reservationId, reason, actorUserId));
+    var cancelResult =
+        unwrapSpannerException(
+            () -> repository.cancelAtomically(reservationId, reason, actorUserId));
+    emailService.sendStatusChangeNotification(cancelResult.cancelled());
+    for (var promoted : cancelResult.promoted()) {
+      emailService.sendStatusChangeNotification(promoted);
+    }
+    return cancelResult.cancelled();
   }
 
   public void verifyTenantAccess(String reservationId) {

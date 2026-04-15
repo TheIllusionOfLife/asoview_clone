@@ -37,6 +37,9 @@ export function Header() {
           <Link href="/me/orders" className="hover:text-[var(--color-primary)]">
             {t("orders")}
           </Link>
+          <Link href="/me/reservations" className="hover:text-[var(--color-primary)]">
+            {t("reservations")}
+          </Link>
           <Link href="/signin" className="hover:text-[var(--color-primary)]">
             {t("signIn")}
           </Link>
