@@ -138,7 +138,7 @@ class TicketRedemptionTest {
 
   // 5. Idempotency key reused by different scanner -> ROLE_DENIED masquerades as 404
   @Test
-  void redeem_idempotencyKeyReusedByDifferentScanner_rolendied() {
+  void redeem_idempotencyKeyReusedByDifferentScanner_roleDenied() {
     String qr = TicketFixtures.seedValidPass(db, TENANT, VENUE, null, null);
     String key = idem();
     repository.redeemAtomically(qr, "s1", "d", Set.of(VENUE), TENANT, key, "1.1.1.1");

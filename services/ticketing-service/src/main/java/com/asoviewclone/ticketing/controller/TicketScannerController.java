@@ -44,8 +44,7 @@ public class TicketScannerController {
           .body(new RedeemResponse(null, null, null, "IDEMPOTENCY_REQUIRED"));
     }
     RedeemResult r =
-        service.redeem(
-            req.qrCodePayload(), req.scannerDeviceId(), http.getRemoteAddr(), idempotencyKey);
+        service.redeem(req.qrCodePayload(), req.scannerDeviceId(), clientIp(http), idempotencyKey);
     return ResponseEntity.ok(
         new RedeemResponse(r.ticketPassId(), r.status().name(), r.usedAt(), r.outcome().name()));
   }
@@ -56,6 +55,24 @@ public class TicketScannerController {
       @RequestBody(required = false) Map<String, Object> body) {
     service.revoke(passId);
     return ResponseEntity.noContent().build();
+  }
+
+  /**
+   * Extract the client IP from {@code X-Forwarded-For} when behind a trusted gateway (GKE ingress
+   * sets this), falling back to {@code getRemoteAddr()} for direct calls. {@code getRemoteAddr()}
+   * alone returns the gateway pod IP in production, which would make every scanner share one
+   * rate-limit bucket.
+   */
+  static String clientIp(HttpServletRequest http) {
+    String xff = http.getHeader("X-Forwarded-For");
+    if (xff != null && !xff.isBlank()) {
+      int comma = xff.indexOf(',');
+      String first = (comma > 0 ? xff.substring(0, comma) : xff).trim();
+      if (!first.isEmpty()) {
+        return first;
+      }
+    }
+    return http.getRemoteAddr();
   }
 
   // ---- Unified ProblemDetail-style error mapping ----

@@ -13,4 +13,4 @@ CREATE TABLE scan_audit_log (
 
 CREATE INDEX idx_scan_audit_pass ON scan_audit_log (ticket_pass_id, scanned_at DESC);
 CREATE INDEX idx_scan_audit_scanner ON scan_audit_log (tenant_id, scanner_user_id, scanned_at DESC);
-CREATE INDEX idx_scan_audit_outcome ON scan_audit_log (tenant_id, outcome, scanned_at DESC)
+CREATE INDEX idx_scan_audit_outcome ON scan_audit_log (tenant_id, outcome, scanned_at DESC);

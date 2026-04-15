@@ -138,7 +138,7 @@ public class EntitlementRepository {
     Statement stmt =
         Statement.newBuilder(
                 "SELECT tp.ticket_pass_id, tp.entitlement_id, tp.qr_code_payload,"
-                    + " tp.status, tp.used_at, tp.created_at"
+                    + " tp.status, tp.used_at, tp.venue_id, tp.tenant_id, tp.created_at"
                     + " FROM ticket_passes tp"
                     + " JOIN entitlements e ON tp.entitlement_id = e.entitlement_id"
                     + " WHERE e.user_id = @uid ORDER BY tp.created_at DESC")
@@ -201,7 +201,7 @@ public class EntitlementRepository {
     Statement stmt =
         Statement.newBuilder(
                 "SELECT ticket_pass_id, entitlement_id, qr_code_payload,"
-                    + " status, used_at, created_at"
+                    + " status, used_at, venue_id, tenant_id, created_at"
                     + " FROM ticket_passes WHERE entitlement_id = @eid")
             .bind("eid")
             .to(entitlementId)
@@ -290,24 +290,19 @@ public class EntitlementRepository {
         rs.getTimestamp("created_at").toSqlTimestamp().toInstant());
   }
 
+  /**
+   * Maps a ticket_passes row. Callers are responsible for SELECTing {@code venue_id, tenant_id,
+   * used_at} (all nullable post-V6); SELECTs that omit these columns should use a narrower mapper.
+   */
   private TicketPass mapTicketPass(ResultSet rs) {
     return new TicketPass(
         rs.getString("ticket_pass_id"),
         rs.getString("entitlement_id"),
         rs.getString("qr_code_payload"),
         TicketPassStatus.valueOf(rs.getString("status")),
-        hasColumn(rs, "venue_id") && !rs.isNull("venue_id") ? rs.getString("venue_id") : null,
-        hasColumn(rs, "tenant_id") && !rs.isNull("tenant_id") ? rs.getString("tenant_id") : null,
+        rs.isNull("venue_id") ? null : rs.getString("venue_id"),
+        rs.isNull("tenant_id") ? null : rs.getString("tenant_id"),
         rs.isNull("used_at") ? null : rs.getTimestamp("used_at").toSqlTimestamp().toInstant(),
         rs.getTimestamp("created_at").toSqlTimestamp().toInstant());
-  }
-
-  private static boolean hasColumn(ResultSet rs, String column) {
-    try {
-      rs.getColumnIndex(column);
-      return true;
-    } catch (IllegalArgumentException e) {
-      return false;
-    }
   }
 }

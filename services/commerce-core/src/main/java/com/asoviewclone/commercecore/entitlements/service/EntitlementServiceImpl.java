@@ -215,8 +215,13 @@ public class EntitlementServiceImpl implements EntitlementCreator {
           tenantId = product.getTenantId().toString();
         }
       }
-    } catch (IllegalArgumentException ignored) {
-      // productVariantId is not a UUID (test fixture or bad data); leave null.
+    } catch (IllegalArgumentException e) {
+      // productVariantId is not a UUID (test fixture or genuine data corruption). Log the case
+      // so ops can distinguish fixture-driven nulls from real data issues that would leave a
+      // pass un-scannable (tenant_id/venue_id resolve to null → not scannable).
+      log.warn(
+          "resolveVenueTenant: productVariantId {} is not a UUID; creating pass with null venue/tenant",
+          productVariantId);
     }
     String[] pair = new String[] {venueId, tenantId};
     cache.put(productVariantId, pair);

@@ -1,11 +1,11 @@
 package com.asoviewclone.ticketing.service;
 
+import com.asoviewclone.ticketing.exception.NotScannableException;
 import com.asoviewclone.ticketing.exception.RateLimitedException;
 import com.asoviewclone.ticketing.model.RedeemResult;
 import com.asoviewclone.ticketing.ratelimit.RedeemRateLimiter;
 import com.asoviewclone.ticketing.repository.TicketPassRedeemRepository;
 import com.asoviewclone.ticketing.security.ScannerPrincipal;
-import java.util.Set;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -42,10 +42,17 @@ public class TicketRedemptionService {
     repository.revokeAtomically(passId);
   }
 
+  /**
+   * SecurityConfig blocks unauthenticated callers before we ever reach the service, so a missing
+   * principal here represents either a filter misconfiguration or a direct in-cluster call that
+   * bypassed the gateway. Either way, fail closed — never fall back to an anonymous principal,
+   * because downstream rate-limiter/audit will happily use {@code null} keys and the fail-closed
+   * auth check in the repository relies on a real tenant claim.
+   */
   private static ScannerPrincipal currentScanner() {
     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
     if (auth == null || !(auth.getPrincipal() instanceof ScannerPrincipal sp)) {
-      return new ScannerPrincipal(null, null, Set.of(), null);
+      throw new NotScannableException("No authenticated scanner in context");
     }
     return sp;
   }

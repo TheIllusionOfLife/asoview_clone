@@ -11,6 +11,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-validation")
 
+    // Caching (bounded rate-limiter buckets)
+    implementation(libs.caffeine)
+
     // Security
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation(libs.firebase.admin)

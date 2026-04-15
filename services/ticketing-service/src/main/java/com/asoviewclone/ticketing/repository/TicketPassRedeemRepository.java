@@ -9,6 +9,7 @@ import com.google.cloud.spanner.DatabaseClient;
 import com.google.cloud.spanner.Mutation;
 import com.google.cloud.spanner.ResultSet;
 import com.google.cloud.spanner.Statement;
+import com.google.cloud.spanner.TransactionContext;
 import com.google.cloud.spanner.Value;
 import java.time.Instant;
 import java.util.Set;
@@ -19,8 +20,10 @@ import org.springframework.stereotype.Repository;
 
 /**
  * Owns the atomic redeem path: status CAS + entitlement/validity/venue checks + audit INSERT +
- * idempotency key persistence, all inside ONE Spanner read-write transaction. See PR 5a plan for
- * the threat model each branch guards against.
+ * idempotency key persistence, all inside ONE Spanner read-write transaction. The inner lambda
+ * ALWAYS returns a {@link RedeemResult} — never throws — so audit and idempotency mutations always
+ * commit alongside the outcome. The outer method maps non-REDEEMED outcomes to exceptions after the
+ * transaction commits.
  */
 @Repository
 public class TicketPassRedeemRepository {
@@ -45,33 +48,46 @@ public class TicketPassRedeemRepository {
       String operatorTenantId,
       String idempotencyKey,
       String sourceIp) {
-    try {
-      return redeemAtomicallyInner(
-          qrCodePayload,
-          scannerUserId,
-          scannerDeviceId,
-          operatorVenueIds,
-          operatorTenantId,
-          idempotencyKey,
-          sourceIp);
-    } catch (com.google.cloud.spanner.SpannerException e) {
-      // Spanner wraps all exceptions thrown inside readWriteTransaction.run(). Surface the
-      // original NotScannable/TerminalConflict so the controller's @ExceptionHandler sees them.
-      Throwable cause = e.getCause();
-      while (cause != null) {
-        if (cause instanceof NotScannableException nse) {
-          throw nse;
-        }
-        if (cause instanceof TerminalConflictException tce) {
-          throw tce;
-        }
-        cause = cause.getCause();
-      }
-      throw e;
-    }
+    RedeemResult result =
+        databaseClient
+            .readWriteTransaction()
+            .run(
+                tx ->
+                    runRedeem(
+                        tx,
+                        qrCodePayload,
+                        scannerUserId,
+                        scannerDeviceId,
+                        operatorVenueIds,
+                        operatorTenantId,
+                        idempotencyKey,
+                        sourceIp));
+    return dispatchOutcome(result);
   }
 
-  private RedeemResult redeemAtomicallyInner(
+  private static RedeemResult dispatchOutcome(RedeemResult result) {
+    return switch (result.outcome()) {
+      case REDEEMED -> result;
+      case NOT_FOUND, TENANT_MISMATCH, VENUE_MISMATCH, ROLE_DENIED, FORMAT_INVALID ->
+          throw new NotScannableException("Ticket not valid at this gate");
+      case ALREADY_USED ->
+          throw new TerminalConflictException(
+              result.outcome().name(),
+              "Pass already used at "
+                  + (result.usedAt() != null ? result.usedAt().toString() : "unknown"));
+      case EXPIRED -> throw new TerminalConflictException(result.outcome().name(), "Pass expired");
+      case REVOKED -> throw new TerminalConflictException(result.outcome().name(), "Pass revoked");
+      case ENTITLEMENT_NOT_ACTIVE ->
+          throw new TerminalConflictException(result.outcome().name(), "Entitlement not active");
+      case OUTSIDE_VALIDITY_WINDOW ->
+          throw new TerminalConflictException(result.outcome().name(), "Outside validity window");
+      case RATE_LIMITED, IDEMPOTENCY_REUSED ->
+          throw new TerminalConflictException(result.outcome().name(), result.outcome().name());
+    };
+  }
+
+  private RedeemResult runRedeem(
+      TransactionContext tx,
       String qrCodePayload,
       String scannerUserId,
       String scannerDeviceId,
@@ -79,271 +95,227 @@ public class TicketPassRedeemRepository {
       String operatorTenantId,
       String idempotencyKey,
       String sourceIp) {
-    return databaseClient
-        .readWriteTransaction()
-        .run(
-            tx -> {
-              // 1. Idempotency replay check
-              Statement idemStmt =
-                  Statement.newBuilder(
-                          "SELECT scanner_user_id, ticket_pass_id, outcome FROM"
-                              + " ticket_redeem_idempotency WHERE idempotency_key = @key")
-                      .bind("key")
-                      .to(idempotencyKey)
-                      .build();
-              try (ResultSet rs = tx.executeQuery(idemStmt)) {
-                if (rs.next()) {
-                  String existingScanner = rs.getString("scanner_user_id");
-                  String existingPass =
-                      rs.isNull("ticket_pass_id") ? null : rs.getString("ticket_pass_id");
-                  String existingOutcome = rs.getString("outcome");
-                  if (!existingScanner.equals(scannerUserId)) {
-                    writeAudit(
-                        tx,
-                        operatorTenantId,
-                        existingPass,
-                        scannerUserId,
-                        scannerDeviceId,
-                        null,
-                        RedeemOutcome.ROLE_DENIED,
-                        sourceIp,
-                        idempotencyKey);
-                    throw new NotScannableException("Idempotency key reused by different scanner");
-                  }
-                  // Same scanner — replay cached response
-                  return replayExistingOutcome(tx, existingPass, existingOutcome);
-                }
-              }
 
-              // 2. Lookup pass + entitlement joined (lookup key is qr_code_payload)
-              Statement passStmt =
-                  Statement.newBuilder(
-                          "SELECT tp.ticket_pass_id, tp.status, tp.used_at, tp.venue_id,"
-                              + " tp.tenant_id, e.status AS e_status, e.valid_from, e.valid_until"
-                              + " FROM ticket_passes tp"
-                              + " JOIN entitlements e ON tp.entitlement_id = e.entitlement_id"
-                              + " WHERE tp.qr_code_payload = @qr")
-                      .bind("qr")
-                      .to(qrCodePayload)
-                      .build();
+    // 1. Lookup pass + entitlement (may return null row).
+    PassRow pass = lookupPass(tx, qrCodePayload);
+    String passId = pass != null ? pass.passId : null;
+    String passVenueId = pass != null ? pass.venueId : null;
 
-              String passId = null;
-              String passTenantId = null;
-              String passVenueId = null;
-              TicketPassStatus passStatus = null;
-              Instant existingUsedAt = null;
-              String entitlementStatus = null;
-              Instant validFrom = null;
-              Instant validUntil = null;
-              boolean found = false;
-              try (ResultSet rs = tx.executeQuery(passStmt)) {
-                if (rs.next()) {
-                  found = true;
-                  passId = rs.getString("ticket_pass_id");
-                  passStatus = TicketPassStatus.valueOf(rs.getString("status"));
-                  if (!rs.isNull("used_at")) {
-                    existingUsedAt = rs.getTimestamp("used_at").toSqlTimestamp().toInstant();
-                  }
-                  if (!rs.isNull("venue_id")) {
-                    passVenueId = rs.getString("venue_id");
-                  }
-                  if (!rs.isNull("tenant_id")) {
-                    passTenantId = rs.getString("tenant_id");
-                  }
-                  entitlementStatus = rs.getString("e_status");
-                  if (!rs.isNull("valid_from")) {
-                    validFrom = rs.getTimestamp("valid_from").toSqlTimestamp().toInstant();
-                  }
-                  if (!rs.isNull("valid_until")) {
-                    validUntil = rs.getTimestamp("valid_until").toSqlTimestamp().toInstant();
-                  }
-                }
-              }
+    // 2. Idempotency replay / misuse detection.
+    IdemRow idem = lookupIdempotency(tx, idempotencyKey);
+    if (idem != null) {
+      boolean scannerMismatch = !idem.scannerUserId.equals(scannerUserId);
+      boolean passMismatch = (idem.passId == null ? passId != null : !idem.passId.equals(passId));
+      if (scannerMismatch || passMismatch) {
+        writeAudit(
+            tx,
+            operatorTenantId,
+            passId,
+            scannerUserId,
+            scannerDeviceId,
+            passVenueId,
+            RedeemOutcome.ROLE_DENIED,
+            sourceIp,
+            idempotencyKey);
+        return new RedeemResult(passId, null, null, RedeemOutcome.ROLE_DENIED, false);
+      }
+      // Replay: do NOT re-audit and do NOT re-write idempotency. Return cached outcome.
+      return cachedReplay(idem);
+    }
 
-              if (!found) {
-                RedeemOutcome outcome = RedeemOutcome.NOT_FOUND;
-                writeAudit(
-                    tx,
-                    operatorTenantId,
-                    null,
-                    scannerUserId,
-                    scannerDeviceId,
-                    null,
-                    outcome,
-                    sourceIp,
-                    idempotencyKey);
-                writeIdempotency(tx, idempotencyKey, scannerUserId, null, outcome);
-                throw new NotScannableException("Ticket not found");
-              }
+    // 3. Fail-closed auth: non-admin redeem path requires tenant + at least one scanner venue.
+    if (operatorTenantId == null
+        || operatorTenantId.isBlank()
+        || operatorVenueIds == null
+        || operatorVenueIds.isEmpty()) {
+      RedeemOutcome outcome = RedeemOutcome.ROLE_DENIED;
+      writeAudit(
+          tx,
+          operatorTenantId,
+          passId,
+          scannerUserId,
+          scannerDeviceId,
+          passVenueId,
+          outcome,
+          sourceIp,
+          idempotencyKey);
+      writeIdempotency(tx, idempotencyKey, scannerUserId, passId, outcome);
+      return new RedeemResult(passId, null, null, outcome, false);
+    }
 
-              // 3. Tenant / venue checks (both masquerade as 404)
-              if (operatorTenantId != null
-                  && passTenantId != null
-                  && !operatorTenantId.equals(passTenantId)) {
-                RedeemOutcome outcome = RedeemOutcome.TENANT_MISMATCH;
-                writeAudit(
-                    tx,
-                    operatorTenantId,
-                    passId,
-                    scannerUserId,
-                    scannerDeviceId,
-                    passVenueId,
-                    outcome,
-                    sourceIp,
-                    idempotencyKey);
-                writeIdempotency(tx, idempotencyKey, scannerUserId, passId, outcome);
-                throw new NotScannableException("Tenant mismatch");
-              }
+    if (pass == null) {
+      RedeemOutcome outcome = RedeemOutcome.NOT_FOUND;
+      writeAudit(
+          tx,
+          operatorTenantId,
+          null,
+          scannerUserId,
+          scannerDeviceId,
+          null,
+          outcome,
+          sourceIp,
+          idempotencyKey);
+      writeIdempotency(tx, idempotencyKey, scannerUserId, null, outcome);
+      return new RedeemResult(null, null, null, outcome, false);
+    }
 
-              if (passVenueId != null
-                  && operatorVenueIds != null
-                  && !operatorVenueIds.isEmpty()
-                  && !operatorVenueIds.contains(passVenueId)) {
-                RedeemOutcome outcome = RedeemOutcome.VENUE_MISMATCH;
-                writeAudit(
-                    tx,
-                    operatorTenantId,
-                    passId,
-                    scannerUserId,
-                    scannerDeviceId,
-                    passVenueId,
-                    outcome,
-                    sourceIp,
-                    idempotencyKey);
-                writeIdempotency(tx, idempotencyKey, scannerUserId, passId, outcome);
-                throw new NotScannableException("Venue mismatch");
-              }
+    // 4. Tenant / venue fail-closed checks. Pre-V6 legacy rows (null pass.tenantId/venueId) are
+    // not scannable — backfill is required before scanner rollout.
+    if (pass.tenantId == null || !operatorTenantId.equals(pass.tenantId)) {
+      RedeemOutcome outcome = RedeemOutcome.TENANT_MISMATCH;
+      writeAudit(
+          tx,
+          operatorTenantId,
+          passId,
+          scannerUserId,
+          scannerDeviceId,
+          passVenueId,
+          outcome,
+          sourceIp,
+          idempotencyKey);
+      writeIdempotency(tx, idempotencyKey, scannerUserId, passId, outcome);
+      return new RedeemResult(passId, null, null, outcome, false);
+    }
+    if (pass.venueId == null || !operatorVenueIds.contains(pass.venueId)) {
+      RedeemOutcome outcome = RedeemOutcome.VENUE_MISMATCH;
+      writeAudit(
+          tx,
+          operatorTenantId,
+          passId,
+          scannerUserId,
+          scannerDeviceId,
+          passVenueId,
+          outcome,
+          sourceIp,
+          idempotencyKey);
+      writeIdempotency(tx, idempotencyKey, scannerUserId, passId, outcome);
+      return new RedeemResult(passId, null, null, outcome, false);
+    }
 
-              // 4. Entitlement status / validity window (only if we have entitlement info)
-              if (entitlementStatus != null && !"ACTIVE".equals(entitlementStatus)) {
-                RedeemOutcome outcome = RedeemOutcome.ENTITLEMENT_NOT_ACTIVE;
-                writeAudit(
-                    tx,
-                    operatorTenantId,
-                    passId,
-                    scannerUserId,
-                    scannerDeviceId,
-                    passVenueId,
-                    outcome,
-                    sourceIp,
-                    idempotencyKey);
-                writeIdempotency(tx, idempotencyKey, scannerUserId, passId, outcome);
-                throw new TerminalConflictException(outcome.name(), "Entitlement not active");
-              }
-              Instant now = Instant.now();
-              if (validFrom != null && now.isBefore(validFrom)) {
-                RedeemOutcome outcome = RedeemOutcome.OUTSIDE_VALIDITY_WINDOW;
-                writeAudit(
-                    tx,
-                    operatorTenantId,
-                    passId,
-                    scannerUserId,
-                    scannerDeviceId,
-                    passVenueId,
-                    outcome,
-                    sourceIp,
-                    idempotencyKey);
-                writeIdempotency(tx, idempotencyKey, scannerUserId, passId, outcome);
-                throw new TerminalConflictException(outcome.name(), "Before valid_from");
-              }
-              if (validUntil != null && now.isAfter(validUntil)) {
-                RedeemOutcome outcome = RedeemOutcome.OUTSIDE_VALIDITY_WINDOW;
-                writeAudit(
-                    tx,
-                    operatorTenantId,
-                    passId,
-                    scannerUserId,
-                    scannerDeviceId,
-                    passVenueId,
-                    outcome,
-                    sourceIp,
-                    idempotencyKey);
-                writeIdempotency(tx, idempotencyKey, scannerUserId, passId, outcome);
-                throw new TerminalConflictException(outcome.name(), "After valid_until");
-              }
+    // 5. Entitlement status / validity window.
+    if (pass.entitlementStatus != null && !"ACTIVE".equals(pass.entitlementStatus)) {
+      return recordTerminal(
+          tx,
+          RedeemOutcome.ENTITLEMENT_NOT_ACTIVE,
+          pass,
+          scannerUserId,
+          scannerDeviceId,
+          operatorTenantId,
+          sourceIp,
+          idempotencyKey);
+    }
+    Instant now = Instant.now();
+    if (pass.validFrom != null && now.isBefore(pass.validFrom)) {
+      return recordTerminal(
+          tx,
+          RedeemOutcome.OUTSIDE_VALIDITY_WINDOW,
+          pass,
+          scannerUserId,
+          scannerDeviceId,
+          operatorTenantId,
+          sourceIp,
+          idempotencyKey);
+    }
+    if (pass.validUntil != null && now.isAfter(pass.validUntil)) {
+      return recordTerminal(
+          tx,
+          RedeemOutcome.OUTSIDE_VALIDITY_WINDOW,
+          pass,
+          scannerUserId,
+          scannerDeviceId,
+          operatorTenantId,
+          sourceIp,
+          idempotencyKey);
+    }
 
-              // 5. Pass status dispatch
-              switch (passStatus) {
-                case REVOKED -> {
-                  RedeemOutcome outcome = RedeemOutcome.REVOKED;
-                  writeAudit(
-                      tx,
-                      operatorTenantId,
-                      passId,
-                      scannerUserId,
-                      scannerDeviceId,
-                      passVenueId,
-                      outcome,
-                      sourceIp,
-                      idempotencyKey);
-                  writeIdempotency(tx, idempotencyKey, scannerUserId, passId, outcome);
-                  throw new TerminalConflictException(outcome.name(), "Pass revoked");
-                }
-                case EXPIRED -> {
-                  RedeemOutcome outcome = RedeemOutcome.EXPIRED;
-                  writeAudit(
-                      tx,
-                      operatorTenantId,
-                      passId,
-                      scannerUserId,
-                      scannerDeviceId,
-                      passVenueId,
-                      outcome,
-                      sourceIp,
-                      idempotencyKey);
-                  writeIdempotency(tx, idempotencyKey, scannerUserId, passId, outcome);
-                  throw new TerminalConflictException(outcome.name(), "Pass expired");
-                }
-                case USED -> {
-                  RedeemOutcome outcome = RedeemOutcome.ALREADY_USED;
-                  writeAudit(
-                      tx,
-                      operatorTenantId,
-                      passId,
-                      scannerUserId,
-                      scannerDeviceId,
-                      passVenueId,
-                      outcome,
-                      sourceIp,
-                      idempotencyKey);
-                  writeIdempotency(tx, idempotencyKey, scannerUserId, passId, outcome);
-                  // Return used_at in the exception message for the controller to surface
-                  throw new TerminalConflictException(
-                      outcome.name(),
-                      "Pass already used at "
-                          + (existingUsedAt != null ? existingUsedAt.toString() : "unknown"));
-                }
-                case VALID -> {
-                  // CAS update + audit + idempotency — atomic
-                  tx.buffer(
-                      Mutation.newUpdateBuilder("ticket_passes")
-                          .set("ticket_pass_id")
-                          .to(passId)
-                          .set("status")
-                          .to(TicketPassStatus.USED.name())
-                          .set("used_at")
-                          .to(Value.COMMIT_TIMESTAMP)
-                          .build());
-                  RedeemOutcome outcome = RedeemOutcome.REDEEMED;
-                  writeAudit(
-                      tx,
-                      operatorTenantId,
-                      passId,
-                      scannerUserId,
-                      scannerDeviceId,
-                      passVenueId,
-                      outcome,
-                      sourceIp,
-                      idempotencyKey);
-                  writeIdempotency(tx, idempotencyKey, scannerUserId, passId, outcome);
-                  return new RedeemResult(passId, TicketPassStatus.USED, null, outcome, false);
-                }
-                default -> {
-                  log.error("Unexpected status {} on pass {}", passStatus, passId);
-                  throw new IllegalStateException("Unexpected status: " + passStatus);
-                }
-              }
-            });
+    // 6. Pass status dispatch.
+    switch (pass.status) {
+      case REVOKED:
+        return recordTerminal(
+            tx,
+            RedeemOutcome.REVOKED,
+            pass,
+            scannerUserId,
+            scannerDeviceId,
+            operatorTenantId,
+            sourceIp,
+            idempotencyKey);
+      case EXPIRED:
+        return recordTerminal(
+            tx,
+            RedeemOutcome.EXPIRED,
+            pass,
+            scannerUserId,
+            scannerDeviceId,
+            operatorTenantId,
+            sourceIp,
+            idempotencyKey);
+      case USED:
+        return recordTerminal(
+            tx,
+            RedeemOutcome.ALREADY_USED,
+            pass,
+            scannerUserId,
+            scannerDeviceId,
+            operatorTenantId,
+            sourceIp,
+            idempotencyKey);
+      case VALID:
+        tx.buffer(
+            Mutation.newUpdateBuilder("ticket_passes")
+                .set("ticket_pass_id")
+                .to(pass.passId)
+                .set("status")
+                .to(TicketPassStatus.USED.name())
+                .set("used_at")
+                .to(Value.COMMIT_TIMESTAMP)
+                .build());
+        writeAudit(
+            tx,
+            operatorTenantId,
+            pass.passId,
+            scannerUserId,
+            scannerDeviceId,
+            pass.venueId,
+            RedeemOutcome.REDEEMED,
+            sourceIp,
+            idempotencyKey);
+        writeIdempotency(tx, idempotencyKey, scannerUserId, pass.passId, RedeemOutcome.REDEEMED);
+        return new RedeemResult(
+            pass.passId, TicketPassStatus.USED, null, RedeemOutcome.REDEEMED, false);
+      default:
+        log.error("Unexpected status {} on pass {}", pass.status, pass.passId);
+        throw new IllegalStateException("Unexpected status: " + pass.status);
+    }
+  }
+
+  private static RedeemResult recordTerminal(
+      TransactionContext tx,
+      RedeemOutcome outcome,
+      PassRow pass,
+      String scannerUserId,
+      String scannerDeviceId,
+      String operatorTenantId,
+      String sourceIp,
+      String idempotencyKey) {
+    writeAudit(
+        tx,
+        operatorTenantId,
+        pass.passId,
+        scannerUserId,
+        scannerDeviceId,
+        pass.venueId,
+        outcome,
+        sourceIp,
+        idempotencyKey);
+    writeIdempotency(tx, idempotencyKey, scannerUserId, pass.passId, outcome);
+    return new RedeemResult(pass.passId, pass.status, pass.usedAt, outcome, false);
+  }
+
+  private static RedeemResult cachedReplay(IdemRow idem) {
+    RedeemOutcome outcome = idem.outcome;
+    TicketPassStatus status = outcome == RedeemOutcome.REDEEMED ? TicketPassStatus.USED : null;
+    return new RedeemResult(idem.passId, status, null, outcome, true);
   }
 
   /**
@@ -353,7 +325,38 @@ public class TicketPassRedeemRepository {
    */
   public void revokeAtomically(String passId) {
     try {
-      revokeAtomicallyInner(passId);
+      databaseClient
+          .readWriteTransaction()
+          .run(
+              tx -> {
+                Statement stmt =
+                    Statement.newBuilder(
+                            "SELECT status FROM ticket_passes WHERE ticket_pass_id = @id")
+                        .bind("id")
+                        .to(passId)
+                        .build();
+                String status = null;
+                try (ResultSet rs = tx.executeQuery(stmt)) {
+                  if (rs.next()) {
+                    status = rs.getString("status");
+                  }
+                }
+                if (status == null) {
+                  throw new NotScannableException("Ticket not found");
+                }
+                if (!TicketPassStatus.VALID.name().equals(status)) {
+                  throw new TerminalConflictException(
+                      "REVOKE_REJECTED", "Cannot revoke pass in status " + status);
+                }
+                tx.buffer(
+                    Mutation.newUpdateBuilder("ticket_passes")
+                        .set("ticket_pass_id")
+                        .to(passId)
+                        .set("status")
+                        .to(TicketPassStatus.REVOKED.name())
+                        .build());
+                return null;
+              });
     } catch (com.google.cloud.spanner.SpannerException e) {
       Throwable cause = e.getCause();
       while (cause != null) {
@@ -366,59 +369,6 @@ public class TicketPassRedeemRepository {
         cause = cause.getCause();
       }
       throw e;
-    }
-  }
-
-  private void revokeAtomicallyInner(String passId) {
-    databaseClient
-        .readWriteTransaction()
-        .run(
-            tx -> {
-              Statement stmt =
-                  Statement.newBuilder(
-                          "SELECT status FROM ticket_passes WHERE ticket_pass_id = @id")
-                      .bind("id")
-                      .to(passId)
-                      .build();
-              String status = null;
-              try (ResultSet rs = tx.executeQuery(stmt)) {
-                if (rs.next()) {
-                  status = rs.getString("status");
-                }
-              }
-              if (status == null) {
-                throw new NotScannableException("Ticket not found");
-              }
-              if (!TicketPassStatus.VALID.name().equals(status)) {
-                throw new TerminalConflictException(
-                    "REVOKE_REJECTED", "Cannot revoke pass in status " + status);
-              }
-              tx.buffer(
-                  Mutation.newUpdateBuilder("ticket_passes")
-                      .set("ticket_pass_id")
-                      .to(passId)
-                      .set("status")
-                      .to(TicketPassStatus.REVOKED.name())
-                      .build());
-              return null;
-            });
-  }
-
-  /** Looks up whether the given session was revoked. Used by the Firebase filter. */
-  public boolean isSessionRevoked(String userId, String sessionId) {
-    if (userId == null || sessionId == null) {
-      return false;
-    }
-    Statement stmt =
-        Statement.newBuilder(
-                "SELECT 1 FROM revoked_sessions WHERE user_id = @uid AND session_id = @sid")
-            .bind("uid")
-            .to(userId)
-            .bind("sid")
-            .to(sessionId)
-            .build();
-    try (ResultSet rs = databaseClient.singleUse().executeQuery(stmt)) {
-      return rs.next();
     }
   }
 
@@ -436,26 +386,65 @@ public class TicketPassRedeemRepository {
                 .build()));
   }
 
-  private RedeemResult replayExistingOutcome(
-      com.google.cloud.spanner.TransactionContext tx, String passId, String outcome) {
-    RedeemOutcome ro = RedeemOutcome.valueOf(outcome);
-    return switch (ro) {
-      case REDEEMED -> new RedeemResult(passId, TicketPassStatus.USED, null, ro, true);
-      case NOT_FOUND, TENANT_MISMATCH, VENUE_MISMATCH, ROLE_DENIED, FORMAT_INVALID ->
-          throw new NotScannableException("Replay: " + outcome);
-      case ALREADY_USED,
-          EXPIRED,
-          REVOKED,
-          ENTITLEMENT_NOT_ACTIVE,
-          OUTSIDE_VALIDITY_WINDOW,
-          RATE_LIMITED,
-          IDEMPOTENCY_REUSED ->
-          throw new TerminalConflictException(outcome, "Replay: " + outcome);
-    };
+  // ---- Private helpers ----
+
+  private static PassRow lookupPass(TransactionContext tx, String qrCodePayload) {
+    Statement passStmt =
+        Statement.newBuilder(
+                "SELECT tp.ticket_pass_id, tp.status, tp.used_at, tp.venue_id,"
+                    + " tp.tenant_id, e.status AS e_status, e.valid_from, e.valid_until"
+                    + " FROM ticket_passes tp"
+                    + " JOIN entitlements e ON tp.entitlement_id = e.entitlement_id"
+                    + " WHERE tp.qr_code_payload = @qr")
+            .bind("qr")
+            .to(qrCodePayload)
+            .build();
+    try (ResultSet rs = tx.executeQuery(passStmt)) {
+      if (!rs.next()) {
+        return null;
+      }
+      PassRow p = new PassRow();
+      p.passId = rs.getString("ticket_pass_id");
+      p.status = TicketPassStatus.valueOf(rs.getString("status"));
+      p.usedAt =
+          rs.isNull("used_at") ? null : rs.getTimestamp("used_at").toSqlTimestamp().toInstant();
+      p.venueId = rs.isNull("venue_id") ? null : rs.getString("venue_id");
+      p.tenantId = rs.isNull("tenant_id") ? null : rs.getString("tenant_id");
+      p.entitlementStatus = rs.getString("e_status");
+      p.validFrom =
+          rs.isNull("valid_from")
+              ? null
+              : rs.getTimestamp("valid_from").toSqlTimestamp().toInstant();
+      p.validUntil =
+          rs.isNull("valid_until")
+              ? null
+              : rs.getTimestamp("valid_until").toSqlTimestamp().toInstant();
+      return p;
+    }
+  }
+
+  private static IdemRow lookupIdempotency(TransactionContext tx, String key) {
+    Statement stmt =
+        Statement.newBuilder(
+                "SELECT scanner_user_id, ticket_pass_id, outcome FROM"
+                    + " ticket_redeem_idempotency WHERE idempotency_key = @key")
+            .bind("key")
+            .to(key)
+            .build();
+    try (ResultSet rs = tx.executeQuery(stmt)) {
+      if (!rs.next()) {
+        return null;
+      }
+      IdemRow row = new IdemRow();
+      row.scannerUserId = rs.getString("scanner_user_id");
+      row.passId = rs.isNull("ticket_pass_id") ? null : rs.getString("ticket_pass_id");
+      row.outcome = RedeemOutcome.valueOf(rs.getString("outcome"));
+      return row;
+    }
   }
 
   private static void writeAudit(
-      com.google.cloud.spanner.TransactionContext tx,
+      TransactionContext tx,
       String tenantId,
       String passId,
       String scannerUserId,
@@ -495,13 +484,13 @@ public class TicketPassRedeemRepository {
   }
 
   private static void writeIdempotency(
-      com.google.cloud.spanner.TransactionContext tx,
+      TransactionContext tx,
       String key,
       String scannerUserId,
       String passId,
       RedeemOutcome outcome) {
     Mutation.WriteBuilder b =
-        Mutation.newInsertOrUpdateBuilder("ticket_redeem_idempotency")
+        Mutation.newInsertBuilder("ticket_redeem_idempotency")
             .set("idempotency_key")
             .to(key)
             .set("scanner_user_id")
@@ -516,5 +505,22 @@ public class TicketPassRedeemRepository {
       b.set("ticket_pass_id").to(passId);
     }
     tx.buffer(b.build());
+  }
+
+  private static final class PassRow {
+    String passId;
+    TicketPassStatus status;
+    Instant usedAt;
+    String venueId;
+    String tenantId;
+    String entitlementStatus;
+    Instant validFrom;
+    Instant validUntil;
+  }
+
+  private static final class IdemRow {
+    String scannerUserId;
+    String passId;
+    RedeemOutcome outcome;
   }
 }

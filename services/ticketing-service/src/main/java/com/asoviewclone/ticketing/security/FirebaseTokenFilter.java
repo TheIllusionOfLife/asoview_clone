@@ -1,6 +1,5 @@
 package com.asoviewclone.ticketing.security;
 
-import com.asoviewclone.ticketing.repository.TicketPassRedeemRepository;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseToken;
 import jakarta.servlet.FilterChain;
@@ -27,11 +26,9 @@ public class FirebaseTokenFilter extends OncePerRequestFilter {
   private static final Logger log = LoggerFactory.getLogger(FirebaseTokenFilter.class);
 
   private final FirebaseAuth firebaseAuth;
-  private final TicketPassRedeemRepository repository;
 
-  public FirebaseTokenFilter(FirebaseAuth firebaseAuth, TicketPassRedeemRepository repository) {
+  public FirebaseTokenFilter(FirebaseAuth firebaseAuth) {
     this.firebaseAuth = firebaseAuth;
-    this.repository = repository;
   }
 
   @Override
@@ -54,14 +51,10 @@ public class FirebaseTokenFilter extends OncePerRequestFilter {
     }
     String token = header.substring(7);
     try {
-      FirebaseToken decoded = firebaseAuth.verifyIdToken(token);
-
-      // Session revocation check (short-TTL; cheap singleUse read)
-      String sessionId = (String) decoded.getClaims().get("jti");
-      if (sessionId != null && repository.isSessionRevoked(decoded.getUid(), sessionId)) {
-        writeUnauthorized(response, "Session revoked");
-        return;
-      }
+      // checkRevoked=true rejects tokens issued before FirebaseAuth.revokeRefreshTokens(uid).
+      // This is Firebase's built-in session revocation mechanism; Firebase ID tokens do not
+      // carry a `jti` claim, so the DB-backed revoked_sessions table cannot key by it.
+      FirebaseToken decoded = firebaseAuth.verifyIdToken(token, true);
 
       String tenantId = (String) decoded.getClaims().get("tenantId");
       Set<String> scannerVenues = new HashSet<>();
@@ -88,6 +81,11 @@ public class FirebaseTokenFilter extends OncePerRequestFilter {
         }
       }
 
+      // Session id surrogate: auth_time from the token. Stable across refresh within a session;
+      // changes on re-login. Used only for audit correlation, not for authorization.
+      Object authTime = decoded.getClaims().get("auth_time");
+      String sessionId = authTime != null ? String.valueOf(authTime) : null;
+
       ScannerPrincipal principal =
           new ScannerPrincipal(decoded.getUid(), tenantId, scannerVenues, sessionId);
       UsernamePasswordAuthenticationToken authentication =
@@ -107,6 +105,7 @@ public class FirebaseTokenFilter extends OncePerRequestFilter {
       throws IOException {
     response.setStatus(401);
     response.setContentType("application/json");
+    // detail is a static string literal; JSON-safe. Do not pass dynamic content here.
     response.getWriter().write("{\"code\":\"UNAUTHORIZED\",\"detail\":\"" + detail + "\"}");
   }
 }
