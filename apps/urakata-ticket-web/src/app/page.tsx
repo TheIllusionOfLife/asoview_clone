@@ -1,3 +1,7 @@
-export default function Home() {
-  return <h1>urakata-ticket-web</h1>;
+import { redirect } from "next/navigation";
+
+// Root is unreachable once middleware redirects to /{locale}; kept as a safety net
+// for direct linking without the locale prefix.
+export default function Root() {
+  redirect("/ja");
 }

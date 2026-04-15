@@ -1,0 +1,35 @@
+{
+  "app": {
+    "title": "UraKata Tickets",
+    "myTickets": "My Tickets",
+    "login": "Login",
+    "logout": "Logout"
+  },
+  "login": {
+    "title": "Login",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign In",
+    "error": "Login failed"
+  },
+  "tickets": {
+    "title": "My Tickets",
+    "empty": "You don't have any tickets yet",
+    "valid": "Valid",
+    "used": "Used",
+    "expired": "Expired",
+    "revoked": "Revoked",
+    "validFrom": "Valid from",
+    "validUntil": "Valid until",
+    "showAtGate": "Show this QR code at the gate",
+    "noLongerValid": "This ticket is no longer valid",
+    "orderId": "Order ID",
+    "refresh": "Refresh"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "back": "Back",
+    "retry": "Retry"
+  }
+}
