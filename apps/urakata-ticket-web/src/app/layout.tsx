@@ -1,15 +1,10 @@
+import "./globals.css";
+
 export const metadata = {
-  title: "urakata-ticket-web",
+  title: "UraKata Tickets",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <html lang="ja">
-      <body>{children}</body>
-    </html>
-  );
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // The [locale] segment owns <html>/<body> so it can set lang per-locale.
+  return children as React.ReactElement;
 }
