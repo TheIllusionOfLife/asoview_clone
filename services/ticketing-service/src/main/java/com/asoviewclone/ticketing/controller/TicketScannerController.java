@@ -58,21 +58,51 @@ public class TicketScannerController {
   }
 
   /**
-   * Extract the client IP from {@code X-Forwarded-For} when behind a trusted gateway (GKE ingress
-   * sets this), falling back to {@code getRemoteAddr()} for direct calls. {@code getRemoteAddr()}
-   * alone returns the gateway pod IP in production, which would make every scanner share one
-   * rate-limit bucket.
+   * Extract the client IP. Only honor {@code X-Forwarded-For} when the direct caller
+   * ({@code getRemoteAddr()}) is inside the cluster (RFC1918 private range, IPv4/IPv6 loopback,
+   * or IPv6 ULA) — this means the request came through the gateway, which sets XFF honestly.
+   * An external caller could otherwise spoof XFF and land in any rate-limit bucket.
    */
   static String clientIp(HttpServletRequest http) {
-    String xff = http.getHeader("X-Forwarded-For");
-    if (xff != null && !xff.isBlank()) {
-      int comma = xff.indexOf(',');
-      String first = (comma > 0 ? xff.substring(0, comma) : xff).trim();
-      if (!first.isEmpty()) {
-        return first;
+    String direct = http.getRemoteAddr();
+    if (isTrustedProxy(direct)) {
+      String xff = http.getHeader("X-Forwarded-For");
+      if (xff != null && !xff.isBlank()) {
+        int comma = xff.indexOf(',');
+        String first = (comma > 0 ? xff.substring(0, comma) : xff).trim();
+        if (!first.isEmpty()) {
+          return first;
+        }
       }
     }
-    return http.getRemoteAddr();
+    return direct;
+  }
+
+  private static boolean isTrustedProxy(String ip) {
+    if (ip == null || ip.isBlank()) {
+      return false;
+    }
+    // IPv4 loopback + RFC1918 private ranges (10/8, 172.16/12, 192.168/16).
+    if (ip.startsWith("127.")
+        || ip.startsWith("10.")
+        || ip.startsWith("192.168.")
+        || ip.equals("::1")
+        || ip.startsWith("fc")
+        || ip.startsWith("fd")) {
+      return true;
+    }
+    if (ip.startsWith("172.")) {
+      int dot = ip.indexOf('.', 4);
+      if (dot > 0) {
+        try {
+          int second = Integer.parseInt(ip.substring(4, dot));
+          return second >= 16 && second <= 31;
+        } catch (NumberFormatException e) {
+          return false;
+        }
+      }
+    }
+    return false;
   }
 
   // ---- Unified ProblemDetail-style error mapping ----
