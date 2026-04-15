@@ -58,10 +58,10 @@ public class TicketScannerController {
   }
 
   /**
-   * Extract the client IP. Only honor {@code X-Forwarded-For} when the direct caller
-   * ({@code getRemoteAddr()}) is inside the cluster (RFC1918 private range, IPv4/IPv6 loopback,
-   * or IPv6 ULA) — this means the request came through the gateway, which sets XFF honestly.
-   * An external caller could otherwise spoof XFF and land in any rate-limit bucket.
+   * Extract the client IP. Only honor {@code X-Forwarded-For} when the direct caller ({@code
+   * getRemoteAddr()}) is inside the cluster (RFC1918 private range, IPv4/IPv6 loopback, or IPv6
+   * ULA) — this means the request came through the gateway, which sets XFF honestly. An external
+   * caller could otherwise spoof XFF and land in any rate-limit bucket.
    */
   static String clientIp(HttpServletRequest http) {
     String direct = http.getRemoteAddr();
