@@ -25,10 +25,7 @@ const STATUS_TONE: Record<ReservationStatusType, string> = {
   COMPLETED: "bg-green-50 text-green-700",
 };
 
-function StatusBadge({
-  status,
-  label,
-}: { status: ReservationStatusType; label: string }) {
+function StatusBadge({ status, label }: { status: ReservationStatusType; label: string }) {
   const tone = STATUS_TONE[status] ?? "bg-[var(--color-bg)]";
   return (
     <span
@@ -43,7 +40,7 @@ export function MyReservationsClient() {
   const t = useTranslations("reservations");
   const router = useRouter();
   const search = useSearchParams();
-  const page = Math.max(0, Number.parseInt(search.get("page") ?? "0", 10) || 0);
+  const rawPage = Math.max(0, Number.parseInt(search.get("page") ?? "0", 10) || 0);
   const { ready, user } = useAuth();
   const [reservations, setReservations] = useState<ReservationResponse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -69,9 +66,7 @@ export function MyReservationsClient() {
           router.push(`/signin?next=${encodeURIComponent(e.next)}`);
           return;
         }
-        setError(
-          e instanceof ApiError || e instanceof NetworkError ? e.message : t("loadError"),
-        );
+        setError(e instanceof ApiError || e instanceof NetworkError ? e.message : t("loadError"));
       }
     })();
     return () => {
@@ -80,14 +75,14 @@ export function MyReservationsClient() {
     };
   }, [ready, user, router, t]);
 
+  const totalPages = reservations ? Math.max(1, Math.ceil(reservations.length / PAGE_SIZE)) : 1;
+
+  const page = Math.min(rawPage, totalPages - 1);
+
   const pageSlice = useMemo(() => {
     if (!reservations) return [];
     return reservations.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   }, [reservations, page]);
-
-  const totalPages = reservations
-    ? Math.max(1, Math.ceil(reservations.length / PAGE_SIZE))
-    : 1;
 
   if (error) {
     return (
@@ -110,10 +105,7 @@ export function MyReservationsClient() {
             key={r.reservationId}
             className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-sm)]"
           >
-            <Link
-              href={`/me/reservations/${r.reservationId}`}
-              className="block hover:opacity-90"
-            >
+            <Link href={`/me/reservations/${r.reservationId}`} className="block hover:opacity-90">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-medium">{r.guestName}</p>
@@ -124,10 +116,7 @@ export function MyReservationsClient() {
                     {r.reservationId}
                   </p>
                 </div>
-                <StatusBadge
-                  status={r.status}
-                  label={t(`statusLabels.${r.status}`)}
-                />
+                <StatusBadge status={r.status} label={t(`statusLabels.${r.status}`)} />
               </div>
             </Link>
           </li>

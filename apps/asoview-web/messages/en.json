@@ -150,7 +150,8 @@
     "peopleSuffix": " guests",
     "submitButton": "Submit reservation request",
     "submitting": "Submitting…",
-    "submitError": "Failed to submit reservation request"
+    "submitError": "Failed to submit reservation request",
+    "missingVenueId": "venueId parameter is required."
   },
   "reservations": {
     "pageTitle": "Reservations",

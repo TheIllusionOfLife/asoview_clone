@@ -72,7 +72,7 @@ class ConsumerSlotControllerTest {
   }
 
   @Test
-  void listAvailableSlots_filtersFullSlots() throws Exception {
+  void listAvailableSlots_includesFullSlotsWithZeroRemaining() throws Exception {
     ReservationSlot available =
         new ReservationSlot(
             "slot-1",

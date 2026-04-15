@@ -8,10 +8,10 @@ import static org.mockito.Mockito.verify;
 import com.asoviewclone.reservation.model.Reservation;
 import com.asoviewclone.reservation.model.ReservationStatus;
 import java.time.Instant;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mail.SimpleMailMessage;
@@ -21,7 +21,12 @@ import org.springframework.mail.javamail.JavaMailSender;
 class EmailServiceTest {
 
   @Mock private JavaMailSender mailSender;
-  @InjectMocks private EmailService emailService;
+  private EmailService emailService;
+
+  @BeforeEach
+  void setUp() {
+    emailService = new EmailService(mailSender, "noreply@asoview-clone.dev");
+  }
 
   private static final Reservation SAMPLE =
       new Reservation(
@@ -81,7 +86,7 @@ class EmailServiceTest {
     SimpleMailMessage msg = captor.getValue();
     assertThat(msg.getTo()).containsExactly("taro@example.com");
     assertThat(msg.getSubject()).contains("承認");
-    assertThat(msg.getText()).contains("APPROVED");
+    assertThat(msg.getText()).contains("承認済み");
   }
 
   @Test

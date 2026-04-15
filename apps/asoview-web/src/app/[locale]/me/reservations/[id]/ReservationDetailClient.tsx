@@ -11,8 +11,8 @@ import {
   getReservation,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useFormatter, useTranslations } from "next-intl";
+import { useEffect, useRef, useState } from "react";
 
 const STATUS_TONE: Record<ReservationStatusType, string> = {
   PENDING_APPROVAL: "bg-yellow-100 text-yellow-800",
@@ -29,12 +29,12 @@ const CANCELLABLE: Set<ReservationStatusType> = new Set([
   "WAITLISTED",
 ]);
 
-export function ReservationDetailClient({
-  reservationId,
-}: { reservationId: string }) {
+export function ReservationDetailClient({ reservationId }: { reservationId: string }) {
   const t = useTranslations("reservations");
+  const format = useFormatter();
   const router = useRouter();
   const { ready, user } = useAuth();
+  const modalRef = useRef<HTMLDialogElement>(null);
   const [reservation, setReservation] = useState<ReservationResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -67,9 +67,7 @@ export function ReservationDetailClient({
           setError(t("notFound"));
           return;
         }
-        setError(
-          e instanceof ApiError || e instanceof NetworkError ? e.message : t("loadError"),
-        );
+        setError(e instanceof ApiError || e instanceof NetworkError ? e.message : t("loadError"));
       }
     })();
     return () => {
@@ -82,16 +80,20 @@ export function ReservationDetailClient({
     if (!reservation) return;
     setCancelling(true);
     try {
-      const updated = await cancelReservation(reservation.reservationId, cancelReason.trim());
+      const updated = await cancelReservation(reservation.reservationId, cancelReason.trim(), {
+        currentPath: `/me/reservations/${reservationId}`,
+      });
       setReservation(updated);
       setShowCancelModal(false);
       setCancelReason("");
       setToast(t("cancelSuccess"));
       setTimeout(() => setToast(null), 3000);
     } catch (e) {
-      setToast(
-        e instanceof ApiError || e instanceof NetworkError ? e.message : t("cancelError"),
-      );
+      if (e instanceof SignInRedirect) {
+        router.push(`/signin?next=${encodeURIComponent(e.next)}`);
+        return;
+      }
+      setToast(e instanceof ApiError || e instanceof NetworkError ? e.message : t("cancelError"));
       setTimeout(() => setToast(null), 3000);
     } finally {
       setCancelling(false);
@@ -101,8 +103,13 @@ export function ReservationDetailClient({
   if (error) {
     return (
       <div>
-        <p role="alert" className="text-sm text-[var(--color-danger)]">{error}</p>
-        <Link href="/me/reservations" className="mt-4 inline-block text-sm text-[var(--color-primary)]">
+        <p role="alert" className="text-sm text-[var(--color-danger)]">
+          {error}
+        </p>
+        <Link
+          href="/me/reservations"
+          className="mt-4 inline-block text-sm text-[var(--color-primary)]"
+        >
           ← {t("pageTitle")}
         </Link>
       </div>
@@ -125,7 +132,9 @@ export function ReservationDetailClient({
       <div className="mt-6 space-y-4 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-sm)]">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-[var(--color-ink-muted)]">{t("status")}</span>
-          <span className={`inline-block rounded-[var(--radius-sm)] px-2 py-0.5 text-xs font-semibold ${tone}`}>
+          <span
+            className={`inline-block rounded-[var(--radius-sm)] px-2 py-0.5 text-xs font-semibold ${tone}`}
+          >
             {t(`statusLabels.${reservation.status}`)}
           </span>
         </div>
@@ -144,7 +153,12 @@ export function ReservationDetailClient({
           <dd className="font-mono text-xs">{reservation.slotId}</dd>
 
           <dt className="text-[var(--color-ink-muted)]">{t("createdAt")}</dt>
-          <dd>{new Date(reservation.createdAt).toLocaleString()}</dd>
+          <dd>
+            {format.dateTime(new Date(reservation.createdAt), {
+              dateStyle: "long",
+              timeStyle: "short",
+            })}
+          </dd>
 
           {reservation.rejectReason && (
             <>
@@ -177,14 +191,23 @@ export function ReservationDetailClient({
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
           onClick={() => setShowCancelModal(false)}
-          onKeyDown={() => {}}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setShowCancelModal(false);
+          }}
         >
-          <div
+          <dialog
+            ref={modalRef}
+            open
+            aria-labelledby="cancel-modal-title"
             className="w-full max-w-md rounded-[var(--radius-lg)] bg-[var(--color-surface)] p-6 shadow-lg"
             onClick={(e) => e.stopPropagation()}
-            onKeyDown={() => {}}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setShowCancelModal(false);
+            }}
           >
-            <h2 className="text-lg font-bold">{t("cancelButton")}</h2>
+            <h2 id="cancel-modal-title" className="text-lg font-bold">
+              {t("cancelButton")}
+            </h2>
             <label className="mt-4 block text-sm">
               {t("cancelReasonLabel")}
               <textarea
@@ -212,7 +235,7 @@ export function ReservationDetailClient({
                 {cancelling ? t("cancelling") : t("cancelConfirm")}
               </button>
             </div>
-          </div>
+          </dialog>
         </div>
       )}
 

@@ -45,7 +45,7 @@ public class ConsumerSlotController {
           slot.endTime(),
           slot.capacity(),
           slot.approvedCount(),
-          slot.capacity() - slot.approvedCount());
+          Math.max(0, slot.capacity() - slot.approvedCount()));
     }
   }
 }

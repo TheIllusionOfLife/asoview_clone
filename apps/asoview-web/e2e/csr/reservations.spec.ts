@@ -14,7 +14,9 @@ test.describe("consumer reservations", () => {
     expect(url).toMatch(/\/(signin|me\/reservations)/);
   });
 
-  test("unauthenticated /me/reservations/{id} redirects to /signin or shows detail", async ({ page }) => {
+  test("unauthenticated /me/reservations/{id} redirects to /signin or shows detail", async ({
+    page,
+  }) => {
     await page.goto("/ja/me/reservations/res-123");
     const url = page.url();
     expect(url).toMatch(/\/(signin|me\/reservations)/);

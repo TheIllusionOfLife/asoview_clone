@@ -12,14 +12,27 @@ import {
 import { useAuth } from "@/lib/auth";
 import { addDaysIso, todayIsoJst } from "@/lib/slot-date";
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-function formatJpDate(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  if (!y || !m || !d) return iso;
-  const date = new Date(Date.UTC(y, m - 1, d));
-  const wd = ["日", "月", "火", "水", "木", "金", "土"][date.getUTCDay()];
-  return `${m}月${d}日 (${wd})`;
+const IDEM_STORAGE_PREFIX = "asoview:idem:rsv:";
+
+function getOrCreateReservationIdempotencyKey(slotId: string, uid: string): string {
+  const storageKey = `${IDEM_STORAGE_PREFIX}${slotId}|${uid}`;
+  if (typeof sessionStorage !== "undefined") {
+    const existing = sessionStorage.getItem(storageKey);
+    if (existing) return existing;
+  }
+  const key = crypto.randomUUID();
+  if (typeof sessionStorage !== "undefined") {
+    sessionStorage.setItem(storageKey, key);
+  }
+  return key;
+}
+
+function clearReservationIdempotencyKey(slotId: string, uid: string): void {
+  if (typeof sessionStorage === "undefined") return;
+  sessionStorage.removeItem(`${IDEM_STORAGE_PREFIX}${slotId}|${uid}`);
 }
 
 function shortTime(t: string): string {
@@ -30,6 +43,7 @@ export function ReservationForm({ venueId }: { venueId: string }) {
   const t = useTranslations("reservationForm");
   const router = useRouter();
   const { user, ready } = useAuth();
+  const pathname = usePathname();
 
   const [date, setDate] = useState(() => todayIsoJst());
   const [slots, setSlots] = useState<SlotAvailability[] | null>(null);
@@ -71,9 +85,7 @@ export function ReservationForm({ venueId }: { venueId: string }) {
         if (e instanceof NetworkError && e.message.includes("Aborted")) return;
         setLoading(false);
         setLoadError(
-          e instanceof ApiError || e instanceof NetworkError
-            ? e.message
-            : t("loadError"),
+          e instanceof ApiError || e instanceof NetworkError ? e.message : t("loadError"),
         );
       });
 
@@ -105,14 +117,18 @@ export function ReservationForm({ venueId }: { venueId: string }) {
       setSubmitError(null);
 
       try {
-        const idempotencyKey = `${selected.slotId}-${user.uid}-${Date.now()}`;
-        const reservation = await requestReservation({
-          slotId: selected.slotId,
-          idempotencyKey,
-          guestName: guestName.trim(),
-          guestEmail: guestEmail.trim(),
-          guestCount,
-        });
+        const idempotencyKey = getOrCreateReservationIdempotencyKey(selected.slotId, user.uid);
+        const reservation = await requestReservation(
+          {
+            slotId: selected.slotId,
+            idempotencyKey,
+            guestName: guestName.trim(),
+            guestEmail: guestEmail.trim(),
+            guestCount,
+          },
+          { currentPath: pathname },
+        );
+        clearReservationIdempotencyKey(selected.slotId, user.uid);
         router.push(`/me/reservations/${reservation.reservationId}`);
       } catch (err) {
         setSubmitting(false);
@@ -121,13 +137,11 @@ export function ReservationForm({ venueId }: { venueId: string }) {
           return;
         }
         setSubmitError(
-          err instanceof ApiError || err instanceof NetworkError
-            ? err.message
-            : t("submitError"),
+          err instanceof ApiError || err instanceof NetworkError ? err.message : t("submitError"),
         );
       }
     },
-    [selected, guestName, guestEmail, guestCount, ready, user, router, t],
+    [selected, guestName, guestEmail, guestCount, ready, user, router, t, pathname],
   );
 
   return (
@@ -160,9 +174,7 @@ export function ReservationForm({ venueId }: { venueId: string }) {
       </div>
 
       {/* Slot grid */}
-      {loading && (
-        <p className="mt-4 text-sm text-[var(--color-ink-muted)]">{t("loadingSlots")}</p>
-      )}
+      {loading && <p className="mt-4 text-sm text-[var(--color-ink-muted)]">{t("loadingSlots")}</p>}
       {!loading && loadError && (
         <p className="mt-4 text-sm text-[var(--color-danger)]">{loadError}</p>
       )}
@@ -179,21 +191,10 @@ export function ReservationForm({ venueId }: { venueId: string }) {
             const disabled = s.remainingCapacity <= 0;
             const checked = s.slotId === selectedSlotId;
             return (
-              <button
+              <label
                 key={s.slotId}
-                type="button"
-                role="radio"
-                aria-checked={checked}
-                aria-disabled={disabled}
-                disabled={disabled}
-                onClick={() => {
-                  if (!disabled) {
-                    setSelectedSlotId(s.slotId);
-                    setGuestCount((q) => Math.min(q, Math.max(1, s.remainingCapacity)));
-                  }
-                }}
                 className={[
-                  "rounded-[var(--radius-md)] border px-3 py-2 text-sm text-left",
+                  "rounded-[var(--radius-md)] border px-3 py-2 text-sm text-left cursor-pointer",
                   disabled
                     ? "border-[var(--color-border)] bg-[var(--color-border)]/20 text-[var(--color-ink-muted)] cursor-not-allowed"
                     : checked
@@ -201,13 +202,25 @@ export function ReservationForm({ venueId }: { venueId: string }) {
                       : "border-[var(--color-border)] hover:border-[var(--color-primary)]",
                 ].join(" ")}
               >
+                <input
+                  type="radio"
+                  name="slot"
+                  value={s.slotId}
+                  checked={checked}
+                  disabled={disabled}
+                  onChange={() => {
+                    setSelectedSlotId(s.slotId);
+                    setGuestCount((q) => Math.min(q, Math.max(1, s.remainingCapacity)));
+                  }}
+                  className="sr-only"
+                />
                 <span className="block font-semibold">
                   {shortTime(s.startTime)}–{shortTime(s.endTime)}
                 </span>
                 <span className="block text-xs">
                   {disabled ? t("full") : t("remaining", { n: s.remainingCapacity })}
                 </span>
-              </button>
+              </label>
             );
           })}
         </div>
@@ -245,7 +258,8 @@ export function ReservationForm({ venueId }: { venueId: string }) {
           >
             {Array.from({ length: maxQty }, (_, i) => i + 1).map((n) => (
               <option key={n} value={n}>
-                {n}{t("peopleSuffix")}
+                {n}
+                {t("peopleSuffix")}
               </option>
             ))}
           </select>

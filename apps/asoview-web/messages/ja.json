@@ -150,7 +150,8 @@
     "peopleSuffix": "名",
     "submitButton": "予約リクエストを送信",
     "submitting": "送信中…",
-    "submitError": "予約リクエストの送信に失敗しました"
+    "submitError": "予約リクエストの送信に失敗しました",
+    "missingVenueId": "venueId パラメータが必要です。"
   },
   "reservations": {
     "pageTitle": "予約リクエスト",
