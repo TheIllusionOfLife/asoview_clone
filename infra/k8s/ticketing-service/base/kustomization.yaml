@@ -5,6 +5,7 @@ resources:
   - deployment.yaml
   - networkpolicy.yaml
   - pdb.yaml
+  - serviceaccount.yaml
 images:
   - name: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/ticketing-service
     newTag: latest
