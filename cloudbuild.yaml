@@ -176,6 +176,19 @@ steps:
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/web:latest
       - .
 
+  - id: build-urakata-reservation-web
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args:
+      - build
+      - -f
+      - apps/urakata-reservation-web/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/urakata-reservation-web:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/urakata-reservation-web:latest
+      - .
+
   # ---- Push images BEFORE the kustomize bump + git commit. The
   # top-level `images:` block at the bottom only runs after ALL steps
   # complete, which means git-commit-bump would push the new tag to main
@@ -214,6 +227,10 @@ steps:
     name: gcr.io/cloud-builders/docker
     waitFor: ['build-web']
     args: ['push', '--all-tags', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/web']
+  - id: push-urakata-reservation-web
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['build-urakata-reservation-web']
+    args: ['push', '--all-tags', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/urakata-reservation-web']
 
   # ---- Bump kustomize image tags and commit (only after all pushes succeed) ----
   - id: bump-kustomize
@@ -231,12 +248,13 @@ steps:
       - push-analytics
       - push-search
       - push-web
+      - push-urakata-reservation-web
     args:
       - -c
       - |
         set -e
         apk add --no-cache yq
-        for svc in commerce-core gateway web ticketing-service reservation-service ads-service analytics-ingest search; do
+        for svc in commerce-core gateway web ticketing-service reservation-service ads-service analytics-ingest search urakata-reservation-web; do
           yq eval -i ".images[0].newTag = \"$SHORT_SHA\"" infra/k8s/$svc/overlays/dev/kustomization.yaml
         done
 
@@ -321,5 +339,7 @@ images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/analytics-ingest:latest
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/search-service:$SHORT_SHA
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/search-service:latest
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/urakata-reservation-web:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/urakata-reservation-web:latest
 
 timeout: 2400s
