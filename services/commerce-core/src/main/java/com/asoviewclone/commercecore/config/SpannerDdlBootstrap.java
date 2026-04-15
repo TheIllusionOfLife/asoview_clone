@@ -73,6 +73,13 @@ public class SpannerDdlBootstrap implements CommandLineRunner {
       } catch (ExecutionException e) {
         if (isAlreadyExists(e)) {
           log.info("DDL already applied: {}", resource.getFilename());
+        } else if (isEmulatorUnsupported(e)) {
+          // FGAC (CREATE ROLE, GRANT, REVOKE) isn't implemented by the Spanner emulator.
+          // Production-only DDL is skipped here so test bootstrap doesn't abort.
+          log.warn(
+              "Skipping emulator-unsupported DDL in {}: {}",
+              resource.getFilename(),
+              e.getCause() == null ? "unknown" : e.getCause().getMessage());
         } else {
           throw e;
         }
@@ -90,5 +97,14 @@ public class SpannerDdlBootstrap implements CommandLineRunner {
       return msg.contains("Duplicate") || msg.contains("already exists");
     }
     return false;
+  }
+
+  private boolean isEmulatorUnsupported(ExecutionException e) {
+    Throwable cause = e.getCause();
+    if (cause == null || cause.getMessage() == null) {
+      return false;
+    }
+    String msg = cause.getMessage();
+    return msg.contains("Unsupported ddl statement") || msg.contains("unsupported DDL");
   }
 }
