@@ -22,6 +22,7 @@
     "validFrom": "Valid from",
     "validUntil": "Valid until",
     "showAtGate": "Show this QR code at the gate",
+    "qrAccessibleLabel": "Ticket QR code",
     "noLongerValid": "This ticket is no longer valid",
     "orderId": "Order ID",
     "refresh": "Refresh"

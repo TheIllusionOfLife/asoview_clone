@@ -22,6 +22,7 @@
     "validFrom": "有効期間開始",
     "validUntil": "有効期間終了",
     "showAtGate": "ゲートで下記のQRコードをご提示ください",
+    "qrAccessibleLabel": "チケットQRコード",
     "noLongerValid": "このチケットは有効ではありません",
     "orderId": "注文ID",
     "refresh": "更新"

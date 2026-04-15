@@ -96,16 +96,16 @@ export default function TicketDetailPage() {
                 {t("showAtGate")}
               </p>
               <div className="flex justify-center mb-4 bg-white p-4">
+                {/* The payload IS the redeemable secret. Do not echo it in aria-label or
+                    in a <p> — use a generic accessible label and keep the raw value only
+                    in the SVG's encoded content (where sighted users scan it with a camera). */}
                 <QRCodeSVG
                   value={ticket.qrCodePayload}
                   size={256}
                   level="M"
-                  aria-label={ticket.qrCodePayload}
+                  aria-label={t("qrAccessibleLabel")}
                 />
               </div>
-              <p className="text-center font-mono text-xs text-[var(--color-text-muted)] break-all">
-                {ticket.qrCodePayload}
-              </p>
             </>
           ) : (
             <div className="py-8 text-center">

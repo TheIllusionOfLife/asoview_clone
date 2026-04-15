@@ -33,12 +33,16 @@ export function getFirebase(): FirebaseRuntime {
   const config = readConfig();
   const app = getApps()[0] ?? initializeApp(config);
   const auth = getAuth(app);
-  persistencePromise = setPersistence(auth, browserSessionPersistence);
 
+  // Connect to the emulator BEFORE setPersistence so the persistence setup
+  // hits the emulator's auth instance from the start. Firebase's
+  // connectAuthEmulator docs require it to run before any other auth operation.
   const emulatorUrl = process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL;
   if (emulatorUrl) {
     connectAuthEmulator(auth, emulatorUrl, { disableWarnings: true });
   }
+
+  persistencePromise = setPersistence(auth, browserSessionPersistence);
 
   runtime = { app, auth };
   return runtime;

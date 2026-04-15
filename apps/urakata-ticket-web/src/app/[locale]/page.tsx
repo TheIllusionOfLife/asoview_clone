@@ -100,7 +100,11 @@ export default function TicketListPage() {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="font-mono text-sm truncate">{tk.qrCodePayload}</p>
+                    {/* Intentionally do NOT show tk.qrCodePayload here. The payload is the
+                        redeemable secret; exposing it on the list card invites shoulder-surfing
+                        on a shared screen. Users see the QR only after tapping into the detail
+                        view, which is an explicit "show at gate" intent. */}
+                    <p className="text-sm font-medium">{t("title")}</p>
                     <p className="text-xs text-[var(--color-text-muted)] mt-1">
                       {t("orderId")}: {tk.orderId.slice(0, 8)}...
                     </p>

@@ -66,7 +66,11 @@ export default function LoginPage() {
               className="w-full px-3 py-2 border border-[var(--color-border)] rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
             />
           </div>
-          {error && <p className="text-sm text-[var(--color-danger)]">{error}</p>}
+          {error && (
+            <p role="alert" aria-live="assertive" className="text-sm text-[var(--color-danger)]">
+              {error}
+            </p>
+          )}
           <button
             type="submit"
             disabled={loading}
