@@ -326,7 +326,11 @@ steps:
         # Configure git credential helper to supply the PAT from Secret Manager
         # without persisting it in .git/config (avoids accidental token leakage
         # if workspace is logged or reused).
-        git config credential.helper '!f() { echo "password=${GITHUB_PAT}"; }; f'
+        # Double-dollar escapes Cloud Build's substitution pass so GITHUB_PAT is
+        # expanded by the shell at runtime (from secretEnv), not by Cloud Build
+        # at template validation time (which would fail because GITHUB_PAT is
+        # not a declared substitution key).
+        git config credential.helper '!f() { echo "password=$${GITHUB_PAT}"; }; f'
         git remote set-url origin "https://x-access-token@github.com/TheIllusionOfLife/asoview_clone.git"
         # Snapshot the bumped kustomization files so we can re-apply them
         # on every retry. The bump step (`bump-kustomize`) ran yq -i so
