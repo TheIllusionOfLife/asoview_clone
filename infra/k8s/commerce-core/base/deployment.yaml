@@ -86,6 +86,16 @@ spec:
                 secretKeyRef:
                   name: stripe-test
                   key: webhook-secret
+            # AI features: flag + Gemini API key. The key Secret is populated
+            # by External Secrets Operator from the `gemini-api-key` entry in
+            # Google Secret Manager.
+            - name: ASOVIEW_AI_ENABLED
+              value: "true"
+            - name: GOOGLE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: google-ai-config
+                  key: api-key
           ports:
             - name: http
               containerPort: 8081

@@ -1,0 +1,29 @@
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: smtp-config
+  namespace: core-services
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: gsm
+  target:
+    name: smtp-config
+    creationPolicy: Owner
+  data:
+    - secretKey: host
+      remoteRef:
+        key: smtp-host
+    - secretKey: port
+      remoteRef:
+        key: smtp-port
+    - secretKey: username
+      remoteRef:
+        key: smtp-username
+    - secretKey: password
+      remoteRef:
+        key: smtp-password
+    - secretKey: from
+      remoteRef:
+        key: smtp-from

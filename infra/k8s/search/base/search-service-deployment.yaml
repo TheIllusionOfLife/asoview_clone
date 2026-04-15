@@ -70,6 +70,12 @@ spec:
               value: http://gateway.edge.svc.cluster.local
             - name: SPRING_PROFILES_ACTIVE
               value: gke
+            # Popularity-boosted search: PopularityScoreSyncJob reads
+            # analytics_mart.product_ranking on a schedule and writes scores
+            # into OpenSearch's popularityScore field, which SearchQueryService
+            # applies via a function_score boost.
+            - name: POPULARITY_SYNC_ENABLED
+              value: "true"
           ports:
             - name: http
               containerPort: 8082

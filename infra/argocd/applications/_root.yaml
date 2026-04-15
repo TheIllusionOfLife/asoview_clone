@@ -32,7 +32,7 @@ spec:
     path: infra/argocd/applications
     directory:
       recurse: false
-      include: '{ads-service.yaml,analytics-ingest.yaml,cert-manager.yaml,commerce-core.yaml,edge.yaml,external-secrets.yaml,gateway.yaml,ingress-nginx.yaml,mailhog.yaml,reservation-service.yaml,search.yaml,ticketing-service.yaml,urakata-reservation-web.yaml,urakata-ticket-web.yaml,web.yaml}'
+      include: '{ads-service.yaml,analytics-ingest.yaml,cert-manager.yaml,commerce-core.yaml,edge.yaml,external-secrets.yaml,external-secrets-resources.yaml,gateway.yaml,ingress-nginx.yaml,mailhog.yaml,reservation-service.yaml,search.yaml,ticketing-service.yaml,urakata-reservation-web.yaml,urakata-ticket-web.yaml,web.yaml}'
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
