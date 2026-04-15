@@ -34,7 +34,7 @@ spring:
         - id: reservation-service-op
           uri: ${RESERVATION_SERVICE_URI:http://localhost:8083}
           predicates:
-            - Path=/v1/op/reservation-slots/**,/v1/op/reservations/**
+            - Path=/v1/op/reservation-slots/**,/v1/op/reservations/**,/v1/op/dashboard,/v1/op/me/venues
         - id: reservation-service-consumer
           uri: ${RESERVATION_SERVICE_URI:http://localhost:8083}
           predicates:
