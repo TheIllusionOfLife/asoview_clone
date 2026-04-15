@@ -2,6 +2,9 @@ package com.asoviewclone.reservation.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.verify;
 
 import com.asoviewclone.reservation.exception.ConflictException;
 import com.asoviewclone.reservation.model.Reservation;
@@ -16,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @SpringBootTest
 @Import(SpannerEmulatorConfig.class)
@@ -25,6 +29,7 @@ class ReservationCancelTest {
   @Autowired private ReservationService reservationService;
   @Autowired private ReservationSlotRepository slotRepository;
   @Autowired private ReservationRepository reservationRepository;
+  @MockitoBean private EmailService emailService;
 
   @BeforeEach
   void cleanup() {
@@ -132,5 +137,32 @@ class ReservationCancelTest {
     ReservationSlot afterCancel = slotRepository.findById(slot.slotId()).orElseThrow();
     assertThat(afterCancel.approvedCount()).isEqualTo(1);
     assertThat(afterCancel.waitlistCount()).isZero();
+  }
+
+  @Test
+  void waitlistPromotion_cancelApproved_sendsEmailToPromotedUser() {
+    ReservationSlot slot =
+        slotRepository.create("t-1", "v-1", "p-1", "2026-05-01", "09:00", "10:00", 2);
+
+    Reservation res1 =
+        reservationRepository.createWithSlotValidation(
+            slot.slotId(), "u-1", "idem-email-1", "A", "a@e.com", 2);
+    Reservation res2 =
+        reservationRepository.createWithSlotValidation(
+            slot.slotId(), "u-2", "idem-email-2", "B", "b@e.com", 1);
+
+    reservationService.approve(res1.reservationId());
+    reservationService.waitlist(res2.reservationId());
+
+    // Cancel the approved reservation: should auto-promote and email the waitlisted user
+    reservationService.cancel(res1.reservationId(), "Cancel for email test");
+
+    // Verify email was sent to the promoted user with APPROVED status
+    verify(emailService, atLeastOnce())
+        .sendStatusChangeNotification(
+            argThat(
+                (Reservation r) ->
+                    r.reservationId().equals(res2.reservationId())
+                        && r.status() == ReservationStatus.APPROVED));
   }
 }

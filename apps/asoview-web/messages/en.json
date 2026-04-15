@@ -138,6 +138,8 @@
   "reservationForm": {
     "title": "Request Reservation",
     "dateLabel": "Date",
+    "previousDay": "Previous day",
+    "nextDay": "Next day",
     "loadingSlots": "Loading available slots…",
     "loadError": "Failed to load available slots",
     "noSlots": "No slots available for this date.",

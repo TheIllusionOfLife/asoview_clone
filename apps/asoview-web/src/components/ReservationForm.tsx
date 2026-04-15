@@ -81,8 +81,7 @@ export function ReservationForm({ venueId }: { venueId: string }) {
         }
       })
       .catch((e) => {
-        if (cancelled) return;
-        if (e instanceof NetworkError && e.message.includes("Aborted")) return;
+        if (cancelled || ctrl.signal.aborted) return;
         setLoading(false);
         setLoadError(
           e instanceof ApiError || e instanceof NetworkError ? e.message : t("loadError"),
@@ -153,6 +152,7 @@ export function ReservationForm({ venueId }: { venueId: string }) {
         <button
           type="button"
           onClick={() => setDate((d) => addDaysIso(d, -1))}
+          aria-label={t("previousDay")}
           className="rounded-[var(--radius-md)] border border-[var(--color-border)] px-3 py-1.5 text-sm hover:border-[var(--color-primary)]"
         >
           ←
@@ -167,6 +167,7 @@ export function ReservationForm({ venueId }: { venueId: string }) {
         <button
           type="button"
           onClick={() => setDate((d) => addDaysIso(d, 1))}
+          aria-label={t("nextDay")}
           className="rounded-[var(--radius-md)] border border-[var(--color-border)] px-3 py-1.5 text-sm hover:border-[var(--color-primary)]"
         >
           →

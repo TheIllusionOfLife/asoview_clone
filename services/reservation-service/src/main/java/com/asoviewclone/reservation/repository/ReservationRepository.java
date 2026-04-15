@@ -458,7 +458,9 @@ public class ReservationRepository {
    * @throws NotFoundException if reservation or slot not found
    * @throws ConflictException if reservation is in a terminal status
    */
-  public Reservation cancelAtomically(String reservationId, String reason, String actorUserId) {
+  public record CancelResult(Reservation cancelled, List<Reservation> promoted) {}
+
+  public CancelResult cancelAtomically(String reservationId, String reason, String actorUserId) {
     return databaseClient
         .readWriteTransaction()
         .run(
@@ -489,6 +491,7 @@ public class ReservationRepository {
                       reservationId, "CANCELLED", actorUserId, reason));
 
               // Release capacity and auto-promote waitlisted if applicable
+              List<Reservation> promotedReservations = new ArrayList<>();
               if (current.status() == ReservationStatus.APPROVED
                   || current.status() == ReservationStatus.WAITLISTED) {
                 Statement slotStmt =
@@ -556,6 +559,23 @@ public class ReservationRepository {
                               wl.reservationId(), "APPROVED", null, "Auto-promoted from waitlist"));
                       newApprovedCount += wl.guestCount();
                       newWaitlistCount -= wl.guestCount();
+                      // Build promoted reservation with APPROVED status for notification
+                      promotedReservations.add(
+                          new Reservation(
+                              wl.reservationId(),
+                              wl.tenantId(),
+                              wl.venueId(),
+                              wl.slotId(),
+                              wl.consumerUserId(),
+                              ReservationStatus.APPROVED,
+                              wl.idempotencyKey(),
+                              wl.guestName(),
+                              wl.guestEmail(),
+                              wl.guestCount(),
+                              wl.rejectReason(),
+                              wl.cancelReason(),
+                              wl.createdAt(),
+                              Instant.now()));
                     }
                   }
                 } else {
@@ -577,21 +597,23 @@ public class ReservationRepository {
                         .build());
               }
 
-              return new Reservation(
-                  current.reservationId(),
-                  current.tenantId(),
-                  current.venueId(),
-                  current.slotId(),
-                  current.consumerUserId(),
-                  ReservationStatus.CANCELLED,
-                  current.idempotencyKey(),
-                  current.guestName(),
-                  current.guestEmail(),
-                  current.guestCount(),
-                  current.rejectReason(),
-                  reason,
-                  current.createdAt(),
-                  Instant.now());
+              Reservation cancelled =
+                  new Reservation(
+                      current.reservationId(),
+                      current.tenantId(),
+                      current.venueId(),
+                      current.slotId(),
+                      current.consumerUserId(),
+                      ReservationStatus.CANCELLED,
+                      current.idempotencyKey(),
+                      current.guestName(),
+                      current.guestEmail(),
+                      current.guestCount(),
+                      current.rejectReason(),
+                      reason,
+                      current.createdAt(),
+                      Instant.now());
+              return new CancelResult(cancelled, promotedReservations);
             });
   }
 

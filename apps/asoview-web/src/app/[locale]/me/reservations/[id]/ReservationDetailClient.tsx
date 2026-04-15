@@ -41,11 +41,53 @@ export function ReservationDetailClient({ reservationId }: { reservationId: stri
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = (msg: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast(msg);
+    toastTimerRef.current = setTimeout(() => setToast(null), 3000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
+  // Focus trap for cancel modal
+  useEffect(() => {
+    if (!showCancelModal || !modalRef.current) return;
+    const dialog = modalRef.current;
+    const focusable = dialog.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    first?.focus();
+
+    function trapFocus(e: KeyboardEvent) {
+      if (e.key !== "Tab") return;
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first?.focus();
+        }
+      }
+    }
+    dialog.addEventListener("keydown", trapFocus);
+    return () => dialog.removeEventListener("keydown", trapFocus);
+  }, [showCancelModal]);
 
   useEffect(() => {
     if (!ready) return;
     if (!user) {
-      router.push(`/signin?next=/me/reservations/${reservationId}`);
+      router.push(`/signin?next=${encodeURIComponent(`/me/reservations/${reservationId}`)}`);
       return;
     }
     let cancelled = false;
@@ -86,15 +128,13 @@ export function ReservationDetailClient({ reservationId }: { reservationId: stri
       setReservation(updated);
       setShowCancelModal(false);
       setCancelReason("");
-      setToast(t("cancelSuccess"));
-      setTimeout(() => setToast(null), 3000);
+      showToast(t("cancelSuccess"));
     } catch (e) {
       if (e instanceof SignInRedirect) {
         router.push(`/signin?next=${encodeURIComponent(e.next)}`);
         return;
       }
-      setToast(e instanceof ApiError || e instanceof NetworkError ? e.message : t("cancelError"));
-      setTimeout(() => setToast(null), 3000);
+      showToast(e instanceof ApiError || e instanceof NetworkError ? e.message : t("cancelError"));
     } finally {
       setCancelling(false);
     }

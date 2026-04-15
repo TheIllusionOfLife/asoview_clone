@@ -123,11 +123,14 @@ public class ReservationService {
   public Reservation cancel(String reservationId, String reason) {
     verifyTenantAccess(reservationId);
     String actorUserId = getCurrentUserId();
-    Reservation result =
+    var cancelResult =
         unwrapSpannerException(
             () -> repository.cancelAtomically(reservationId, reason, actorUserId));
-    emailService.sendStatusChangeNotification(result);
-    return result;
+    emailService.sendStatusChangeNotification(cancelResult.cancelled());
+    for (var promoted : cancelResult.promoted()) {
+      emailService.sendStatusChangeNotification(promoted);
+    }
+    return cancelResult.cancelled();
   }
 
   public void verifyTenantAccess(String reservationId) {

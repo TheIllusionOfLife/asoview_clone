@@ -138,6 +138,8 @@
   "reservationForm": {
     "title": "予約リクエスト",
     "dateLabel": "日付",
+    "previousDay": "前日",
+    "nextDay": "翌日",
     "loadingSlots": "空き枠を読み込み中…",
     "loadError": "空き枠の取得に失敗しました",
     "noSlots": "この日に空き枠はありません。",
