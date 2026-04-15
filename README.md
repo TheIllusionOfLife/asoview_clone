@@ -5,15 +5,15 @@ publicly observable architecture patterns (modular monolith +
 microservices, Spanner for strong-consistency domains, Next.js + Expo
 on the client side) while swapping AWS for GCP-native equivalents.
 
+**Live dev site**: https://asoview-clone-dev.duckdns.org
+
 ## What's live
 
-Dev cluster: https://asoview-clone-dev.duckdns.org
-
-| Surface | Host | Status |
+| Surface | URL | Status |
 |---|---|---|
-| asoview! consumer marketplace | `asoview-clone-dev.duckdns.org` | Full funnel: browse, search, checkout (Stripe test mode), orders, favorites, points. AI recommendations, chatbot, popularity-boosted search all enabled via Gemini + BigQuery ranking sync. |
-| UraKata Ticket — consumer display | `asoview-tickets.duckdns.org` | Signed-in consumer lists ticket passes, taps one to show QR at the gate. |
-| UraKata Reservation — operator UI | `asoview-operator.duckdns.org` | Operators run slot CRUD + reservation approval; SMTP notifications via MailHog in dev. |
+| asoview! consumer marketplace | https://asoview-clone-dev.duckdns.org | Full funnel: browse, search, checkout (Stripe test mode), orders, favorites, points. AI recommendations, chatbot, popularity-boosted search all enabled via Gemini + BigQuery ranking sync. |
+| UraKata Ticket — consumer display | https://asoview-tickets.duckdns.org | Signed-in consumer lists ticket passes, taps one to show QR at the gate. |
+| UraKata Reservation — operator UI | https://asoview-operator.duckdns.org | Operators run slot CRUD + reservation approval; SMTP notifications via MailHog in dev. |
 | UraKata Ticket — scanner-app | Expo Go / EAS internal build | Camera scan → `POST /v1/op/tickets/redeem` with Firebase-token zero-trust auth + Spanner FGAC enforcement. See `apps/scanner-app/README.md`. |
 
 ## Local dev
