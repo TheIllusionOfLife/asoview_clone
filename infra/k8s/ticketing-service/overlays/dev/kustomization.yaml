@@ -30,3 +30,13 @@ patches:
         value:
           name: SPANNER_DATABASE
           value: asoview
+      # FGAC flip. SpannerConfig reads spanner.database-role and, when set,
+      # wires SpannerOptions.setDatabaseRole(...) so every read/write runs
+      # under the ticketing_service DB role defined in V10 DDL. Append-only
+      # on scan_audit_log + no-DELETE on ticket_passes are then enforced at
+      # the Spanner IAM layer, not just the app layer.
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: SPANNER_DATABASE_ROLE
+          value: ticketing_service

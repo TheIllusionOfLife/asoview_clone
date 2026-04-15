@@ -1,0 +1,53 @@
+# App-of-apps root. Single Application that Argo CD reconciles to register every
+# other Application manifest in this directory. Solves the class of drift where
+# a PR commits a new Application YAML (e.g. urakata-ticket-web.yaml,
+# urakata-reservation-web.yaml, search.yaml) but nobody remembers to
+# `kubectl apply -f` it, so the cluster never actually runs the new service.
+#
+# Allowlist, not glob: source.directory.include names every Application we want
+# registered explicitly. A half-written Application dropped in this directory
+# does NOT auto-register — has to be added here on purpose.
+#
+# Bootstrap: after the PR lands, run once:
+#   kubectl apply -f infra/argocd/applications/_root.yaml
+# From then on, adding a new sibling Application only requires editing this
+# allowlist + pushing.
+#
+# The file starts with `_` so `ls` keeps it visually distinct from the
+# allowlist members, but the resource name is RFC1123-valid (`apps-root`).
+# _root.yaml is NOT in its own allowlist — the bootstrap apply is the single
+# imperative step. Self-reference would cause Argo to manage the Application
+# that manages itself, which works but makes `kubectl delete` semantics
+# subtle and isn't worth the complexity.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: apps-root
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: asoview-clone-dev
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/TheIllusionOfLife/asoview_clone.git
+    targetRevision: main
+    path: infra/argocd/applications
+    directory:
+      recurse: false
+      include: '{ads-service.yaml,analytics-ingest.yaml,cert-manager.yaml,commerce-core.yaml,edge.yaml,external-secrets.yaml,external-secrets-resources.yaml,gateway.yaml,ingress-nginx.yaml,mailhog.yaml,reservation-service.yaml,search.yaml,ticketing-service.yaml,urakata-reservation-web.yaml,urakata-ticket-web.yaml,web.yaml}'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

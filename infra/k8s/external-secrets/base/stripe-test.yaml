@@ -1,0 +1,27 @@
+# Replaces the manually-created `stripe-test` k8s Secret in core-services.
+# After ESO reconciles, the existing imperatively-applied Secret becomes
+# ESO-owned and rotations flow through `scripts/bootstrap-dev-secrets.sh`
+# updating GSM.
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: stripe-test
+  namespace: core-services
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: gsm
+  target:
+    name: stripe-test
+    creationPolicy: Owner
+  data:
+    - secretKey: publishable-key
+      remoteRef:
+        key: stripe-publishable-key
+    - secretKey: secret-key
+      remoteRef:
+        key: stripe-secret-key
+    - secretKey: webhook-secret
+      remoteRef:
+        key: stripe-webhook-secret

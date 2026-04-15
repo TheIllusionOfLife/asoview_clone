@@ -1,0 +1,86 @@
+# firebase-config Secret needs to exist in three namespaces: consumer-web
+# (urakata-ticket-web), operator-web (urakata-reservation-web), and edge
+# (asoview-web via its deployment — verify the asoview-web deployment
+# references this same Secret; earlier versions put it in `edge` only).
+# Each ExternalSecret reads the same GSM keys but writes into its own
+# namespace's Secret.
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: firebase-config
+  namespace: consumer-web
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: gsm
+  target:
+    name: firebase-config
+    creationPolicy: Owner
+  data:
+    - secretKey: api-key
+      remoteRef:
+        key: firebase-web-config-apikey
+    - secretKey: app-id
+      remoteRef:
+        key: firebase-web-config-appid
+    - secretKey: auth-domain
+      remoteRef:
+        key: firebase-web-config-authdomain
+    - secretKey: project-id
+      remoteRef:
+        key: firebase-web-config-projectid
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: firebase-config
+  namespace: operator-web
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: gsm
+  target:
+    name: firebase-config
+    creationPolicy: Owner
+  data:
+    - secretKey: api-key
+      remoteRef:
+        key: firebase-web-config-apikey
+    - secretKey: app-id
+      remoteRef:
+        key: firebase-web-config-appid
+    - secretKey: auth-domain
+      remoteRef:
+        key: firebase-web-config-authdomain
+    - secretKey: project-id
+      remoteRef:
+        key: firebase-web-config-projectid
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: firebase-config
+  namespace: edge
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: gsm
+  target:
+    name: firebase-config
+    creationPolicy: Owner
+  data:
+    - secretKey: api-key
+      remoteRef:
+        key: firebase-web-config-apikey
+    - secretKey: app-id
+      remoteRef:
+        key: firebase-web-config-appid
+    - secretKey: auth-domain
+      remoteRef:
+        key: firebase-web-config-authdomain
+    - secretKey: project-id
+      remoteRef:
+        key: firebase-web-config-projectid

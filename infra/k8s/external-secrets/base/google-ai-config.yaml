@@ -1,0 +1,17 @@
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: google-ai-config
+  namespace: core-services
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: gsm
+  target:
+    name: google-ai-config
+    creationPolicy: Owner
+  data:
+    - secretKey: api-key
+      remoteRef:
+        key: gemini-api-key

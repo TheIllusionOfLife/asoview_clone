@@ -48,6 +48,43 @@ spec:
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: dev
+            # SMTP notification target. smtp-config is populated by External
+            # Secrets Operator. In the dev overlay the host resolves to MailHog
+            # (in-cluster capture SMTP + HTTP inbox) so tests can assert a real
+            # message was sent without blasting a real inbox. Prod overlay
+            # swaps these to a real provider (SendGrid).
+            - name: MAIL_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: smtp-config
+                  key: host
+            - name: MAIL_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: smtp-config
+                  key: port
+            - name: MAIL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: smtp-config
+                  key: username
+            - name: MAIL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: smtp-config
+                  key: password
+            - name: APP_MAIL_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: smtp-config
+                  key: from
+            # Secure defaults in base. The dev overlay flips these to "false"
+            # because MailHog is SMTP-auth-less; a real provider (SendGrid,
+            # Gmail, etc.) requires auth + STARTTLS.
+            - name: MAIL_SMTP_AUTH
+              value: "true"
+            - name: MAIL_SMTP_STARTTLS
+              value: "true"
           ports:
             - name: http
               containerPort: 8083

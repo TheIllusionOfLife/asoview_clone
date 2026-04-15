@@ -1,0 +1,15 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reservation-service
+  namespace: core-services
+spec:
+  template:
+    spec:
+      containers:
+        - name: reservation-service
+          env:
+            - name: MAIL_SMTP_AUTH
+              value: "false"
+            - name: MAIL_SMTP_STARTTLS
+              value: "false"

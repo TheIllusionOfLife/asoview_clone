@@ -1,0 +1,27 @@
+# Ingress-nginx backends are namespace-local; Ingress rules cannot reference a
+# Service in another namespace directly. ExternalName Services living in `edge`
+# act as DNS aliases to the real Services in their home namespaces so the
+# subdomain rules in ingress.yaml stay local.
+apiVersion: v1
+kind: Service
+metadata:
+  name: urakata-ticket-web-external
+  namespace: edge
+spec:
+  type: ExternalName
+  externalName: urakata-ticket-web.consumer-web.svc.cluster.local
+  ports:
+    - name: http
+      port: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: urakata-reservation-web-external
+  namespace: edge
+spec:
+  type: ExternalName
+  externalName: urakata-reservation-web.operator-web.svc.cluster.local
+  ports:
+    - name: http
+      port: 3000

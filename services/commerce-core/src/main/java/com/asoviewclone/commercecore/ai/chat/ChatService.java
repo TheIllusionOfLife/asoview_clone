@@ -7,6 +7,15 @@ import com.asoviewclone.commercecore.catalog.repository.ProductRepository;
 import com.google.genai.Client;
 import com.google.genai.types.GenerateContentResponse;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import java.time.Duration;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,10 +32,12 @@ import org.springframework.stereotype.Service;
 public class ChatService {
 
   private static final Logger log = LoggerFactory.getLogger(ChatService.class);
-  private final String model;
+  private static final Duration GEMINI_TIMEOUT = Duration.ofSeconds(15);
 
+  private final String model;
   private final Client geminiClient;
   private final ProductRepository productRepository;
+  private final ExecutorService geminiExecutor;
   private String catalogContext;
 
   public ChatService(
@@ -36,6 +47,35 @@ public class ChatService {
     this.geminiClient = geminiClient;
     this.productRepository = productRepository;
     this.model = model;
+    // Dedicated bounded pool: Gemini calls are blocking I/O, so ForkJoinPool.commonPool()
+    // is a poor fit (work-stealing threads get pinned + starve parallel streams elsewhere).
+    // Bounded queue prevents unlimited backlog during Gemini outages.
+    this.geminiExecutor =
+        new ThreadPoolExecutor(
+            2,
+            8,
+            60L,
+            TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>(32),
+            r -> {
+              Thread t = new Thread(r, "gemini-chat");
+              t.setDaemon(true);
+              return t;
+            },
+            new ThreadPoolExecutor.AbortPolicy());
+  }
+
+  @PreDestroy
+  void shutdown() {
+    geminiExecutor.shutdown();
+    try {
+      if (!geminiExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+        geminiExecutor.shutdownNow();
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      geminiExecutor.shutdownNow();
+    }
   }
 
   @PostConstruct
@@ -62,15 +102,41 @@ public class ChatService {
   }
 
   public ChatResponse chat(String message) {
+    String prompt = buildPrompt(message);
+    Future<String> future = null;
     try {
-      String prompt = buildPrompt(message);
-      GenerateContentResponse response = geminiClient.models.generateContent(model, prompt, null);
-      String text = response.text();
+      // Wrap the Gemini call in a 15 s timeout so a hung upstream doesn't tie up a tomcat
+      // thread indefinitely. Gemini's SDK doesn't expose a deadline on generateContent(),
+      // so we submit to a dedicated executor and cancel on timeout to free the pooled thread.
+      future =
+          geminiExecutor.submit(
+              () -> {
+                GenerateContentResponse response =
+                    geminiClient.models.generateContent(model, prompt, null);
+                return response.text();
+              });
+      String text = future.get(GEMINI_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
       if (text == null || text.isBlank()) {
         log.warn("Gemini returned null/blank response for model={}", model);
         return new ChatResponse("回答を生成できませんでした。もう一度お試しください。");
       }
       return new ChatResponse(text);
+    } catch (RejectedExecutionException e) {
+      log.warn("Gemini executor rejected submission (queue full or shut down)");
+      return new ChatResponse("応答に時間がかかっています。しばらくしてから再度お試しください。");
+    } catch (TimeoutException e) {
+      if (future != null) {
+        future.cancel(true);
+      }
+      log.warn("Gemini chat timed out after {} ms", GEMINI_TIMEOUT.toMillis());
+      return new ChatResponse("応答に時間がかかっています。しばらくしてから再度お試しください。");
+    } catch (InterruptedException e) {
+      if (future != null) {
+        future.cancel(true);
+      }
+      Thread.currentThread().interrupt();
+      log.warn("Gemini chat interrupted");
+      return new ChatResponse("応答に時間がかかっています。しばらくしてから再度お試しください。");
     } catch (Exception e) {
       log.error("Gemini chat failed", e);
       return new ChatResponse("申し訳ございません。現在チャットをご利用いただけません。");

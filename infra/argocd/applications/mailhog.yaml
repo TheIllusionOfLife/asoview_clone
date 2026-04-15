@@ -1,0 +1,37 @@
+# MailHog — in-cluster SMTP sink + HTTP inbox API used by dev and E2E tests.
+# Reservation-service POSTs SMTP to port 1025 (MailHog captures instead of
+# forwarding), and tests poll MailHog's HTTP API on port 8025 to assert that
+# a notification was actually sent.
+#
+# MailHog is dev-only. Prod overlay (out of scope for PR 5d) swaps
+# smtp-config to point at a real provider.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mailhog
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: asoview-clone-dev
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/TheIllusionOfLife/asoview_clone.git
+    targetRevision: main
+    path: infra/k8s/mailhog/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: core-services
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m
