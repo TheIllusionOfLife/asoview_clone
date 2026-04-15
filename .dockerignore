@@ -8,7 +8,14 @@
 **/dist
 docs
 infra
-contracts
+# contracts/ is the proto source of truth — libraries/proto-contracts
+# resolves srcDir("${rootProject.projectDir}/contracts/proto") at Gradle
+# configuration time, so every Java service that depends on proto-contracts
+# needs this directory present in the Docker build context to regenerate
+# the proto-derived classes. Services that don't reference any generated
+# proto types (e.g. ads-service) compile without this, which is why the
+# bug was latent from PR #2 until analytics-ingest grew a PaymentEvent /
+# OrderEvent import and every main-branch build started failing.
 *.md
 .editorconfig
 biome.json
