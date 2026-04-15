@@ -53,3 +53,4 @@ docker-compose.override.yml
 # Coverage
 coverage/
 htmlcov/
+.claude/
