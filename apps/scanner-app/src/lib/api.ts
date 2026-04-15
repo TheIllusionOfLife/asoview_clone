@@ -2,7 +2,8 @@ import { z } from "zod";
 import { randomUUID } from "./device";
 import { apiBaseUrl, firebaseAuth } from "./firebase";
 
-const QR_FORMAT = /^TKT-[0-9a-f]{32}$/;
+// Must match backend QrCodeGenerator (16 hex chars, case-insensitive).
+const QR_FORMAT = /^TKT-[0-9A-Fa-f]{16}$/;
 
 export const RedeemOutcome = z.enum([
   "REDEEMED",
@@ -57,13 +58,15 @@ export async function redeem(
   if (!user) {
     return { kind: "denied", code: "UNAUTHENTICATED", status: 401 };
   }
-  const idToken = await user.getIdToken();
   const idempotencyKey = randomUUID();
-  const body = JSON.stringify({ passId: qr, scannerDeviceId, venueId });
+  const body = JSON.stringify({ qrCodePayload: qr, scannerDeviceId, venueId });
   const url = `${apiBaseUrl()}/v1/op/tickets/redeem`;
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
+      // getIdToken can reject (expired refresh token, offline). Inside the try so
+      // callers always get a typed RedeemResult rather than an unhandled rejection.
+      const idToken = await user.getIdToken();
       const res = await fetch(url, {
         method: "POST",
         headers: {

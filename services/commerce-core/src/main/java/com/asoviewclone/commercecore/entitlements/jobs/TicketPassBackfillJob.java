@@ -89,14 +89,21 @@ public class TicketPassBackfillJob {
       if (!mutations.isEmpty()) {
         databaseClient.write(mutations);
         updated += mutations.size();
-      } else {
-        // Every candidate in this batch was either previously-reported unresolvable or newly
-        // unresolvable. Either way, no further iteration will make progress.
+      }
+
+      // Termination rule: cursor exhausted when the batch returned fewer rows than the
+      // requested limit. We cannot break on empty mutations — a batch of all-unresolvable
+      // rows still consumes the limit but produces zero writes, and further batches may
+      // contain resolvable rows. Since readBatch filters on NULL and we UPDATE those NULLs
+      // in-place, resolved rows fall out of subsequent queries naturally; unresolvable
+      // rows persist but are deduped via unresolvedIds, so we terminate on the next
+      // short batch.
+      if (candidates.size() < maxRowsPerBatch) {
         break;
       }
     }
 
-    Report r = new Report(updated, 0, unresolvedIds.size(), new ArrayList<>(unresolvedIds));
+    Report r = new Report(updated, unresolvedIds.size(), new ArrayList<>(unresolvedIds));
     log.info(
         "TicketPassBackfillJob complete: updated={} unresolved={}", r.updated(), r.unresolved());
     return r;
@@ -126,6 +133,10 @@ public class TicketPassBackfillJob {
 
   private record Candidate(String passId, String productVariantId) {}
 
-  public record Report(
-      int updated, int skippedAlreadyBackfilled, int unresolved, List<String> unresolvedPassIds) {}
+  /**
+   * Result of a backfill run. {@code unresolvedPassIds} is deduped — each unresolvable pass is
+   * listed once even if it spanned multiple batches. Ops should treat {@code unresolved > 0} as a
+   * signal to investigate (orphaned entitlements, deleted variants) before rerunning.
+   */
+  public record Report(int updated, int unresolved, List<String> unresolvedPassIds) {}
 }

@@ -12,7 +12,9 @@
 CREATE ROLE ticketing_service;
 GRANT INSERT ON TABLE scan_audit_log TO ROLE ticketing_service;
 GRANT INSERT, SELECT ON TABLE ticket_redeem_idempotency TO ROLE ticketing_service;
-GRANT INSERT, SELECT ON TABLE revoked_sessions TO ROLE ticketing_service;
+-- UPDATE needed because revokeSession uses Mutation.newInsertOrUpdateBuilder (same
+-- (user_id, session_id) can be re-revoked; admin idempotency relies on upsert semantics).
+GRANT INSERT, SELECT, UPDATE ON TABLE revoked_sessions TO ROLE ticketing_service;
 GRANT SELECT, UPDATE ON TABLE ticket_passes TO ROLE ticketing_service;
 GRANT SELECT ON TABLE entitlements TO ROLE ticketing_service;
 

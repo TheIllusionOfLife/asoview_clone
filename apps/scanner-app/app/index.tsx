@@ -19,7 +19,14 @@ export default function Scan() {
   const lastScanRef = useRef<{ payload: string; at: number } | null>(null);
 
   useEffect(() => {
-    getDeviceId().then(setDeviceId);
+    getDeviceId()
+      .then(setDeviceId)
+      .catch((e) => {
+        setLastResult({
+          kind: "network_error",
+          message: `Device init failed: ${e instanceof Error ? e.message : "unknown"}`,
+        });
+      });
   }, []);
 
   async function handleScanned({ data }: { data: string }) {
@@ -39,9 +46,19 @@ export default function Scan() {
     }
     if (!deviceId) return;
     setBusy(true);
-    const result = await redeem(data, deviceId, venueId);
-    setBusy(false);
-    setLastResult(result);
+    try {
+      const result = await redeem(data, deviceId, venueId);
+      setLastResult(result);
+    } catch (e) {
+      // redeem() is designed to never throw, but belt-and-suspenders: any
+      // unexpected throw must not leave the scanner stuck on busy.
+      setLastResult({
+        kind: "network_error",
+        message: e instanceof Error ? e.message : "unexpected error",
+      });
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (!permission) {

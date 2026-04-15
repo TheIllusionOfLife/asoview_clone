@@ -9,6 +9,7 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Resolves (venueId, tenantId) for a given productVariantId by hopping ProductVariant -> Product.
@@ -28,6 +29,7 @@ public class VenueTenantResolver {
     this.productRepository = productRepository;
   }
 
+  @Transactional(readOnly = true)
   public Optional<Resolution> resolve(String productVariantId) {
     if (productVariantId == null) {
       return Optional.empty();
