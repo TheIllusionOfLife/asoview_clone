@@ -7,5 +7,7 @@ public record TicketPass(
     String entitlementId,
     String qrCodePayload,
     TicketPassStatus status,
+    String venueId,
+    String tenantId,
     Instant usedAt,
     Instant createdAt) {}

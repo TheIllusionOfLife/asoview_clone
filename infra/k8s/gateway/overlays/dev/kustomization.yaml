@@ -16,3 +16,8 @@ patches:
         value:
           name: RESERVATION_SERVICE_URI
           value: http://reservation-service.core-services.svc.cluster.local:8083
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: TICKETING_SERVICE_URI
+          value: http://ticketing-service.core-services.svc.cluster.local:8082

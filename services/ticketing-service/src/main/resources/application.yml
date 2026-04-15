@@ -1,6 +1,20 @@
 spring:
   application:
     name: ticketing-service
+  cloud:
+    gcp:
+      spanner:
+        project-id: ${SPANNER_PROJECT_ID:asoview-clone}
+        instance-id: ${SPANNER_INSTANCE_ID:asoview-clone}
+        database: ${SPANNER_DATABASE:asoview}
+
+ticketing:
+  redeem:
+    rate-limit:
+      per-scanner-rps: 20
+      per-scanner-burst: 50
+      per-pass-attempts-per-minute: 5
+      per-ip-rps: 50
 
 server:
   port: 8082

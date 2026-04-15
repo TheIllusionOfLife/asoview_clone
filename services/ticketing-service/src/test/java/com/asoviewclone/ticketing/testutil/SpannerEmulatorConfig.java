@@ -1,8 +1,7 @@
-package com.asoviewclone.commercecore.testutil;
+package com.asoviewclone.ticketing.testutil;
 
 import com.google.api.gax.core.NoCredentialsProvider;
 import com.google.cloud.NoCredentials;
-import com.google.cloud.spanner.DatabaseAdminClient;
 import com.google.cloud.spanner.DatabaseClient;
 import com.google.cloud.spanner.DatabaseId;
 import com.google.cloud.spanner.InstanceAdminClient;
@@ -19,6 +18,11 @@ import org.springframework.test.context.DynamicPropertyRegistrar;
 import org.testcontainers.containers.SpannerEmulatorContainer;
 import org.testcontainers.utility.DockerImageName;
 
+/**
+ * Testcontainers-backed Spanner emulator. Mirrors the commerce-core schema through V9 plus the
+ * indices required by the redeem query. Must be kept in sync with {@code
+ * services/commerce-core/src/main/resources/db/spanner/V*.sql}.
+ */
 @TestConfiguration(proxyBeanMethods = false)
 public class SpannerEmulatorConfig {
 
@@ -32,7 +36,6 @@ public class SpannerEmulatorConfig {
         new SpannerEmulatorContainer(
             DockerImageName.parse("gcr.io/cloud-spanner-emulator/emulator:1.5.28"));
     container.start();
-
     initializeInstanceAndDatabase(container);
     return container;
   }
@@ -61,11 +64,6 @@ public class SpannerEmulatorConfig {
   @Bean
   public DatabaseClient databaseClient(Spanner spanner) {
     return spanner.getDatabaseClient(DatabaseId.of(PROJECT_ID, INSTANCE_ID, DATABASE_NAME));
-  }
-
-  @Bean
-  public DatabaseAdminClient databaseAdminClient(Spanner spanner) {
-    return spanner.getDatabaseAdminClient();
   }
 
   @Bean
@@ -98,47 +96,9 @@ public class SpannerEmulatorConfig {
               INSTANCE_ID,
               DATABASE_NAME,
               List.of(
-                  "CREATE TABLE smoke_test (id STRING(36) NOT NULL, value STRING(255)) PRIMARY"
-                      + " KEY (id)",
-                  "CREATE TABLE inventory_slots (slot_id STRING(36) NOT NULL,"
-                      + " product_variant_id STRING(36) NOT NULL, slot_date STRING(10) NOT NULL,"
-                      + " start_time STRING(5), end_time STRING(5),"
-                      + " total_capacity INT64 NOT NULL, reserved_count INT64 NOT NULL,"
-                      + " created_at TIMESTAMP NOT NULL"
-                      + " OPTIONS (allow_commit_timestamp=true))"
-                      + " PRIMARY KEY (slot_id)",
-                  // Base inventory_holds CREATE intentionally OMITS
-                  // product_variant_id, mirroring V1__inventory.sql. The
-                  // ALTER TABLE statement below mirrors V5__inventory_holds_add_variant.sql.
-                  // Splitting the schema this way catches any future in-place
-                  // edit to V1 that would otherwise diverge from production.
-                  "CREATE TABLE inventory_holds (hold_id STRING(36) NOT NULL,"
-                      + " slot_id STRING(36) NOT NULL,"
-                      + " user_id STRING(36) NOT NULL,"
-                      + " quantity INT64 NOT NULL, expires_at TIMESTAMP NOT NULL,"
-                      + " created_at TIMESTAMP NOT NULL"
-                      + " OPTIONS (allow_commit_timestamp=true))"
-                      + " PRIMARY KEY (hold_id)",
-                  "ALTER TABLE inventory_holds ADD COLUMN product_variant_id STRING(36)",
-                  "CREATE INDEX idx_holds_slot ON inventory_holds(slot_id)",
-                  "CREATE TABLE orders (order_id STRING(36) NOT NULL,"
-                      + " user_id STRING(36) NOT NULL, status STRING(32) NOT NULL,"
-                      + " total_amount STRING(20) NOT NULL, currency STRING(3) NOT NULL,"
-                      + " idempotency_key STRING(64) NOT NULL,"
-                      + " created_at TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),"
-                      + " updated_at TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true))"
-                      + " PRIMARY KEY (order_id)",
-                  "CREATE UNIQUE INDEX idx_orders_idempotency ON orders(idempotency_key)",
-                  "CREATE INDEX idx_orders_user ON orders(user_id)",
-                  "CREATE TABLE order_items (order_item_id STRING(36) NOT NULL,"
-                      + " order_id STRING(36) NOT NULL,"
-                      + " product_variant_id STRING(36) NOT NULL,"
-                      + " slot_id STRING(36) NOT NULL, quantity INT64 NOT NULL,"
-                      + " unit_price STRING(20) NOT NULL,"
-                      + " hold_id STRING(36),"
-                      + " created_at TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true))"
-                      + " PRIMARY KEY (order_item_id)",
-                  "CREATE TABLE entitlements (entitlement_id STRING(36) NOT NULL,"
+                  // entitlements
+                  "CREATE TABLE entitlements ("
+                      + "entitlement_id STRING(36) NOT NULL,"
                       + " order_id STRING(36) NOT NULL,"
                       + " order_item_id STRING(36) NOT NULL,"
                       + " user_id STRING(36) NOT NULL,"
@@ -148,24 +108,21 @@ public class SpannerEmulatorConfig {
                       + " created_at TIMESTAMP NOT NULL"
                       + " OPTIONS (allow_commit_timestamp=true))"
                       + " PRIMARY KEY (entitlement_id)",
-                  "CREATE INDEX idx_entitlements_user ON entitlements(user_id)",
-                  "CREATE INDEX idx_entitlements_order ON entitlements(order_id)",
-                  "CREATE TABLE ticket_passes (ticket_pass_id STRING(36) NOT NULL,"
+                  // ticket_passes (with V6 columns; used_at allows commit timestamp per V6)
+                  "CREATE TABLE ticket_passes ("
+                      + "ticket_pass_id STRING(36) NOT NULL,"
                       + " entitlement_id STRING(36) NOT NULL,"
                       + " qr_code_payload STRING(255) NOT NULL,"
-                      + " status STRING(32) NOT NULL, used_at TIMESTAMP,"
+                      + " status STRING(32) NOT NULL,"
+                      + " used_at TIMESTAMP OPTIONS (allow_commit_timestamp=true),"
+                      + " venue_id STRING(36), tenant_id STRING(36),"
                       + " created_at TIMESTAMP NOT NULL"
                       + " OPTIONS (allow_commit_timestamp=true))"
                       + " PRIMARY KEY (ticket_pass_id)",
-                  "CREATE INDEX idx_ticket_passes_entitlement ON"
-                      + " ticket_passes(entitlement_id)",
-                  // V6__ticket_pass_security.sql
-                  "ALTER TABLE ticket_passes ADD COLUMN venue_id STRING(36)",
-                  "ALTER TABLE ticket_passes ADD COLUMN tenant_id STRING(36)",
-                  "ALTER TABLE ticket_passes ALTER COLUMN used_at SET OPTIONS (allow_commit_timestamp=true)",
                   "CREATE INDEX idx_ticket_passes_qr ON ticket_passes(qr_code_payload)",
-                  // V7__scan_audit_log.sql
-                  "CREATE TABLE scan_audit_log (scan_id STRING(36) NOT NULL,"
+                  // V7 scan_audit_log
+                  "CREATE TABLE scan_audit_log ("
+                      + "scan_id STRING(36) NOT NULL,"
                       + " tenant_id STRING(36) NOT NULL,"
                       + " ticket_pass_id STRING(64),"
                       + " scanner_user_id STRING(64) NOT NULL,"
@@ -179,12 +136,9 @@ public class SpannerEmulatorConfig {
                       + " PRIMARY KEY (scan_id)",
                   "CREATE INDEX idx_scan_audit_pass ON"
                       + " scan_audit_log (ticket_pass_id, scanned_at DESC)",
-                  "CREATE INDEX idx_scan_audit_scanner ON"
-                      + " scan_audit_log (tenant_id, scanner_user_id, scanned_at DESC)",
                   "CREATE INDEX idx_scan_audit_outcome ON"
                       + " scan_audit_log (tenant_id, outcome, scanned_at DESC)",
-                  // V8__ticket_redeem_idempotency.sql (no ROW DELETION POLICY; emulator parses but
-                  // ignores)
+                  // V8 ticket_redeem_idempotency
                   "CREATE TABLE ticket_redeem_idempotency ("
                       + "idempotency_key STRING(64) NOT NULL,"
                       + " scanner_user_id STRING(64) NOT NULL,"
@@ -194,32 +148,16 @@ public class SpannerEmulatorConfig {
                       + " created_at TIMESTAMP NOT NULL"
                       + " OPTIONS (allow_commit_timestamp=true))"
                       + " PRIMARY KEY (idempotency_key)",
-                  // V9__revoked_sessions.sql
+                  // V9 revoked_sessions
                   "CREATE TABLE revoked_sessions ("
                       + "user_id STRING(64) NOT NULL,"
                       + " session_id STRING(64) NOT NULL,"
                       + " revoked_at TIMESTAMP NOT NULL"
                       + " OPTIONS (allow_commit_timestamp=true))"
-                      + " PRIMARY KEY (user_id, session_id)",
-                  "CREATE TABLE payment_confirmation_steps (step_id STRING(36) NOT NULL,"
-                      + " payment_id STRING(36) NOT NULL,"
-                      + " order_item_id STRING(36) NOT NULL,"
-                      + " hold_id STRING(36) NOT NULL,"
-                      + " slot_id STRING(36) NOT NULL,"
-                      + " quantity INT64 NOT NULL,"
-                      + " status STRING(16) NOT NULL,"
-                      + " attempted_at TIMESTAMP NOT NULL"
-                      + " OPTIONS (allow_commit_timestamp=true),"
-                      + " updated_at TIMESTAMP NOT NULL"
-                      + " OPTIONS (allow_commit_timestamp=true))"
-                      + " PRIMARY KEY (step_id)",
-                  "CREATE INDEX idx_steps_payment ON payment_confirmation_steps(payment_id)",
-                  "CREATE INDEX idx_steps_status ON"
-                      + " payment_confirmation_steps(status, attempted_at)",
-                  "CREATE UNIQUE INDEX idx_steps_payment_item ON"
-                      + " payment_confirmation_steps(payment_id, order_item_id)"))
+                      + " PRIMARY KEY (user_id, session_id)"))
           .get();
     } catch (ExecutionException | InterruptedException e) {
+      Thread.currentThread().interrupt();
       throw new RuntimeException("Failed to initialize Spanner emulator", e);
     }
   }

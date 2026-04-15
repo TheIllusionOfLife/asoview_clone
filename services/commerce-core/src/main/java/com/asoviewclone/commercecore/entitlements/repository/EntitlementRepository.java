@@ -86,21 +86,34 @@ public class EntitlementRepository {
   public TicketPass saveTicketPass(TicketPass pass) {
     Instant now = clockProvider.now();
     String id = pass.ticketPassId() != null ? pass.ticketPassId() : UUID.randomUUID().toString();
-    databaseClient.write(
-        List.of(
-            Mutation.newInsertBuilder("ticket_passes")
-                .set("ticket_pass_id")
-                .to(id)
-                .set("entitlement_id")
-                .to(pass.entitlementId())
-                .set("qr_code_payload")
-                .to(pass.qrCodePayload())
-                .set("status")
-                .to(pass.status().name())
-                .set("created_at")
-                .to(Timestamp.ofTimeSecondsAndNanos(now.getEpochSecond(), 0))
-                .build()));
-    return new TicketPass(id, pass.entitlementId(), pass.qrCodePayload(), pass.status(), null, now);
+    Mutation.WriteBuilder mb =
+        Mutation.newInsertBuilder("ticket_passes")
+            .set("ticket_pass_id")
+            .to(id)
+            .set("entitlement_id")
+            .to(pass.entitlementId())
+            .set("qr_code_payload")
+            .to(pass.qrCodePayload())
+            .set("status")
+            .to(pass.status().name())
+            .set("created_at")
+            .to(Timestamp.ofTimeSecondsAndNanos(now.getEpochSecond(), 0));
+    if (pass.venueId() != null) {
+      mb.set("venue_id").to(pass.venueId());
+    }
+    if (pass.tenantId() != null) {
+      mb.set("tenant_id").to(pass.tenantId());
+    }
+    databaseClient.write(List.of(mb.build()));
+    return new TicketPass(
+        id,
+        pass.entitlementId(),
+        pass.qrCodePayload(),
+        pass.status(),
+        pass.venueId(),
+        pass.tenantId(),
+        null,
+        now);
   }
 
   public List<Entitlement> findByUserId(String userId) {
@@ -283,7 +296,18 @@ public class EntitlementRepository {
         rs.getString("entitlement_id"),
         rs.getString("qr_code_payload"),
         TicketPassStatus.valueOf(rs.getString("status")),
+        hasColumn(rs, "venue_id") && !rs.isNull("venue_id") ? rs.getString("venue_id") : null,
+        hasColumn(rs, "tenant_id") && !rs.isNull("tenant_id") ? rs.getString("tenant_id") : null,
         rs.isNull("used_at") ? null : rs.getTimestamp("used_at").toSqlTimestamp().toInstant(),
         rs.getTimestamp("created_at").toSqlTimestamp().toInstant());
+  }
+
+  private static boolean hasColumn(ResultSet rs, String column) {
+    try {
+      rs.getColumnIndex(column);
+      return true;
+    } catch (IllegalArgumentException e) {
+      return false;
+    }
   }
 }

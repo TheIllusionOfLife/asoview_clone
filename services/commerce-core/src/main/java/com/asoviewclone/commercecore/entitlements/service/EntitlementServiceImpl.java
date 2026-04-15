@@ -79,14 +79,20 @@ public class EntitlementServiceImpl implements EntitlementCreator {
     // Repair any existing entitlements that are missing ticket passes (partial
     // creation from a previous failed attempt).
     List<Entitlement> existing = entitlementRepository.findByOrderId(order.orderId());
+    // Cache (productVariantId -> [venueId, tenantId]) across the whole order so each variant
+    // triggers at most one JPA round-trip even when an order has many items for the same product.
+    Map<String, String[]> venueTenantByVariant = new HashMap<>();
     for (Entitlement e : existing) {
       if (entitlementRepository.findTicketPassesByEntitlementId(e.entitlementId()).isEmpty()) {
+        String[] vt = resolveVenueTenant(e.productVariantId(), venueTenantByVariant);
         entitlementRepository.saveTicketPass(
             new TicketPass(
                 null,
                 e.entitlementId(),
                 qrCodeGenerator.generate(),
                 TicketPassStatus.VALID,
+                vt[0],
+                vt[1],
                 null,
                 null));
       }
@@ -164,17 +170,57 @@ public class EntitlementServiceImpl implements EntitlementCreator {
                     validUntil,
                     null));
 
+        String[] vt = resolveVenueTenant(item.productVariantId(), venueTenantByVariant);
         entitlementRepository.saveTicketPass(
             new TicketPass(
                 null,
                 entitlement.entitlementId(),
                 qrCodeGenerator.generate(),
                 TicketPassStatus.VALID,
+                vt[0],
+                vt[1],
                 null,
                 null));
       }
     }
     log.info("Created entitlements for order {}", order.orderId());
+  }
+
+  /**
+   * Resolve (venueId, tenantId) for the given productVariantId and cache across the call site's
+   * loop. Returns a {@code String[2]} pair where either element may be null if the upstream JPA
+   * lookup fails. Null-safe: the scanner-side redeem path tolerates missing venue/tenant only for
+   * legacy pre-V6 rows and falls back to a terminal 404 so this best-effort resolution is safe.
+   */
+  private String[] resolveVenueTenant(String productVariantId, Map<String, String[]> cache) {
+    if (productVariantId == null) {
+      return new String[] {null, null};
+    }
+    String[] cached = cache.get(productVariantId);
+    if (cached != null) {
+      return cached;
+    }
+    String venueId = null;
+    String tenantId = null;
+    try {
+      UUID variantUuid = UUID.fromString(productVariantId);
+      ProductVariant variant = productVariantRepository.findById(variantUuid).orElse(null);
+      if (variant != null && variant.getProduct() != null) {
+        Product product =
+            productRepository.findById(variant.getProduct().getId()).orElse(variant.getProduct());
+        if (product.getVenueId() != null) {
+          venueId = product.getVenueId().toString();
+        }
+        if (product.getTenantId() != null) {
+          tenantId = product.getTenantId().toString();
+        }
+      }
+    } catch (IllegalArgumentException ignored) {
+      // productVariantId is not a UUID (test fixture or bad data); leave null.
+    }
+    String[] pair = new String[] {venueId, tenantId};
+    cache.put(productVariantId, pair);
+    return pair;
   }
 
   public List<Entitlement> listUserEntitlements(String userId) {
