@@ -140,7 +140,7 @@ public class IndexerService implements IndexerPort {
       req.setJsonEntity("{\"productId\":\"asoview-backfill-marker-v1\",\"status\":\"MARKER\"}");
       openSearchClient.getLowLevelClient().performRequest(req);
     } catch (Exception e) {
-      log.warn("Failed to write backfill marker: {}", e.getMessage());
+      throw new RuntimeException("Failed to write backfill marker", e);
     }
   }
 }

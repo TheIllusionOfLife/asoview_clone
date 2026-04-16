@@ -166,9 +166,23 @@ public class VertexAiSearchIndexerService implements IndexerPort {
       if (!isAlreadyExists(createException)) {
         throw createException;
       }
-      // Fall through to update path.
+      // Document already exists — read the current version and preserve any
+      // popularityScore that PopularityScoreSyncJob wrote, since reindex
+      // (toDoc) intentionally omits it. Without this merge a full-struct
+      // replacement would erase the sweep-written score.
       String docName = branchName + "/documents/" + documentId;
-      Document updated = document.toBuilder().setName(docName).build();
+      Document existing =
+          documentClient.getDocument(GetDocumentRequest.newBuilder().setName(docName).build());
+      Struct.Builder mergedStruct = document.getStructData().toBuilder();
+      if (!document.getStructData().containsFields("popularityScore")) {
+        com.google.protobuf.Value existingScore =
+            existing.getStructData().getFieldsOrDefault("popularityScore", null);
+        if (existingScore != null) {
+          mergedStruct.putFields("popularityScore", existingScore);
+        }
+      }
+      Document updated =
+          document.toBuilder().setName(docName).setStructData(mergedStruct.build()).build();
       documentClient.updateDocument(
           UpdateDocumentRequest.newBuilder().setDocument(updated).setAllowMissing(false).build());
     }
