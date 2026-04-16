@@ -3,6 +3,11 @@ kind: Kustomization
 namespace: search
 resources:
   - ../../base
+patches:
+  - path: workload-identity-patch.yaml
+    target:
+      kind: ServiceAccount
+      name: search-service
 images:
   - name: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/search-service
     newTag: df274ee

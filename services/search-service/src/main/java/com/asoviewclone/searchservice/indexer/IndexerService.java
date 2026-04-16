@@ -8,6 +8,7 @@ import org.opensearch.client.RestHighLevelClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
@@ -20,7 +21,8 @@ import tools.jackson.databind.json.JsonMapper;
  * startup backfill job.
  */
 @Service
-public class IndexerService {
+@ConditionalOnProperty(name = "search.provider", havingValue = "opensearch", matchIfMissing = true)
+public class IndexerService implements IndexerPort {
 
   private static final Logger log = LoggerFactory.getLogger(IndexerService.class);
 
@@ -48,6 +50,7 @@ public class IndexerService {
     this.indexName = indexName;
   }
 
+  @Override
   public void reindex(String productId) {
     try {
       String body =
@@ -101,6 +104,7 @@ public class IndexerService {
    *
    * @return true if the update succeeded, false on failure (logged as error)
    */
+  @Override
   public boolean updatePopularityScore(String productId, long score) {
     try {
       String encodedId =
@@ -115,7 +119,8 @@ public class IndexerService {
     }
   }
 
-  public boolean markerExists() {
+  @Override
+  public boolean isBackfillComplete() {
     try {
       Request req = new Request("GET", "/" + indexName + "/_doc/asoview-backfill-marker-v1");
       var resp = openSearchClient.getLowLevelClient().performRequest(req);
@@ -127,14 +132,15 @@ public class IndexerService {
     }
   }
 
-  public void writeMarker() {
+  @Override
+  public void markBackfillComplete() {
     try {
       Request req =
           new Request("PUT", "/" + indexName + "/_doc/asoview-backfill-marker-v1?refresh=true");
       req.setJsonEntity("{\"productId\":\"asoview-backfill-marker-v1\",\"status\":\"MARKER\"}");
       openSearchClient.getLowLevelClient().performRequest(req);
     } catch (Exception e) {
-      log.warn("Failed to write backfill marker: {}", e.getMessage());
+      throw new RuntimeException("Failed to write backfill marker", e);
     }
   }
 }

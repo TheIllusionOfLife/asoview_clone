@@ -9,9 +9,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/v1/search/admin")
 public class IndexerController {
 
-  private final IndexerService indexerService;
+  private final IndexerPort indexerService;
 
-  public IndexerController(IndexerService indexerService) {
+  public IndexerController(IndexerPort indexerService) {
     this.indexerService = indexerService;
   }
 

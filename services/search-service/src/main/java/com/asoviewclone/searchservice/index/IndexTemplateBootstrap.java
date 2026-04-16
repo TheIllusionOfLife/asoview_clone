@@ -7,11 +7,13 @@ import org.opensearch.client.RestHighLevelClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StreamUtils;
 
 @Component
+@ConditionalOnProperty(name = "search.provider", havingValue = "opensearch", matchIfMissing = true)
 public class IndexTemplateBootstrap implements CommandLineRunner {
 
   private static final Logger log = LoggerFactory.getLogger(IndexTemplateBootstrap.class);

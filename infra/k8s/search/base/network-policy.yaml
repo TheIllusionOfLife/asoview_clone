@@ -1,49 +1,19 @@
-# NetworkPolicy gating in-cluster traffic to OpenSearch + search-service.
+# NetworkPolicy gating in-cluster traffic to search-service.
 #
-# - OpenSearch (port 9200/9300) accepts ingress only from pods in this
-#   namespace, AND only those bearing the `app=search-service` label.
-#   Cross-namespace and unrelated pods cannot reach the data plane.
+# search-service accepts ingress on port 8082 only from the gateway
+# namespace (label `app.kubernetes.io/part-of: edge-gateway`). The
+# gateway already enforces a denyAll matcher on /v1/search/admin/**,
+# so combined with this NetworkPolicy the admin reindex endpoint is
+# reachable only by an authenticated cluster operator who can exec
+# into the gateway pod and bypass its filter (acceptable). Any other
+# in-cluster pod cannot reach :8082 directly. (PR #21 Codex finding:
+# /v1/search/admin/reindex was unauthenticated for in-cluster callers.)
 #
-# - search-service accepts ingress on port 8082 only from the gateway
-#   namespace (label `app.kubernetes.io/part-of: edge-gateway`). The
-#   gateway already enforces a denyAll matcher on /v1/search/admin/**,
-#   so combined with this NetworkPolicy the admin reindex endpoint is
-#   reachable only by an authenticated cluster operator who can exec
-#   into the gateway pod and bypass its filter (acceptable). Any other
-#   in-cluster pod cannot reach :8082 directly. (PR #21 Codex finding:
-#   /v1/search/admin/reindex was unauthenticated for in-cluster callers.)
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: opensearch-allow-search-service
-  namespace: search
-spec:
-  podSelector:
-    matchLabels:
-      app: opensearch
-  policyTypes:
-    - Ingress
-  ingress:
-    # search-service queries OpenSearch on the REST port only (9200).
-    - from:
-        - podSelector:
-            matchLabels:
-              app: search-service
-      ports:
-        - protocol: TCP
-          port: 9200
-    # OpenSearch nodes must be able to reach each other on the transport
-    # port (9300) for cluster formation, shard replication, and the
-    # initial cluster manager election. Without this rule the StatefulSet
-    # would never form a cluster. (PR #21 review follow-up.)
-    - from:
-        - podSelector:
-            matchLabels:
-              app: opensearch
-      ports:
-        - protocol: TCP
-          port: 9300
----
+# The previous OpenSearch-specific NetworkPolicy (allow search-service
+# → OpenSearch :9200 + peer transport :9300) was removed with the
+# OpenSearch StatefulSet. search-service's Vertex AI Search egress goes
+# to discoveryengine.googleapis.com:443 over the cluster's default
+# egress path — no in-cluster data plane to guard.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

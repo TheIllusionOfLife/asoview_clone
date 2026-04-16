@@ -1,8 +1,9 @@
 # search-service Spring Boot 4 deployment.
 #
-# Two replicas behind a ClusterIP service. Connects to the OpenSearch
-# statefulset in the same namespace via opensearch:9200. Reads
-# product data from commerce-core via the gateway DNS.
+# Two replicas behind a ClusterIP service. Queries Vertex AI Search
+# (Discovery Engine API) using Workload Identity — no in-cluster search
+# backend anymore. Reads product data from commerce-core via the gateway
+# for initial backfill + per-product reindex.
 apiVersion: v1
 kind: Service
 metadata:
@@ -31,6 +32,7 @@ spec:
       labels:
         app: search-service
     spec:
+      serviceAccountName: search-service
       # Pod-level securityContext: enforce non-root and a known uid so the
       # container has predictable ownership across restarts. Compatible with
       # the Restricted PodSecurityStandards profile.
@@ -60,22 +62,35 @@ spec:
             - name: tmp
               mountPath: /tmp
           env:
-            - name: OPENSEARCH_HOST
-              value: opensearch
-            - name: OPENSEARCH_PORT
-              value: "9200"
-            - name: OPENSEARCH_SCHEME
-              value: http
+            - name: SEARCH_PROVIDER
+              value: vertex
+            - name: VERTEX_PROJECT_ID
+              value: asoview-clone-dev
+            - name: VERTEX_LOCATION
+              value: global
+            - name: VERTEX_COLLECTION
+              value: default_collection
+            - name: VERTEX_DATA_STORE_ID
+              value: asoview-products
+            - name: VERTEX_ENGINE_ID
+              value: asoview-products-engine
+            - name: VERTEX_SERVING_CONFIG
+              value: default_search
             - name: COMMERCE_CORE_BASE_URL
               value: http://gateway.edge.svc.cluster.local
             - name: SPRING_PROFILES_ACTIVE
               value: gke
             # Popularity-boosted search: PopularityScoreSyncJob reads
             # analytics_mart.product_ranking on a schedule and writes scores
-            # into OpenSearch's popularityScore field, which SearchQueryService
-            # applies via a function_score boost.
+            # via Vertex AI Search's updateDocument API; the query path then
+            # applies a ConditionBoostSpec over popularityScore on the default
+            # (relevance) sort.
             - name: POPULARITY_SYNC_ENABLED
               value: "true"
+            # Size the JVM heap from the container memory limit so
+            # Spring Boot + Netty/gRPC doesn't OOM when the container hits its cap.
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=50.0"
           ports:
             - name: http
               containerPort: 8082
@@ -92,11 +107,18 @@ spec:
             initialDelaySeconds: 60
             periodSeconds: 30
           resources:
+            # Lower memory footprint than the OpenSearch-client deployment:
+            # no embedded Lucene / RestHighLevelClient / Kuromoji JARs in the
+            # hot path anymore. Discovery Engine calls are thin gRPC, but
+            # Spring Boot + Netty still needs headroom for classloading,
+            # off-heap buffers, and gRPC connection pools — 512Mi was too
+            # tight once JAVA_TOOL_OPTIONS sized the heap off the container
+            # limit, so the limit is 1Gi with a 70% heap cap.
             requests:
-              cpu: "200m"
-              memory: "768Mi"
+              cpu: "100m"
+              memory: "512Mi"
             limits:
-              cpu: "1"
+              cpu: "500m"
               memory: "1Gi"
       volumes:
         - name: tmp

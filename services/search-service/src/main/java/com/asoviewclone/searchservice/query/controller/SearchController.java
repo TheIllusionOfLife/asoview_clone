@@ -2,7 +2,7 @@ package com.asoviewclone.searchservice.query.controller;
 
 import com.asoviewclone.searchservice.query.dto.AutosuggestResponse;
 import com.asoviewclone.searchservice.query.dto.ProductSearchResponse;
-import com.asoviewclone.searchservice.query.service.SearchQueryService;
+import com.asoviewclone.searchservice.query.service.SearchQueryPort;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -12,9 +12,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/v1/search")
 public class SearchController {
 
-  private final SearchQueryService searchQueryService;
+  private final SearchQueryPort searchQueryService;
 
-  public SearchController(SearchQueryService searchQueryService) {
+  public SearchController(SearchQueryPort searchQueryService) {
     this.searchQueryService = searchQueryService;
   }
 

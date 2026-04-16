@@ -42,3 +42,18 @@ output "ticketing_service_gsa_email" {
   value       = google_service_account.ticketing_service.email
   description = "GSA email to patch into infra/k8s/ticketing-service/overlays/dev kustomize annotation."
 }
+
+output "search_service_vertex_gsa_email" {
+  value       = google_service_account.search_service_vertex.email
+  description = "GSA email to patch into infra/k8s/search/overlays/dev kustomize annotation."
+}
+
+output "vertex_data_store_id" {
+  value       = google_discovery_engine_data_store.products.data_store_id
+  description = "Discovery Engine data store id (VERTEX_DATA_STORE_ID env var for search-service)."
+}
+
+output "vertex_engine_id" {
+  value       = google_discovery_engine_search_engine.products.engine_id
+  description = "Discovery Engine search engine id (VERTEX_ENGINE_ID env var for search-service)."
+}
