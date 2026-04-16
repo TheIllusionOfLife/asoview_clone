@@ -21,6 +21,7 @@ bouncycastle = "1.83"
 jjwt = "0.13.0"
 archunit = "1.4.1"
 google-genai = "1.47.0"
+google-cloud-libraries-bom = "26.68.0"
 
 [libraries]
 # Spring Cloud
@@ -89,6 +90,12 @@ archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref
 
 # Google Genai (Gemini API SDK for recommendations and chatbot)
 google-genai = { module = "com.google.genai:google-genai", version.ref = "google-genai" }
+
+# Google Cloud libraries BOM (manages google-cloud-discoveryengine and other Vertex/GCP client versions)
+google-cloud-libraries-bom = { module = "com.google.cloud:libraries-bom", version.ref = "google-cloud-libraries-bom" }
+
+# Vertex AI Search (Discovery Engine API client; version from libraries-bom)
+google-cloud-discoveryengine = { module = "com.google.cloud:google-cloud-discoveryengine" }
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }

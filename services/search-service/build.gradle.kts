@@ -8,9 +8,11 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation(libs.opensearch.rest.high.level.client)
 
-    // BigQuery (popularity score sync from analytics mart)
+    // BigQuery (popularity score sync from analytics mart) + Vertex AI Search (Discovery Engine)
     implementation(platform(libs.spring.cloud.gcp.bom))
+    implementation(platform(libs.google.cloud.libraries.bom))
     implementation("com.google.cloud:google-cloud-bigquery")
+    implementation(libs.google.cloud.discoveryengine)
     // Spring 7 RestClient still uses fasterxml jackson 2 converters even though
     // Boot 4 ships tools.jackson 3 by default; pull jackson 2 explicitly so the
     // default HTTP message converters don't NoClassDefFoundError.
