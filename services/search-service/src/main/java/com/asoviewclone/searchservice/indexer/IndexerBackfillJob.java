@@ -23,13 +23,13 @@ public class IndexerBackfillJob implements CommandLineRunner {
 
   private static final Logger log = LoggerFactory.getLogger(IndexerBackfillJob.class);
 
-  private final IndexerService indexerService;
+  private final IndexerPort indexerService;
   private final RestClient restClient;
   private final ObjectMapper mapper = JsonMapper.builder().build();
   private final boolean enabled;
 
   public IndexerBackfillJob(
-      IndexerService indexerService,
+      IndexerPort indexerService,
       @Value("${commerce-core.base-url:${COMMERCE_CORE_BASE_URL:http://localhost:8080}}")
           String commerceCoreBaseUrl,
       @Value("${search.backfill.enabled:true}") boolean enabled) {
@@ -45,7 +45,7 @@ public class IndexerBackfillJob implements CommandLineRunner {
       return;
     }
     try {
-      if (indexerService.markerExists()) {
+      if (indexerService.isBackfillComplete()) {
         log.info("Backfill marker present, skipping initial backfill");
         return;
       }
@@ -74,7 +74,7 @@ public class IndexerBackfillJob implements CommandLineRunner {
           log.warn("Backfill: failed for product {}: {}", id, inner.getMessage());
         }
       }
-      indexerService.writeMarker();
+      indexerService.markBackfillComplete();
       log.info("Backfill complete: indexed {} products", count);
     } catch (Exception e) {
       log.warn("Backfill aborted: {}. search-service will continue to start.", e.getMessage());

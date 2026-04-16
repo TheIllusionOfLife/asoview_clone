@@ -24,12 +24,12 @@ public class PopularityScoreSyncJob {
       "SELECT product_id, order_count FROM `%s.analytics_mart.product_ranking`";
 
   private final BigQuery bigQuery;
-  private final IndexerService indexerService;
+  private final IndexerPort indexerService;
   private final String projectId;
 
   public PopularityScoreSyncJob(
       BigQuery bigQuery,
-      IndexerService indexerService,
+      IndexerPort indexerService,
       @org.springframework.beans.factory.annotation.Value(
               "${search.popularity-sync.project-id:asoview-clone-dev}")
           String projectId) {
