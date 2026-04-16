@@ -1,7 +1,11 @@
-# Argo CD Application for the search-service stack (OpenSearch + search-service).
+# Argo CD Application for the search-service stack. Since the Vertex AI
+# Search migration this reconciles only the search-service Deployment +
+# Service + KSA + NetworkPolicy — no in-cluster search backend.
 #
 # Reconciles infra/k8s/search/ into the `search` namespace on the
-# asoview-clone-dev cluster.
+# asoview-clone-dev cluster. With prune: true the retired OpenSearch
+# StatefulSet, headless Service, and ServiceAccount get removed from
+# the cluster on the next Argo sync after this change lands.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

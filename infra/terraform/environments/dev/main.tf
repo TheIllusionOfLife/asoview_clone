@@ -86,12 +86,10 @@ module "artifact_registry" {
   region     = var.region
 }
 
-module "opensearch" {
-  source       = "../../modules/opensearch"
-  project_id   = var.project_id
-  region       = var.region
-  cluster_name = "asoview-clone-dev"
-}
+# The `module "opensearch"` (KMS key, snapshot GCS bucket, GSA
+# opensearch-snapshots, Workload Identity binding) was removed when the
+# search-service migrated to Vertex AI Search (Discovery Engine). See
+# infra/terraform/environments/dev/vertex-search.tf.
 
 module "wallet_kms" {
   source     = "../../modules/wallet-kms"

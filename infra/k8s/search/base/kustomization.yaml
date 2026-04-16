@@ -2,12 +2,6 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: search
 resources:
-  # opensearch-statefulset.yaml + network-policy.yaml are retained only for
-  # the duration of the Vertex AI Search migration (commit G decommissions
-  # them once the new provider is proven live). The pod env flips via
-  # SEARCH_PROVIDER=vertex so the OpenSearch StatefulSet no longer receives
-  # traffic from search-service — it just sits idle until pruned.
-  - opensearch-statefulset.yaml
   - search-service-deployment.yaml
   - serviceaccount.yaml
   - network-policy.yaml
