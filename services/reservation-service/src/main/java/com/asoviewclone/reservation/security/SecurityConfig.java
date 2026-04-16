@@ -26,7 +26,11 @@ public class SecurityConfig {
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
             auth ->
-                auth.requestMatchers("/healthz", "/actuator/health", "/v1/reservation-slots")
+                auth.requestMatchers(
+                        "/healthz",
+                        "/actuator/health",
+                        "/actuator/health/**",
+                        "/v1/reservation-slots")
                     .permitAll()
                     .requestMatchers("/v1/op/**")
                     .hasAuthority("ROLE_ADMIN")

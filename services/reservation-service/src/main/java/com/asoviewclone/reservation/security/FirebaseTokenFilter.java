@@ -32,7 +32,7 @@ public class FirebaseTokenFilter extends OncePerRequestFilter {
     String uri = request.getRequestURI();
     return uri != null
         && (uri.equals("/healthz")
-            || uri.equals("/actuator/health")
+            || uri.startsWith("/actuator/health")
             || uri.startsWith("/v1/reservation-slots"));
   }
 
