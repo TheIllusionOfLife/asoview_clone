@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: search-service
+  namespace: search
+  annotations:
+    iam.gke.io/gcp-service-account: search-service-vertex@asoview-clone-dev.iam.gserviceaccount.com
