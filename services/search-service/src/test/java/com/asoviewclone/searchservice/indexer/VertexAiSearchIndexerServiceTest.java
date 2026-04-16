@@ -11,7 +11,6 @@ import com.asoviewclone.searchservice.query.model.ProductDoc;
 import com.google.cloud.discoveryengine.v1.CreateDocumentRequest;
 import com.google.cloud.discoveryengine.v1.Document;
 import com.google.cloud.discoveryengine.v1.DocumentServiceClient;
-import com.google.cloud.discoveryengine.v1.GetDocumentRequest;
 import com.google.cloud.discoveryengine.v1.UpdateDocumentRequest;
 import com.google.protobuf.Struct;
 import io.grpc.Status;
@@ -102,84 +101,43 @@ class VertexAiSearchIndexerServiceTest {
 
   @Test
   void markBackfillCompletePropagatesUpsertFailure() {
-    doThrow(new RuntimeException("discovery engine down")).when(mockClient).createDocument(any());
+    doThrow(Status.UNAVAILABLE.asRuntimeException())
+        .when(mockClient)
+        .createDocument(any(CreateDocumentRequest.class));
 
     assertThatThrownBy(service::markBackfillComplete)
-        .isInstanceOf(RuntimeException.class)
-        .hasMessageContaining("discovery engine down");
+        .isInstanceOf(StatusRuntimeException.class)
+        .hasMessageContaining("UNAVAILABLE");
   }
 
   @Test
-  void upsertUpdatePathPreservesExistingPopularityScore() {
-    // Simulate ALREADY_EXISTS on create so upsertDocument falls through to update.
+  void upsertUpdatePathUsesFieldMaskToPreserveUnsetFields() {
+    // Stub create to throw ALREADY_EXISTS so upsertDocument falls through to update.
     doThrow(new StatusRuntimeException(Status.ALREADY_EXISTS))
         .when(mockClient)
         .createDocument(any(CreateDocumentRequest.class));
+    when(mockClient.updateDocument(any(UpdateDocumentRequest.class)))
+        .thenReturn(Document.getDefaultInstance());
 
-    // The existing document in Discovery Engine has a popularityScore written by the sync job.
-    Struct existingStruct =
-        Struct.newBuilder()
-            .putFields(
-                "popularityScore",
-                com.google.protobuf.Value.newBuilder().setNumberValue(99.0).build())
-            .putFields(
-                "name", com.google.protobuf.Value.newBuilder().setStringValue("Old name").build())
-            .build();
-    String docName =
-        "projects/proj/locations/global/collections/default_collection/dataStores/asoview-products/branches/default_branch/documents/prod-merge";
-    Document existingDoc =
-        Document.newBuilder()
-            .setName(docName)
-            .setId("prod-merge")
-            .setStructData(existingStruct)
-            .build();
-    when(mockClient.getDocument(any(GetDocumentRequest.class))).thenReturn(existingDoc);
-
-    // toDocument omits popularityScore when it is null (as toDoc now sets it).
-    ProductDoc doc =
-        new ProductDoc(
-            "prod-merge", "New name", null, null, null, null, "ACTIVE", "2026-04-17", null);
-    Document incoming = service.toDocument(doc);
-    assertThat(incoming.getStructData().containsFields("popularityScore")).isFalse();
-
-    // Trigger the upsert (reindex calls upsertDocument internally, but we test
-    // the package-private toDocument + direct mock path to isolate the merge logic).
-    // We call markBackfillComplete with a crafted marker, but it's simpler to
-    // invoke reindex indirectly. Instead, test the update capture directly.
-    // Use the updatePopularityScore path? No, that's separate. Let's just call
-    // the service via the public reindex, mocking the RestClient.
-
-    // Actually: the cleanest way is to build the document and call the mock-verified
-    // update path. Since upsertDocument is private, we verify via the mock captures.
-    // Re-stub createDocument to throw ALREADY_EXISTS, getDocument returns existing,
-    // then verify updateDocument merges the score.
-
-    // Trigger: call reindex with a mock commerce-core response.
-    // This test is already complex, so let's verify the struct merge directly.
-    // The service.toDocument gives us a Document without popularityScore.
-    // We need to trigger upsertDocument. Use markBackfillComplete as it's public
-    // and calls upsertDocument. We already tested failure propagation; now test merge.
-
-    // Reset stubs for a clean run.
-    Mockito.reset(mockClient);
-    doThrow(new StatusRuntimeException(Status.ALREADY_EXISTS))
-        .when(mockClient)
-        .createDocument(any(CreateDocumentRequest.class));
-    when(mockClient.getDocument(any(GetDocumentRequest.class))).thenReturn(existingDoc);
-    when(mockClient.updateDocument(any(UpdateDocumentRequest.class))).thenReturn(existingDoc);
-
-    // markBackfillComplete writes a MARKER doc with no popularityScore.
-    // On the update path it should pick up the existing doc's popularityScore.
+    // markBackfillComplete writes a MARKER doc with productId + status but no
+    // popularityScore. The update path should send a FieldMask scoped to only
+    // those two fields, leaving any server-side popularityScore untouched.
     service.markBackfillComplete();
 
     ArgumentCaptor<UpdateDocumentRequest> captor =
         ArgumentCaptor.forClass(UpdateDocumentRequest.class);
     verify(mockClient).updateDocument(captor.capture());
-    Struct mergedStruct = captor.getValue().getDocument().getStructData();
-    // The marker doc's own fields are present.
-    assertThat(mergedStruct.getFieldsOrThrow("productId").getStringValue())
+    UpdateDocumentRequest req = captor.getValue();
+
+    Struct updatedStruct = req.getDocument().getStructData();
+    assertThat(updatedStruct.getFieldsOrThrow("productId").getStringValue())
         .isEqualTo("asoview-backfill-marker-v1");
-    // popularityScore from the existing doc is preserved.
-    assertThat(mergedStruct.getFieldsOrThrow("popularityScore").getNumberValue()).isEqualTo(99.0);
+    assertThat(updatedStruct.getFieldsOrThrow("status").getStringValue()).isEqualTo("MARKER");
+    assertThat(updatedStruct.containsFields("popularityScore")).isFalse();
+
+    // FieldMask covers only the fields present in the struct.
+    assertThat(req.getUpdateMask().getPathsList())
+        .containsExactlyInAnyOrder("struct_data.productId", "struct_data.status");
+    assertThat(req.getAllowMissing()).isFalse();
   }
 }

@@ -166,26 +166,29 @@ public class VertexAiSearchIndexerService implements IndexerPort {
       if (!isAlreadyExists(createException)) {
         throw createException;
       }
-      // Document already exists — read the current version and preserve any
-      // popularityScore that PopularityScoreSyncJob wrote, since reindex
-      // (toDoc) intentionally omits it. Without this merge a full-struct
-      // replacement would erase the sweep-written score.
+      // Document already exists. Use a FieldMask scoped to the struct fields
+      // present in the incoming document so only those fields are overwritten;
+      // any absent field (e.g. popularityScore, omitted by toDoc) is preserved
+      // server-side. This avoids the extra getDocument round-trip and the race
+      // window of read-merge-full-write.
       String docName = branchName + "/documents/" + documentId;
-      Document existing =
-          documentClient.getDocument(GetDocumentRequest.newBuilder().setName(docName).build());
-      Struct.Builder mergedStruct = document.getStructData().toBuilder();
-      if (!document.getStructData().containsFields("popularityScore")) {
-        com.google.protobuf.Value existingScore =
-            existing.getStructData().getFieldsOrDefault("popularityScore", null);
-        if (existingScore != null) {
-          mergedStruct.putFields("popularityScore", existingScore);
-        }
-      }
-      Document updated =
-          document.toBuilder().setName(docName).setStructData(mergedStruct.build()).build();
+      Document updated = document.toBuilder().setName(docName).build();
+      FieldMask mask = buildStructFieldMask(document.getStructData());
       documentClient.updateDocument(
-          UpdateDocumentRequest.newBuilder().setDocument(updated).setAllowMissing(false).build());
+          UpdateDocumentRequest.newBuilder()
+              .setDocument(updated)
+              .setUpdateMask(mask)
+              .setAllowMissing(false)
+              .build());
     }
+  }
+
+  private static FieldMask buildStructFieldMask(Struct struct) {
+    FieldMask.Builder builder = FieldMask.newBuilder();
+    for (String field : struct.getFieldsMap().keySet()) {
+      builder.addPaths("struct_data." + field);
+    }
+    return builder.build();
   }
 
   private static boolean isAlreadyExists(Throwable t) {

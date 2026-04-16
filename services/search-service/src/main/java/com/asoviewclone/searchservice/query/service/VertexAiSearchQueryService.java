@@ -3,6 +3,7 @@ package com.asoviewclone.searchservice.query.service;
 import com.asoviewclone.searchservice.query.dto.AutosuggestResponse;
 import com.asoviewclone.searchservice.query.dto.ProductSearchResponse;
 import com.asoviewclone.searchservice.query.model.SearchHit;
+import com.google.api.gax.rpc.ApiException;
 import com.google.cloud.discoveryengine.v1.SearchRequest;
 import com.google.cloud.discoveryengine.v1.SearchResponse;
 import com.google.cloud.discoveryengine.v1.SearchServiceClient;
@@ -187,6 +188,12 @@ public class VertexAiSearchQueryService implements SearchQueryPort {
   private SearchResponse executeSearch(SearchRequest request) {
     try {
       return searchClient.search(request).getPage().getResponse();
+    } catch (ApiException e) {
+      log.warn(
+          "Vertex AI Search query failed: status={}, message={}",
+          e.getStatusCode().getCode(),
+          e.getMessage());
+      throw new RuntimeException("vertex search query failed", e);
     } catch (Exception e) {
       log.warn("Vertex AI Search query failed: {}", e.getMessage());
       throw new RuntimeException("vertex search query failed", e);
