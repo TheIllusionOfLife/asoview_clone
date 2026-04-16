@@ -107,9 +107,13 @@ public class VertexAiSearchQueryService implements SearchQueryPort {
     List<AutosuggestResponse.Suggestion> suggestions = new ArrayList<>();
     for (SearchResponse.SearchResult result : response.getResultsList()) {
       Struct data = result.getDocument().getStructData();
-      suggestions.add(
-          new AutosuggestResponse.Suggestion(
-              stringField(data, "productId"), stringField(data, "name")));
+      String productId = stringField(data, "productId");
+      if (productId == null) {
+        // Schema drift or a non-product sentinel (e.g. backfill marker) would otherwise
+        // leak a null-id suggestion to clients; skip instead.
+        continue;
+      }
+      suggestions.add(new AutosuggestResponse.Suggestion(productId, stringField(data, "name")));
     }
     return new AutosuggestResponse(suggestions);
   }

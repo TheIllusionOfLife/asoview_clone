@@ -87,6 +87,10 @@ spec:
             # (relevance) sort.
             - name: POPULARITY_SYNC_ENABLED
               value: "true"
+            # Size the JVM heap from the container memory limit so
+            # Spring Boot + Netty/gRPC doesn't OOM when the container hits its cap.
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=50.0"
           ports:
             - name: http
               containerPort: 8082
@@ -105,13 +109,17 @@ spec:
           resources:
             # Lower memory footprint than the OpenSearch-client deployment:
             # no embedded Lucene / RestHighLevelClient / Kuromoji JARs in the
-            # hot path anymore. Discovery Engine calls are thin gRPC.
+            # hot path anymore. Discovery Engine calls are thin gRPC, but
+            # Spring Boot + Netty still needs headroom for classloading,
+            # off-heap buffers, and gRPC connection pools — 512Mi was too
+            # tight once JAVA_TOOL_OPTIONS sized the heap off the container
+            # limit, so the limit is 1Gi with a 70% heap cap.
             requests:
               cpu: "100m"
-              memory: "384Mi"
+              memory: "512Mi"
             limits:
               cpu: "500m"
-              memory: "512Mi"
+              memory: "1Gi"
       volumes:
         - name: tmp
           emptyDir: {}

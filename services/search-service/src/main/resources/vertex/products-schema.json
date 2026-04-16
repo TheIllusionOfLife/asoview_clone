@@ -4,12 +4,12 @@
   "properties": {
     "productId": {
       "type": "string",
-      "keyPropertyMapping": "id",
       "retrievable": true
     },
     "name": {
       "type": "string",
       "searchable": true,
+      "indexable": true,
       "retrievable": true,
       "completable": true
     },

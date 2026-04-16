@@ -4,6 +4,7 @@ import com.google.cloud.discoveryengine.v1.Schema;
 import com.google.cloud.discoveryengine.v1.SchemaServiceClient;
 import com.google.cloud.discoveryengine.v1.UpdateSchemaRequest;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -75,7 +76,9 @@ public class VertexAiSearchSchemaBootstrap implements CommandLineRunner {
         UpdateSchemaRequest.newBuilder().setSchema(schema).setAllowMissing(true).build();
 
     log.info("Applying Vertex AI Search schema to data store {}", dataStoreId);
-    schemaClient.updateSchemaAsync(request).get();
+    // Bound the blocking call so an unresponsive Discovery Engine surfaces as a pod
+    // CrashLoopBackOff instead of an indefinite hang at startup.
+    schemaClient.updateSchemaAsync(request).get(60, TimeUnit.SECONDS);
     log.info("Vertex AI Search schema applied to data store {}", dataStoreId);
   }
 }

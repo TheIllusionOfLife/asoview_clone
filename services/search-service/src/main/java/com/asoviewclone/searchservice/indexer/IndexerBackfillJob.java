@@ -88,6 +88,10 @@ public class IndexerBackfillJob implements CommandLineRunner {
           pageCount++;
           String id = product.path("id").asText(null);
           if (id == null) {
+            // Treat a missing id as a failure so a malformed feed doesn't quietly let us
+            // stamp the "done" marker while skipping real documents.
+            failed++;
+            log.warn("Backfill: product entry is missing id on page {}", page);
             continue;
           }
           try {
@@ -105,8 +109,17 @@ public class IndexerBackfillJob implements CommandLineRunner {
       }
 
       if (failed == 0) {
-        indexerService.markBackfillComplete();
-        log.info("Backfill complete: indexed {} products across {} pages", indexed, page);
+        try {
+          indexerService.markBackfillComplete();
+          log.info("Backfill complete: indexed {} products across {} pages", indexed, page);
+        } catch (Exception markerEx) {
+          log.warn(
+              "Backfill indexed {} products across {} pages but marker write failed: {}. "
+                  + "Will retry on next boot.",
+              indexed,
+              page,
+              markerEx.getMessage());
+        }
       } else {
         log.warn(
             "Backfill indexed {} products but {} failed; marker NOT written (retry on next boot)",

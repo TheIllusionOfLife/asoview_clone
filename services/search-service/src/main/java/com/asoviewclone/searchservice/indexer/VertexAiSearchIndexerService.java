@@ -6,9 +6,11 @@ import com.google.cloud.discoveryengine.v1.Document;
 import com.google.cloud.discoveryengine.v1.DocumentServiceClient;
 import com.google.cloud.discoveryengine.v1.GetDocumentRequest;
 import com.google.cloud.discoveryengine.v1.UpdateDocumentRequest;
+import com.google.protobuf.FieldMask;
 import com.google.protobuf.Struct;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import java.math.BigDecimal;
 import java.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,10 +26,9 @@ import tools.jackson.databind.json.JsonMapper;
  * Vertex AI Search implementation of {@link IndexerPort}. Pulls a product from commerce-core and
  * writes it into the Discovery Engine data store's default branch.
  *
- * <p>Popularity updates do a read-modify-write because the Discovery Engine v1 UpdateDocument API
- * does not expose a partial update mask; overwriting the whole document with just the new
- * popularityScore would lose the other fields. The cost (2 API calls per update) is acceptable for
- * a scheduled sweep over the ~50-product catalog.
+ * <p>Popularity updates scope the UpdateDocument call with a FieldMask on {@code
+ * struct_data.popularityScore}; concurrent {@code reindex} calls that omit popularityScore (see
+ * {@code toDoc}) therefore cannot clobber the sweep-written score.
  *
  * <p>Backfill completion is tracked by a sentinel document with {@code productId =
  * asoview-backfill-marker-v1} and {@code status = MARKER}. The hard {@code status: ANY("ACTIVE")}
@@ -93,20 +94,25 @@ public class VertexAiSearchIndexerService implements IndexerPort {
   public boolean updatePopularityScore(String productId, long score) {
     try {
       String docName = branchName + "/documents/" + productId;
-      Document existing =
-          documentClient.getDocument(GetDocumentRequest.newBuilder().setName(docName).build());
-      Struct.Builder structBuilder = existing.getStructData().toBuilder();
-      structBuilder.putFields(
-          "popularityScore", com.google.protobuf.Value.newBuilder().setNumberValue(score).build());
-      Document updated =
+      Struct popularityOnly =
+          Struct.newBuilder()
+              .putFields(
+                  "popularityScore",
+                  com.google.protobuf.Value.newBuilder().setNumberValue(score).build())
+              .build();
+      Document patch =
           Document.newBuilder()
               .setName(docName)
               .setId(productId)
-              .setSchemaId(existing.getSchemaId())
-              .setStructData(structBuilder.build())
+              .setStructData(popularityOnly)
               .build();
+      FieldMask mask = FieldMask.newBuilder().addPaths("struct_data.popularityScore").build();
       documentClient.updateDocument(
-          UpdateDocumentRequest.newBuilder().setDocument(updated).setAllowMissing(false).build());
+          UpdateDocumentRequest.newBuilder()
+              .setDocument(patch)
+              .setUpdateMask(mask)
+              .setAllowMissing(false)
+              .build());
       return true;
     } catch (Exception e) {
       log.error("Failed to update popularityScore for {}: {}", productId, e.getMessage(), e);
@@ -134,20 +140,18 @@ public class VertexAiSearchIndexerService implements IndexerPort {
 
   @Override
   public void markBackfillComplete() {
-    try {
-      Struct data =
-          Struct.newBuilder()
-              .putFields(
-                  "productId",
-                  com.google.protobuf.Value.newBuilder().setStringValue(BACKFILL_MARKER_ID).build())
-              .putFields(
-                  "status", com.google.protobuf.Value.newBuilder().setStringValue("MARKER").build())
-              .build();
-      Document marker = Document.newBuilder().setId(BACKFILL_MARKER_ID).setStructData(data).build();
-      upsertDocument(BACKFILL_MARKER_ID, marker);
-    } catch (Exception e) {
-      log.warn("Failed to write backfill marker: {}", e.getMessage());
-    }
+    Struct data =
+        Struct.newBuilder()
+            .putFields(
+                "productId",
+                com.google.protobuf.Value.newBuilder().setStringValue(BACKFILL_MARKER_ID).build())
+            .putFields(
+                "status", com.google.protobuf.Value.newBuilder().setStringValue("MARKER").build())
+            .build();
+    Document marker = Document.newBuilder().setId(BACKFILL_MARKER_ID).setStructData(data).build();
+    // Propagate the exception so IndexerBackfillJob distinguishes "done" from
+    // "marker write failed" and doesn't log a misleading success.
+    upsertDocument(BACKFILL_MARKER_ID, marker);
   }
 
   private void upsertDocument(String documentId, Document document) {
@@ -193,16 +197,46 @@ public class VertexAiSearchIndexerService implements IndexerPort {
     JsonNode variants = node.path("variants");
     if (variants.isArray()) {
       for (JsonNode v : variants) {
-        if (v.has("priceAmount") && !v.path("priceAmount").isNull()) {
-          long p = v.path("priceAmount").asLong(Long.MAX_VALUE);
-          if (minPrice == null || p < minPrice) {
-            minPrice = p;
-          }
+        JsonNode priceNode = v.path("priceAmount");
+        if (priceNode.isMissingNode() || priceNode.isNull()) {
+          continue;
+        }
+        Long price = parsePriceAmount(priceNode, id);
+        if (price == null) {
+          continue;
+        }
+        if (minPrice == null || price < minPrice) {
+          minPrice = price;
         }
       }
     }
+    // popularityScore is managed by PopularityScoreSyncJob via updateDocument (field-masked).
+    // Passing null here prevents reindex from overwriting the existing score with 0.
     return new ProductDoc(
-        id, name, description, areaId, categoryId, minPrice, status, Instant.now().toString(), 0L);
+        id,
+        name,
+        description,
+        areaId,
+        categoryId,
+        minPrice,
+        status,
+        Instant.now().toString(),
+        null);
+  }
+
+  private static Long parsePriceAmount(JsonNode priceNode, String productId) {
+    try {
+      BigDecimal parsed =
+          priceNode.isNumber() ? priceNode.decimalValue() : new BigDecimal(priceNode.asText());
+      return parsed.longValueExact();
+    } catch (ArithmeticException | NumberFormatException e) {
+      log.warn(
+          "Skipping malformed priceAmount {} for product {}: {}",
+          priceNode,
+          productId,
+          e.getMessage());
+      return null;
+    }
   }
 
   /** Package-private for testing: builds a Discovery Engine Document from a ProductDoc. */

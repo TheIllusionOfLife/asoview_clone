@@ -1,12 +1,18 @@
 package com.asoviewclone.searchservice.indexer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 
 import com.asoviewclone.searchservice.query.model.ProductDoc;
 import com.google.cloud.discoveryengine.v1.Document;
 import com.google.cloud.discoveryengine.v1.DocumentServiceClient;
+import com.google.cloud.discoveryengine.v1.UpdateDocumentRequest;
 import com.google.protobuf.Struct;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.web.client.RestClient;
 
@@ -65,5 +71,36 @@ class VertexAiSearchIndexerServiceTest {
     assertThat(data.getFieldsOrThrow("productId").getStringValue()).isEqualTo("prod-456");
     assertThat(data.getFieldsOrThrow("name").getStringValue()).isEqualTo("Minimal");
     assertThat(data.getFieldsOrThrow("status").getStringValue()).isEqualTo("ACTIVE");
+  }
+
+  @Test
+  void updatePopularityScoreSendsOnlyPopularityFieldWithFieldMask() {
+    boolean ok = service.updatePopularityScore("prod-789", 42L);
+    assertThat(ok).isTrue();
+
+    ArgumentCaptor<UpdateDocumentRequest> captor =
+        ArgumentCaptor.forClass(UpdateDocumentRequest.class);
+    verify(mockClient).updateDocument(captor.capture());
+    UpdateDocumentRequest req = captor.getValue();
+
+    // The patch struct only carries popularityScore; no other fields to clobber.
+    Struct patch = req.getDocument().getStructData();
+    assertThat(patch.getFieldsMap().keySet()).containsExactly("popularityScore");
+    assertThat(patch.getFieldsOrThrow("popularityScore").getNumberValue()).isEqualTo(42.0);
+    // FieldMask scopes the server-side write to the popularityScore path.
+    assertThat(req.getUpdateMask().getPathsList()).containsExactly("struct_data.popularityScore");
+    assertThat(req.getAllowMissing()).isFalse();
+    assertThat(req.getDocument().getName())
+        .endsWith(
+            "projects/proj/locations/global/collections/default_collection/dataStores/asoview-products/branches/default_branch/documents/prod-789");
+  }
+
+  @Test
+  void markBackfillCompletePropagatesUpsertFailure() {
+    doThrow(new RuntimeException("discovery engine down")).when(mockClient).createDocument(any());
+
+    assertThatThrownBy(service::markBackfillComplete)
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("discovery engine down");
   }
 }
