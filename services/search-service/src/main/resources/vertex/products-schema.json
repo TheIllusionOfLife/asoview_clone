@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "productId": {
+      "type": "string",
+      "keyPropertyMapping": "id",
+      "retrievable": true
+    },
+    "name": {
+      "type": "string",
+      "searchable": true,
+      "retrievable": true,
+      "completable": true
+    },
+    "description": {
+      "type": "string",
+      "searchable": true,
+      "retrievable": true
+    },
+    "areaId": {
+      "type": "string",
+      "indexable": true,
+      "retrievable": true,
+      "dynamicFacetable": true
+    },
+    "categoryId": {
+      "type": "string",
+      "indexable": true,
+      "retrievable": true,
+      "dynamicFacetable": true
+    },
+    "status": {
+      "type": "string",
+      "indexable": true,
+      "retrievable": true
+    },
+    "minPrice": {
+      "type": "number",
+      "indexable": true,
+      "retrievable": true,
+      "dynamicFacetable": true
+    },
+    "imageUrl": {
+      "type": "string",
+      "retrievable": true
+    },
+    "popularityScore": {
+      "type": "number",
+      "indexable": true,
+      "retrievable": true
+    }
+  }
+}
