@@ -7,7 +7,7 @@
 
 The `asoview_clone` dev environment runs in `asia-northeast1` (Tokyo). The rest of the data plane (Spanner, Cloud SQL, Redis, GCS, Artifact Registry, KMS) stays inside that region by design, mirroring Asoview's production topology.
 
-Product search was originally OpenSearch on GKE in the same region. PR #62 replaced it with Google Cloud Vertex AI Search (Discovery Engine API). Discovery Engine does not currently offer an `asia-northeast1` endpoint: structured data stores for the `SEARCH_TIER_STANDARD` engine run only in the `global` multi-region.
+Product search was originally OpenSearch on GKE in the same region. PR #62 replaced it with Google Cloud Vertex AI Search (Discovery Engine API). Discovery Engine does not currently offer an `asia-northeast1` regional endpoint for structured `SEARCH_TIER_STANDARD` data stores; the available locations are the `global`, `us`, and `eu` multi-regions. `global` was chosen to avoid pinning the index to a US- or EU-specific multi-region when no Tokyo option exists.
 
 The product catalog indexed into Discovery Engine is:
 
@@ -31,7 +31,7 @@ Use the Discovery Engine `global` location for the product search data store (`a
 **Easier**
 - Zero self-hosted search infrastructure: no StatefulSet, KMS key, snapshot bucket, or PodDisruptionBudget to maintain.
 - Managed Japanese morphological analyzer replaces the custom `opensearch-kuromoji` image.
-- Free tier (10k queries/month) is ample for the study clone's traffic.
+- Study-clone query volume is small enough that the per-query cost on the `SEARCH_TIER_STANDARD` engine is negligible. A Cloud Billing budget (see `infra/terraform/environments/dev/monitoring.tf`) caps monthly spend at $30 as a safety guardrail rather than a usage target.
 
 **Harder**
 - Product catalog data leaves `asia-northeast1`. This is acceptable because the data is public, non-PII marketing content.
