@@ -5,7 +5,7 @@ resources:
   - ../../base
 images:
   - name: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/ticketing-service
-    newTag: b5082c0
+    newTag: 8fcc7b3
 patches:
   - path: serviceaccount-patch.yaml
     target:
