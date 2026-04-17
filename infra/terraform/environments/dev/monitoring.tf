@@ -86,7 +86,11 @@ resource "google_billing_budget" "discoveryengine_guardrail" {
     monitoring_notification_channels = [
       google_monitoring_notification_channel.email_owner.id,
     ]
-    disable_default_iam_recipients = true
+    # Keep default IAM recipients (project owners) as a fallback so the
+    # guardrail still fires if the single email channel misconfigures
+    # (typo, bounced mail, user leaves). The email channel is the
+    # primary path; project owners are the safety net.
+    disable_default_iam_recipients = false
   }
 
   depends_on = [google_project_service.billing_budgets]

@@ -74,6 +74,10 @@ spec:
               value: asoview-products-engine
             - name: VERTEX_SERVING_CONFIG
               value: default_search
+            # Application default is off (fail-closed); the dev deployment
+            # opts in so VertexAiSearchSchemaBootstrap runs on pod start.
+            - name: VERTEX_SCHEMA_BOOTSTRAP
+              value: "true"
             - name: COMMERCE_CORE_BASE_URL
               value: http://gateway.edge.svc.cluster.local
             - name: SPRING_PROFILES_ACTIVE

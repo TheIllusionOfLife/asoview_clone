@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Publishes {@link com.asoviewclone.commercecore.catalog.event.ProductUpsertedEvent} for every
  * seeded product so the search indexer (Vertex AI Search via AFTER_COMMIT listener) is populated on
- * local/dev startup. Only activates under the {@code dev} profile.
+ * startup under the {@code dev} profile.
  *
  * <p>Transactional boundary rule: a publisher method consumed by
  * {@code @TransactionalEventListener(AFTER_COMMIT)} MUST itself be {@code @Transactional}, even if

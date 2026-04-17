@@ -19,3 +19,11 @@ duckdns_subdomain = "asoview-clone-dev"
 # Cloud DNS zone + A record pointing at the static IP. Unused in the
 # default DuckDNS flow.
 domain = ""
+
+# Cloud Billing budget for Vertex AI Search (Discovery Engine) guardrail.
+# Find your billing account ID at https://console.cloud.google.com/billing
+# Format: XXXXXX-XXXXXX-XXXXXX (uppercase alphanumerics).
+billing_account_id = "REPLACE-ME-WITH-BILLING-ID"
+
+# Email that receives Cloud Billing budget + monitoring alerts for dev.
+notification_email = "you@example.com"

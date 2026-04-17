@@ -4,6 +4,10 @@ search:
   popularity-sync:
     enabled: ${POPULARITY_SYNC_ENABLED:false}
 vertex:
+  # Data store / engine identifiers default to the dev-project values so
+  # local runs + @SpringBootTest context loads work without extra env
+  # setup. Non-dev deployments MUST override VERTEX_PROJECT_ID (and the
+  # data-store / engine IDs if they differ) via K8s env vars.
   project-id: ${VERTEX_PROJECT_ID:asoview-clone-dev}
   location: ${VERTEX_LOCATION:global}
   collection: ${VERTEX_COLLECTION:default_collection}
@@ -11,7 +15,11 @@ vertex:
   engine-id: ${VERTEX_ENGINE_ID:asoview-products-engine}
   serving-config: ${VERTEX_SERVING_CONFIG:default_search}
   schema:
-    bootstrap: ${VERTEX_SCHEMA_BOOTSTRAP:true}
+    # Schema bootstrap defaults to OFF so an accidentally-deployed pod
+    # cannot silently mutate a data-store schema it shouldn't. Each
+    # environment opts in explicitly (see K8s deployment env var
+    # VERTEX_SCHEMA_BOOTSTRAP=true).
+    bootstrap: ${VERTEX_SCHEMA_BOOTSTRAP:false}
 spring:
   application:
     name: search-service
