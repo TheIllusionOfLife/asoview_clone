@@ -32,3 +32,23 @@ variable "duckdns_subdomain" {
   default     = "asoview-clone-dev"
 }
 
+variable "billing_account_id" {
+  type        = string
+  description = "GCP billing account ID (format: XXXXXX-XXXXXX-XXXXXX) used for Cloud Billing budgets. Required; supply via terraform.tfvars or TF_VAR_billing_account_id."
+
+  validation {
+    condition     = can(regex("^[A-Z0-9]{6}-[A-Z0-9]{6}-[A-Z0-9]{6}$", var.billing_account_id))
+    error_message = "billing_account_id must be in the form XXXXXX-XXXXXX-XXXXXX (uppercase alphanumerics)."
+  }
+}
+
+variable "notification_email" {
+  type        = string
+  description = "Email address receiving Cloud Billing budget + monitoring alerts for the dev environment. Required; supply via terraform.tfvars or TF_VAR_notification_email."
+
+  validation {
+    condition     = can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.notification_email))
+    error_message = "notification_email must be a well-formed email address."
+  }
+}
+

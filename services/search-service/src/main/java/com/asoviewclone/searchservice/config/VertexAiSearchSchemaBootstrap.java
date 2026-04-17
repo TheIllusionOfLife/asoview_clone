@@ -12,7 +12,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
@@ -24,12 +23,15 @@ import org.springframework.util.StreamUtils;
  * (@Order(100)) so the backfill never runs against a partial schema.
  *
  * <p>If the schema update fails, the exception is rethrown so the pod crashes — better to
- * CrashLoopBackOff than to silently run the backfill against a broken schema. Gate the behavior
- * with {@code vertex.schema.bootstrap=true} for local / test scenarios.
+ * CrashLoopBackOff than to silently run the backfill against a broken schema.
+ *
+ * <p>Fail-closed default: {@code vertex.schema.bootstrap} is {@code false} at every property
+ * resolution layer (application.yml default, @Value fallback). Each environment opts in explicitly
+ * via the {@code VERTEX_SCHEMA_BOOTSTRAP=true} env var so an accidentally-deployed pod cannot
+ * silently mutate a data-store schema it shouldn't own.
  */
 @Component
 @Order(50)
-@ConditionalOnProperty(name = "search.provider", havingValue = "vertex")
 public class VertexAiSearchSchemaBootstrap implements CommandLineRunner {
 
   private static final Logger log = LoggerFactory.getLogger(VertexAiSearchSchemaBootstrap.class);
@@ -49,7 +51,7 @@ public class VertexAiSearchSchemaBootstrap implements CommandLineRunner {
       @Value("${vertex.location:global}") String location,
       @Value("${vertex.collection:default_collection}") String collection,
       @Value("${vertex.data-store-id}") String dataStoreId,
-      @Value("${vertex.schema.bootstrap:true}") boolean bootstrapEnabled) {
+      @Value("${vertex.schema.bootstrap:false}") boolean bootstrapEnabled) {
     this.schemaClient = schemaClient;
     this.projectId = projectId;
     this.location = location;

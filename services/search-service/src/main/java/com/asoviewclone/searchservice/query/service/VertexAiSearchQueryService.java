@@ -13,7 +13,6 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 /**
@@ -22,12 +21,13 @@ import org.springframework.stereotype.Service;
  * indexable fields, and apply a piecewise {@code ConditionBoostSpec} over {@code popularityScore}
  * on the relevance sort path.
  *
- * <p>Suggest is implemented as a top-5 name-biased search (not {@code CompleteQuery}) because
- * Vertex's document-completable model needs ~48 h of warm-up data before returning suggestions; the
- * search-based fallback matches the OpenSearch {@code match_phrase_prefix} launch behavior.
+ * <p>{@code suggest(...)} is intentionally implemented as a top-5 name-biased search rather than
+ * {@code CompletionServiceClient.completeQuery(...)} because {@code CompleteQuery} returns query
+ * strings, not product documents — the REST contract returns {@code (productId, name)} pairs, so a
+ * document-level search is the right primitive. This is the permanent implementation, not a
+ * fallback for a cold data store.
  */
 @Service
-@ConditionalOnProperty(name = "search.provider", havingValue = "vertex")
 public class VertexAiSearchQueryService implements SearchQueryPort {
 
   private static final Logger log = LoggerFactory.getLogger(VertexAiSearchQueryService.class);

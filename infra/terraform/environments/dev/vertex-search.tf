@@ -8,6 +8,12 @@
 # truth in services/search-service/src/main/resources/vertex/products-schema.json
 # so app + infra don't drift.
 
+resource "google_project_service" "discoveryengine" {
+  project            = var.project_id
+  service            = "discoveryengine.googleapis.com"
+  disable_on_destroy = false
+}
+
 resource "google_discovery_engine_data_store" "products" {
   provider = google-beta
 
@@ -19,6 +25,8 @@ resource "google_discovery_engine_data_store" "products" {
   solution_types    = ["SOLUTION_TYPE_SEARCH"]
 
   project = var.project_id
+
+  depends_on = [google_project_service.discoveryengine]
 }
 
 resource "google_discovery_engine_search_engine" "products" {

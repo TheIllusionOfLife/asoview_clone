@@ -15,8 +15,6 @@ checkstyle = "13.4.0"
 stripe-java = "32.0.0"
 bucket4j = "8.10.1"
 caffeine = "3.2.3"
-opensearch-client = "3.6.0"
-opensearch-testcontainers = "4.1.0"
 bouncycastle = "1.83"
 jjwt = "0.13.0"
 archunit = "1.4.1"
@@ -62,10 +60,6 @@ stripe-java = { module = "com.stripe:stripe-java", version.ref = "stripe-java" }
 # Bucket4j (in-process token bucket for webhook rate limiting)
 bucket4j-core = { module = "com.bucket4j:bucket4j-core", version.ref = "bucket4j" }
 caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
-
-# OpenSearch
-opensearch-rest-high-level-client = { module = "org.opensearch.client:opensearch-rest-high-level-client", version.ref = "opensearch-client" }
-opensearch-testcontainers = { module = "org.opensearch:opensearch-testcontainers", version.ref = "opensearch-testcontainers" }
 
 # Testcontainers
 testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }

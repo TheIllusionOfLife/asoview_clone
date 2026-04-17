@@ -22,7 +22,7 @@ class PopularityScoreSyncJobTest {
   @Test
   void sync_updatesPopularityScoresFromBigQuery() throws Exception {
     BigQuery bigQuery = mock(BigQuery.class);
-    IndexerService indexerService = mock(IndexerService.class);
+    IndexerPort indexerService = mock(IndexerPort.class);
 
     Schema schema =
         Schema.of(
@@ -51,7 +51,7 @@ class PopularityScoreSyncJobTest {
   @Test
   void sync_handlesEmptyResult() throws Exception {
     BigQuery bigQuery = mock(BigQuery.class);
-    IndexerService indexerService = mock(IndexerService.class);
+    IndexerPort indexerService = mock(IndexerPort.class);
 
     TableResult tableResult = mock(TableResult.class);
     when(tableResult.iterateAll()).thenReturn(List.of());
