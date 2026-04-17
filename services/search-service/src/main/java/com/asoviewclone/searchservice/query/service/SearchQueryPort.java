@@ -4,9 +4,9 @@ import com.asoviewclone.searchservice.query.dto.AutosuggestResponse;
 import com.asoviewclone.searchservice.query.dto.ProductSearchResponse;
 
 /**
- * Provider-neutral query surface for the search-service. Implementations back this with OpenSearch
- * (legacy) or Vertex AI Search (Discovery Engine API). The gateway-facing REST contract in {@code
- * SearchController} must be identical regardless of provider.
+ * Query surface for the search-service, backed by Vertex AI Search (Discovery Engine API). The
+ * gateway-facing REST contract in {@code SearchController} is the stable external API; this
+ * interface keeps the controller decoupled from client SDK types.
  */
 public interface SearchQueryPort {
 

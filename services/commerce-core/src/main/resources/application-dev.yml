@@ -27,9 +27,6 @@ spring:
 firebase:
   project-id: ${GOOGLE_CLOUD_PROJECT:asoview-clone-dev}
 
-opensearch:
-  url: ${OPENSEARCH_URL:http://opensearch.search.svc.cluster.local:9200}
-
 payments:
   stripe:
     secret-key: ${STRIPE_SECRET_KEY:}

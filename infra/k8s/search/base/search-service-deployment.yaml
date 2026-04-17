@@ -62,8 +62,6 @@ spec:
             - name: tmp
               mountPath: /tmp
           env:
-            - name: SEARCH_PROVIDER
-              value: vertex
             - name: VERTEX_PROJECT_ID
               value: asoview-clone-dev
             - name: VERTEX_LOCATION

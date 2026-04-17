@@ -3,8 +3,9 @@ package com.asoviewclone.searchservice.query.model;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
- * Jackson DTO mirroring the OpenSearch index mapping in {@code
- * opensearch/products-index-template.json}.
+ * Jackson DTO mirroring the Vertex AI Search (Discovery Engine) schema in {@code
+ * vertex/products-schema.json}. Field names must match the schema exactly — they map 1:1 to {@code
+ * Document.struct_data} entries.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ProductDoc(
