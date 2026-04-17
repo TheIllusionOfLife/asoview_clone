@@ -32,3 +32,15 @@ variable "duckdns_subdomain" {
   default     = "asoview-clone-dev"
 }
 
+variable "billing_account_id" {
+  type        = string
+  description = "GCP billing account ID (format: XXXXXX-XXXXXX-XXXXXX) used for Cloud Billing budgets. Scoped to the dev project only."
+  default     = "00507D-A4D888-8B0E53"
+}
+
+variable "notification_email" {
+  type        = string
+  description = "Email address receiving Cloud Billing budget + monitoring alerts for the dev environment."
+  default     = "mukaiyuya@gmail.com"
+}
+
