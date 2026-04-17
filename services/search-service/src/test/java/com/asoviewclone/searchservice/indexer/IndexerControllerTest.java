@@ -15,7 +15,7 @@ class IndexerControllerTest {
 
   @Autowired private MockMvc mockMvc;
 
-  @MockitoBean private IndexerService indexerService;
+  @MockitoBean private IndexerPort indexerService;
 
   @Test
   void reindexEndpointReturns200() throws Exception {

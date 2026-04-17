@@ -16,7 +16,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
@@ -36,7 +35,6 @@ import tools.jackson.databind.json.JsonMapper;
  * filter on every user search hides the marker from results.
  */
 @Service
-@ConditionalOnProperty(name = "search.provider", havingValue = "vertex")
 public class VertexAiSearchIndexerService implements IndexerPort {
 
   private static final Logger log = LoggerFactory.getLogger(VertexAiSearchIndexerService.class);

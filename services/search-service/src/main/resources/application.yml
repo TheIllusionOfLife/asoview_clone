@@ -1,12 +1,17 @@
 server:
   port: 8082
-opensearch:
-  host: ${OPENSEARCH_HOST:localhost}
-  port: ${OPENSEARCH_PORT:9200}
-  scheme: ${OPENSEARCH_SCHEME:http}
 search:
   popularity-sync:
     enabled: ${POPULARITY_SYNC_ENABLED:false}
+vertex:
+  project-id: ${VERTEX_PROJECT_ID:asoview-clone-dev}
+  location: ${VERTEX_LOCATION:global}
+  collection: ${VERTEX_COLLECTION:default_collection}
+  data-store-id: ${VERTEX_DATA_STORE_ID:asoview-products}
+  engine-id: ${VERTEX_ENGINE_ID:asoview-products-engine}
+  serving-config: ${VERTEX_SERVING_CONFIG:default_search}
+  schema:
+    bootstrap: ${VERTEX_SCHEMA_BOOTSTRAP:true}
 spring:
   application:
     name: search-service

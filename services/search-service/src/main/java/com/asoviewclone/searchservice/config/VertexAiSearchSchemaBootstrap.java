@@ -12,7 +12,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
@@ -29,7 +28,6 @@ import org.springframework.util.StreamUtils;
  */
 @Component
 @Order(50)
-@ConditionalOnProperty(name = "search.provider", havingValue = "vertex")
 public class VertexAiSearchSchemaBootstrap implements CommandLineRunner {
 
   private static final Logger log = LoggerFactory.getLogger(VertexAiSearchSchemaBootstrap.class);

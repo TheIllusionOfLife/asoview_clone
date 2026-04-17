@@ -4,20 +4,17 @@ import com.google.cloud.discoveryengine.v1.DocumentServiceClient;
 import com.google.cloud.discoveryengine.v1.SchemaServiceClient;
 import com.google.cloud.discoveryengine.v1.SearchServiceClient;
 import java.io.IOException;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Wires the Vertex AI Search (Discovery Engine API) client beans. Activates only when {@code
- * search.provider=vertex}, so the OpenSearch path is untouched on every other deployment.
+ * Wires the Vertex AI Search (Discovery Engine API) client beans.
  *
  * <p>Authentication uses Application Default Credentials — on GKE that resolves to the Workload
  * Identity GSA {@code search-service-vertex@asoview-clone-dev.iam.gserviceaccount.com} bound to the
  * KSA {@code search/search-service}.
  */
 @Configuration
-@ConditionalOnProperty(name = "search.provider", havingValue = "vertex")
 public class VertexAiSearchConfig {
 
   @Bean(destroyMethod = "close")
