@@ -14,6 +14,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -47,6 +48,7 @@ public class VertexAiSearchIndexerService implements IndexerPort {
   private final ObjectMapper mapper = JsonMapper.builder().build();
   private final String branchName;
 
+  @Autowired
   public VertexAiSearchIndexerService(
       DocumentServiceClient documentClient,
       @Value("${commerce-core.base-url:${COMMERCE_CORE_BASE_URL:http://localhost:8080}}")
