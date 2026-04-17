@@ -1,9 +1,11 @@
 # Cloud Billing budget + notification for Vertex AI Search cost overruns.
 #
-# Discovery Engine's search tier is billed per-query; the $30/month budget
-# below is a safety cap, not a usage target. Threshold rules fire at
-# 50%/80%/100% of that budget; alerts land in the owner's email via
-# a notification channel wired to Cloud Billing.
+# Discovery Engine's search tier is billed per-query; the ¥5,000/month
+# (~$33 USD) budget below is a safety cap, not a usage target. Threshold
+# rules fire at 50%/80%/100% of that budget; alerts land in the owner's
+# email via a notification channel wired to Cloud Billing. Currency must
+# match the billing account's currency (JPY) or CreateBudget returns a
+# generic 400 INVALID_ARGUMENT.
 #
 # This is a billing budget, not a Cloud Monitoring metric alert, because
 # Discovery Engine's per-service Cloud Monitoring usage metrics are not
@@ -54,16 +56,27 @@ resource "google_billing_budget" "discoveryengine_guardrail" {
   display_name    = "Vertex AI Search (Discovery Engine) guardrail"
 
   budget_filter {
-    projects = ["projects/${data.google_project.current.number}"]
+    # Budgets API requires the project string ID (projects/asoview-clone-dev),
+    # not the numeric project number. Using the number yields a generic
+    # 400 INVALID_ARGUMENT with no field-level detail.
+    projects = ["projects/${var.project_id}"]
     # Filter to Discovery Engine service so the budget tracks only
     # Vertex AI Search cost, not the rest of the project bill.
     services = ["services/74B1-77CF-C302"] # Vertex AI Search (discoveryengine.googleapis.com)
+    # When a `services` filter is set, Cloud Billing requires
+    # `credit_types_treatment` to be `EXCLUDE_ALL_CREDITS` (the
+    # Terraform provider default of `INCLUDE_ALL_CREDITS` yields a
+    # generic 400 INVALID_ARGUMENT at create time).
+    credit_types_treatment = "EXCLUDE_ALL_CREDITS"
   }
 
   amount {
     specified_amount {
-      currency_code = "USD"
-      units         = "30"
+      # Must match the billing account's currency (asoview-clone-dev is
+      # on a JPY billing account). Budget in JPY roughly equivalent to
+      # $30 USD at 2026 rates; used only as a safety cap.
+      currency_code = "JPY"
+      units         = "5000"
     }
   }
 
@@ -94,8 +107,4 @@ resource "google_billing_budget" "discoveryengine_guardrail" {
   }
 
   depends_on = [google_project_service.billing_budgets]
-}
-
-data "google_project" "current" {
-  project_id = var.project_id
 }

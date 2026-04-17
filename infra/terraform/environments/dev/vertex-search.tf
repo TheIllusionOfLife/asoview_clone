@@ -59,10 +59,15 @@ resource "google_service_account" "search_service_vertex" {
   project      = var.project_id
 }
 
-resource "google_project_iam_member" "search_service_vertex_editor" {
+resource "google_project_iam_member" "search_service_vertex_admin" {
   project = var.project_id
-  role    = "roles/discoveryengine.editor"
-  member  = "serviceAccount:${google_service_account.search_service_vertex.email}"
+  # `roles/discoveryengine.admin` (not `.editor`) because schema bootstrap
+  # requires `discoveryengine.schemas.update` + `schemas.create`, which
+  # are present in admin but not editor. Document write + search (indexer
+  # + query paths) also fit under admin. This is a single-workload project
+  # so the broader role is acceptable.
+  role   = "roles/discoveryengine.admin"
+  member = "serviceAccount:${google_service_account.search_service_vertex.email}"
 }
 
 resource "google_service_account_iam_member" "search_service_vertex_workload_identity" {
