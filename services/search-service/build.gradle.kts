@@ -6,7 +6,6 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-validation")
-    implementation(libs.opensearch.rest.high.level.client)
 
     // BigQuery (popularity score sync from analytics mart) + Vertex AI Search (Discovery Engine).
     // Order matters: spring-cloud-gcp-bom is applied LAST so its newer google-cloud-bigquery
@@ -23,7 +22,4 @@ dependencies {
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
-    testImplementation(platform(libs.testcontainers.bom))
-    testImplementation(libs.testcontainers.junit.jupiter)
-    testImplementation(libs.opensearch.testcontainers)
 }
