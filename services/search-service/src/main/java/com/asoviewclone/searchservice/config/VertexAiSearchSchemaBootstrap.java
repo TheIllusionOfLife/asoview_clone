@@ -23,8 +23,12 @@ import org.springframework.util.StreamUtils;
  * (@Order(100)) so the backfill never runs against a partial schema.
  *
  * <p>If the schema update fails, the exception is rethrown so the pod crashes — better to
- * CrashLoopBackOff than to silently run the backfill against a broken schema. Gate the behavior
- * with {@code vertex.schema.bootstrap=true} for local / test scenarios.
+ * CrashLoopBackOff than to silently run the backfill against a broken schema.
+ *
+ * <p>Fail-closed default: {@code vertex.schema.bootstrap} is {@code false} at every property
+ * resolution layer (application.yml default, @Value fallback). Each environment opts in
+ * explicitly via the {@code VERTEX_SCHEMA_BOOTSTRAP=true} env var so an accidentally-deployed
+ * pod cannot silently mutate a data-store schema it shouldn't own.
  */
 @Component
 @Order(50)
@@ -47,7 +51,7 @@ public class VertexAiSearchSchemaBootstrap implements CommandLineRunner {
       @Value("${vertex.location:global}") String location,
       @Value("${vertex.collection:default_collection}") String collection,
       @Value("${vertex.data-store-id}") String dataStoreId,
-      @Value("${vertex.schema.bootstrap:true}") boolean bootstrapEnabled) {
+      @Value("${vertex.schema.bootstrap:false}") boolean bootstrapEnabled) {
     this.schemaClient = schemaClient;
     this.projectId = projectId;
     this.location = location;
