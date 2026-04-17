@@ -26,9 +26,9 @@ import org.springframework.util.StreamUtils;
  * CrashLoopBackOff than to silently run the backfill against a broken schema.
  *
  * <p>Fail-closed default: {@code vertex.schema.bootstrap} is {@code false} at every property
- * resolution layer (application.yml default, @Value fallback). Each environment opts in
- * explicitly via the {@code VERTEX_SCHEMA_BOOTSTRAP=true} env var so an accidentally-deployed
- * pod cannot silently mutate a data-store schema it shouldn't own.
+ * resolution layer (application.yml default, @Value fallback). Each environment opts in explicitly
+ * via the {@code VERTEX_SCHEMA_BOOTSTRAP=true} env var so an accidentally-deployed pod cannot
+ * silently mutate a data-store schema it shouldn't own.
  */
 @Component
 @Order(50)
