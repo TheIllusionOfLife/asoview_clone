@@ -72,6 +72,13 @@ spec:
               value: asoview-clone-dev
             - name: SPANNER_DATABASE
               value: asoview
+            # PubSubConfig is @ConditionalOnProperty("spring.cloud.gcp.project-id").
+            # Without this env var, PubSubTemplate never instantiates — the outbox
+            # relay AND ProductIndexEventListener both silently no-op. The
+            # spanner-nested property (spring.cloud.gcp.spanner.project-id)
+            # is a different key; it does NOT satisfy this condition.
+            - name: SPRING_CLOUD_GCP_PROJECT_ID
+              value: asoview-clone-dev
             - name: REDIS_HOST
               value: redis.core-services.svc.cluster.local
             - name: OPENSEARCH_URL

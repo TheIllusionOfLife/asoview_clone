@@ -83,6 +83,19 @@ jobs:
     if: always()
     steps:
       - uses: actions/checkout@v6
+      - name: Ensure dev-audit label exists
+        # gh issue create --label fails hard if the label is missing. Create
+        # it idempotently so the first-ever failing run doesn't itself fail
+        # before it opens the tracking issue.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if ! gh label list --json name --jq '.[].name' | grep -qx 'dev-audit'; then
+            gh label create dev-audit \
+              --description "Scheduled dev-cluster audit failure tracker" \
+              --color B60205
+          fi
       - name: Open or update issue on failure
         if: needs.audit.result == 'failure'
         env:

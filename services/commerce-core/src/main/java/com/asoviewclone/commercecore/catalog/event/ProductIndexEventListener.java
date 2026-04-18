@@ -27,6 +27,14 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * eventually, but the ERROR line makes Pub/Sub health visible instead of silent. Per CLAUDE.md
  * "logging is not error handling" — at system boundaries, error paths throw.
  *
+ * <p><b>Durability trade-off:</b> direct AFTER_COMMIT publish is not durable — a Pub/Sub outage
+ * between JPA commit and the publish call drops the message. The existing outbox pattern (see
+ * {@code com.asoviewclone.commercecore.events.OutboxRelayJob}) would give at-least-once semantics,
+ * but this listener publishes directly for simplicity. The recovery floors above ({@code
+ * IndexerBackfillJob} on startup, admin reindex endpoint for targeted repair) cover the common
+ * case. Revisit if ops ever observes stale-index reports that the ERROR log can confirm but the
+ * recovery floors miss.
+ *
  * <p>{@code PubSubPublisher} is {@code @ConditionalOnBean(PubSubTemplate.class)} so unit / test
  * profiles without Pub/Sub wiring still load this bean — hence the {@code Optional} injection.
  */

@@ -96,6 +96,12 @@ spec:
             # (relevance) sort.
             - name: POPULARITY_SYNC_ENABLED
               value: "true"
+            # PubSubConfig is @ConditionalOnProperty("spring.cloud.gcp.project-id").
+            # Without this env var the bean silently no-ops, which means
+            # ProductUpsertedSubscriber never activates and product-index-events
+            # messages pile up on the subscription until retention expires.
+            - name: SPRING_CLOUD_GCP_PROJECT_ID
+              value: asoview-clone-dev
             # Size the JVM heap from the container memory limit so
             # Spring Boot + Netty/gRPC doesn't OOM when the container hits its cap.
             - name: JAVA_TOOL_OPTIONS
