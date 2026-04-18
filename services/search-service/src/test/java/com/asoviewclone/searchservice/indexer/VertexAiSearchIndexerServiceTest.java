@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -117,6 +118,50 @@ class VertexAiSearchIndexerServiceTest {
     assertThat(req.getDocument().getName())
         .endsWith(
             "projects/proj/locations/global/collections/default_collection/dataStores/asoview-products/branches/default_branch/documents/prod-789");
+  }
+
+  @Test
+  void updatePopularityScoreAddsScoreWhenExistingStructLacksIt() {
+    // First-time popularity write after reindex wiped the score: the existing
+    // struct has product fields but no popularityScore. Merge must add it
+    // without touching the other fields.
+    Struct existingStruct =
+        Struct.newBuilder()
+            .putFields(
+                "productId",
+                com.google.protobuf.Value.newBuilder().setStringValue("prod-789").build())
+            .putFields(
+                "name",
+                com.google.protobuf.Value.newBuilder().setStringValue("Hakone Onsen").build())
+            .build();
+    when(mockClient.getDocument(any(GetDocumentRequest.class)))
+        .thenReturn(Document.newBuilder().setStructData(existingStruct).build());
+
+    boolean ok = service.updatePopularityScore("prod-789", 42L);
+    assertThat(ok).isTrue();
+
+    ArgumentCaptor<UpdateDocumentRequest> captor =
+        ArgumentCaptor.forClass(UpdateDocumentRequest.class);
+    verify(mockClient).updateDocument(captor.capture());
+    Struct merged = captor.getValue().getDocument().getStructData();
+    assertThat(merged.getFieldsOrThrow("productId").getStringValue()).isEqualTo("prod-789");
+    assertThat(merged.getFieldsOrThrow("name").getStringValue()).isEqualTo("Hakone Onsen");
+    assertThat(merged.getFieldsOrThrow("popularityScore").getNumberValue()).isEqualTo(42.0);
+  }
+
+  @Test
+  void updatePopularityScoreShortCircuitsWhenDocumentNotFound() {
+    // Popularity sync can fire before IndexerBackfillJob has written the doc.
+    // NOT_FOUND on getDocument must short-circuit: return false, do NOT issue
+    // an updateDocument (which would otherwise attempt to write a struct
+    // containing only popularityScore, clobbering nothing but adding noise).
+    doThrow(new StatusRuntimeException(Status.NOT_FOUND))
+        .when(mockClient)
+        .getDocument(any(GetDocumentRequest.class));
+
+    boolean ok = service.updatePopularityScore("prod-missing", 42L);
+    assertThat(ok).isFalse();
+    verify(mockClient, never()).updateDocument(any(UpdateDocumentRequest.class));
   }
 
   @Test

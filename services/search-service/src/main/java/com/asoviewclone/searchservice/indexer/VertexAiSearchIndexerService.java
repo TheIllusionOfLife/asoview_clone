@@ -138,6 +138,16 @@ public class VertexAiSearchIndexerService implements IndexerPort {
               .setAllowMissing(false)
               .build());
       return true;
+    } catch (StatusRuntimeException e) {
+      if (e.getStatus().getCode() == Status.Code.NOT_FOUND) {
+        // Product not yet indexed (popularity sync racing a cold backfill, or
+        // BigQuery referencing a product that never landed in Vertex). This
+        // is routine, not an error — log at debug to keep ops signal clean.
+        log.debug("popularityScore skipped; document not yet indexed: {}", productId);
+        return false;
+      }
+      log.error("Failed to update popularityScore for {}: {}", productId, e.getMessage(), e);
+      return false;
     } catch (Exception e) {
       log.error("Failed to update popularityScore for {}: {}", productId, e.getMessage(), e);
       return false;
