@@ -26,6 +26,14 @@ import org.springframework.stereotype.Service;
  * strings, not product documents — the REST contract returns {@code (productId, name)} pairs, so a
  * document-level search is the right primitive. This is the permanent implementation, not a
  * fallback for a cold data store.
+ *
+ * <p>Verified 2026-04-19: live REST probe of {@code CompleteQuery} with {@code queryModel} of
+ * {@code document}, {@code document-completable}, {@code search-history}, and {@code user-event}
+ * returned empty suggestions for every prefix tested (English and CJK). That confirms two things:
+ * the search-based approach isn't just a stylistic preference, it's actively producing usable
+ * results where {@code CompleteQuery} produces none on this data store's size + traffic profile. If
+ * we later flip to a Commerce / Retail tier with real user-event ingest, re-evaluate — the
+ * model-trained completion will start outperforming document lookup at that point.
  */
 @Service
 public class VertexAiSearchQueryService implements SearchQueryPort {
