@@ -223,7 +223,9 @@ test.describe("sign-in page", () => {
     // fail-closed default; flip both env + assertion when real creds land.
     await page.goto("/ja/signin");
     await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole("button", { name: /Google/ })).toHaveCount(0);
+    // Match the specific button label so a future "Google something else"
+    // button doesn't accidentally satisfy this fail-closed assertion.
+    await expect(page.getByRole("button", { name: /Continue with Google/ })).toHaveCount(0);
   });
 
   test("no Firebase errors visible on signin page", async ({ page }) => {

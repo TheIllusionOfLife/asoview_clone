@@ -141,8 +141,11 @@ test.describe("live search scenarios", () => {
 
   test("pagination returns disjoint product ids across pages", async ({ request }) => {
     const pageSize = 10;
-    const p0 = await fetchSearch(request, { page: 0, size: pageSize });
-    const p1 = await fetchSearch(request, { page: 1, size: pageSize });
+    // Pin the sort so page 0 and page 1 are evaluated against the same
+    // deterministic ordering. Default (relevance + popularity boost) isn't
+    // stable across two separate API calls with no query.
+    const p0 = await fetchSearch(request, { page: 0, size: pageSize, sort: "price_asc" });
+    const p1 = await fetchSearch(request, { page: 1, size: pageSize, sort: "price_asc" });
     const ids0 = new Set(p0.content.map((h) => h.productId));
     const overlap = p1.content.filter((h) => ids0.has(h.productId));
     expect(overlap).toHaveLength(0);
