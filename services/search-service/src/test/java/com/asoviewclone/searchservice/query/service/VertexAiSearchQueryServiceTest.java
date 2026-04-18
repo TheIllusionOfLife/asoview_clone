@@ -30,7 +30,7 @@ class VertexAiSearchQueryServiceTest {
   @Test
   void alwaysInjectsStatusActiveFilter() {
     SearchRequest req = service.buildSearchRequest("onsen", null, null, null, null, null, 0, 20);
-    assertThat(req.getFilter()).contains("status = ANY(\"ACTIVE\")");
+    assertThat(req.getFilter()).contains("status: ANY(\"ACTIVE\")");
   }
 
   @Test
@@ -38,8 +38,8 @@ class VertexAiSearchQueryServiceTest {
     SearchRequest req =
         service.buildSearchRequest("onsen", "area-kanto", "cat-spa", 1000L, 5000L, null, 0, 20);
     String filter = req.getFilter();
-    assertThat(filter).contains("areaId = ANY(\"area-kanto\")");
-    assertThat(filter).contains("categoryId = ANY(\"cat-spa\")");
+    assertThat(filter).contains("areaId: ANY(\"area-kanto\")");
+    assertThat(filter).contains("categoryId: ANY(\"cat-spa\")");
     assertThat(filter).contains("minPrice >= 1000");
     assertThat(filter).contains("minPrice <= 5000");
   }
@@ -47,7 +47,7 @@ class VertexAiSearchQueryServiceTest {
   @Test
   void escapesDoubleQuotesInFilterValues() {
     SearchRequest req = service.buildSearchRequest("x", "he\"llo", null, null, null, null, 0, 20);
-    assertThat(req.getFilter()).contains("areaId = ANY(\"he\\\"llo\")");
+    assertThat(req.getFilter()).contains("areaId: ANY(\"he\\\"llo\")");
   }
 
   @Test

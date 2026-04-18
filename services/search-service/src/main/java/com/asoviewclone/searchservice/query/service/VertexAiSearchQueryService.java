@@ -102,7 +102,7 @@ public class VertexAiSearchQueryService implements SearchQueryPort {
             .setServingConfig(servingConfig)
             .setQuery(q)
             .setPageSize(5)
-            .setFilter("status = ANY(\"ACTIVE\")")
+            .setFilter("status: ANY(\"ACTIVE\")")
             .build();
     SearchResponse response = executeSearch(request);
     List<AutosuggestResponse.Suggestion> suggestions = new ArrayList<>();
@@ -120,16 +120,15 @@ public class VertexAiSearchQueryService implements SearchQueryPort {
   }
 
   private String buildFilter(String areaId, String categoryId, Long minPrice, Long maxPrice) {
-    // Discovery Engine filter syntax: the `:` operator is substring/token match on
-    // searchable text fields; for indexable-only fields (status, areaId, categoryId),
-    // the API rejects `:` with "Unsupported field X on ':' operator". Use `=` for
-    // exact-match equivalence. ANY(...) still works with `=` for multi-value match.
-    StringBuilder f = new StringBuilder("status = ANY(\"ACTIVE\")");
+    // Discovery Engine filter syntax for indexable string fields uses `:` with ANY().
+    // `=` yields "Unsupported field X on comparison operators" from the server for
+    // non-numeric fields. Verified against the v1 REST endpoint with 50 indexed docs.
+    StringBuilder f = new StringBuilder("status: ANY(\"ACTIVE\")");
     if (areaId != null && !areaId.isBlank()) {
-      f.append(" AND areaId = ANY(\"").append(escape(areaId)).append("\")");
+      f.append(" AND areaId: ANY(\"").append(escape(areaId)).append("\")");
     }
     if (categoryId != null && !categoryId.isBlank()) {
-      f.append(" AND categoryId = ANY(\"").append(escape(categoryId)).append("\")");
+      f.append(" AND categoryId: ANY(\"").append(escape(categoryId)).append("\")");
     }
     if (minPrice != null) {
       f.append(" AND minPrice >= ").append(minPrice);
