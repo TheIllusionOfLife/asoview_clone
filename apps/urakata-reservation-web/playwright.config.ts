@@ -2,6 +2,11 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
+  // smoke/ holds live-cluster audits keyed on PLAYWRIGHT_BASE_URL + API
+  // secrets. Excluded from the default run so `bunx playwright test`
+  // (local dev + CI without those secrets) stays green. The audit config
+  // (playwright.audit.config.ts) opts smoke/ in explicitly via testMatch.
+  testIgnore: ["**/smoke/**"],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
