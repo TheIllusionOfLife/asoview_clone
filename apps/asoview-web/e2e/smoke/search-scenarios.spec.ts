@@ -125,6 +125,11 @@ test.describe("live search scenarios", () => {
     const lower = 2000;
     const upper = 4000;
     const body = await fetchSearch(request, { minPrice: lower, maxPrice: upper, size: 50 });
+    // Guard against the pathological case where a broken range filter returns
+    // nothing: the for-loop would silently pass with no iterations. The seed
+    // spreads prices across ¥1550..¥8000 so [2000, 4000] must match at least
+    // a handful of hits.
+    expect(body.content.length).toBeGreaterThan(0);
     for (const h of body.content) {
       expect(
         h.minPrice,

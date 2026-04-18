@@ -163,7 +163,19 @@ BEGIN
       END AS image_id
     FROM generate_series(1, 50) AS s(n)
   ) AS t
-  ON CONFLICT (id) DO NOTHING;
+  -- Upsert (not DO NOTHING) so a rerun after edits to titles / translations /
+  -- image URLs actually propagates. Product IDs are UUID-stable by design, so
+  -- every rerun would otherwise hit the conflict branch and leave the old
+  -- "Demo Experience #N" rows in place forever. The mutable columns are
+  -- title / description / image_url / translations; venue / category / status
+  -- stay fixed.
+  ON CONFLICT (id) DO UPDATE
+    SET title = EXCLUDED.title,
+        description = EXCLUDED.description,
+        image_url = EXCLUDED.image_url,
+        translations = EXCLUDED.translations,
+        updated_at = now(),
+        updated_by = 'seed';
 
   -- ===== Product variants (2 per product = 100) =====
   INSERT INTO product_variants (id, product_id, name, price_amount, price_currency, duration_minutes, max_participants, created_by, updated_by)
