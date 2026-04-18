@@ -34,6 +34,18 @@ resource "google_service_account_iam_member" "commerce_core_workload_identity" {
   member             = "serviceAccount:${var.project_id}.svc.id.goog[core-services/commerce-core]"
 }
 
+# commerce-core publishes ProductUpsertedEvent to product-index-events so
+# search-service auto-reindexes. Project-level publisher (not topic-scoped)
+# matches how the outbox relay uses PubSubTemplate to publish across several
+# topics (#33 taxonomy); narrower topic-scoped bindings would require a
+# parallel set of resources per topic. Current set is modest, so the
+# blast-radius trade-off favors the simpler project binding.
+resource "google_project_iam_member" "commerce_core_pubsub_publisher" {
+  project = var.project_id
+  role    = "roles/pubsub.publisher"
+  member  = "serviceAccount:${google_service_account.commerce_core.email}"
+}
+
 # ticketing-service runs under a dedicated GSA that only gets
 # roles/spanner.databaseUser (no Cloud SQL, no broader project access).
 # Spanner-level fine-grained enforcement is layered on via the

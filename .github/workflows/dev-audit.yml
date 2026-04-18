@@ -1,0 +1,138 @@
+name: Dev Audit
+
+# Scheduled live-cluster smoke against asoview-clone-dev.duckdns.org.
+# Exists because the audit session #70-#74 exposed five regressions
+# that had sat undetected until a human noticed — a cron-driven run
+# of service-audit.spec.ts would have caught each within minutes of
+# the underlying commit landing.
+#
+# Runs every 6 hours + on workflow_dispatch. Not gated on pull_request:
+# feature branches don't get a live cluster to audit.
+#
+# Keep separate from ci.yml (the localhost PR lane) so this scheduled
+# job can set PLAYWRIGHT_BASE_URL to the dev cluster without polluting
+# the fast-offline CI path.
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PLAYWRIGHT_BASE_URL: https://asoview-clone-dev.duckdns.org
+  API_BASE_URL: https://asoview-clone-dev.duckdns.org/api
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: dev-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: ${{ matrix.app }} service audit
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: asoview-web
+            base_url: https://asoview-clone-dev.duckdns.org
+            api_base_url: https://asoview-clone-dev.duckdns.org/api
+            needs_auth: "true"
+          - app: urakata-ticket-web
+            base_url: https://asoview-tickets.duckdns.org
+            api_base_url: https://asoview-tickets.duckdns.org/api
+            needs_auth: "true"
+          - app: urakata-reservation-web
+            base_url: https://asoview-operator.duckdns.org
+            api_base_url: https://asoview-operator.duckdns.org/api
+            needs_auth: "false"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.23"
+      - run: bun install --frozen-lockfile
+      - name: Install Playwright chromium
+        run: cd apps/${{ matrix.app }} && bunx playwright install --with-deps chromium
+      - name: Run live-cluster audit
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ matrix.base_url }}
+          API_BASE_URL: ${{ matrix.api_base_url }}
+          E2E_FIREBASE_API_KEY: ${{ secrets.E2E_FIREBASE_API_KEY }}
+          E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+        run: cd apps/${{ matrix.app }} && bunx playwright test --config=playwright.audit.config.ts
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.app }}-audit-report
+          path: apps/${{ matrix.app }}/playwright-report/
+          retention-days: 14
+
+  report-status:
+    name: Report status
+    runs-on: ubuntu-latest
+    needs: [audit]
+    # Always run so we can close a stale issue on success as well as open one on failure.
+    if: always()
+    steps:
+      - uses: actions/checkout@v6
+      - name: Ensure dev-audit label exists
+        # gh issue create --label fails hard if the label is missing. Create
+        # it idempotently so the first-ever failing run doesn't itself fail
+        # before it opens the tracking issue.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if ! gh label list --json name --jq '.[].name' | grep -qx 'dev-audit'; then
+            gh label create dev-audit \
+              --description "Scheduled dev-cluster audit failure tracker" \
+              --color B60205
+          fi
+      - name: Open or update issue on failure
+        if: needs.audit.result == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          HEAD_SHA: ${{ github.sha }}
+          TITLE: "[dev-audit] failing"
+        run: |
+          set -euo pipefail
+          # Dedup by the `dev-audit` label, not a title substring search —
+          # `[`/`]` are tokenized inconsistently across gh search and can
+          # match unrelated issues (e.g. someone types "[dev-audit]" in an
+          # unrelated bug report). Label is exact + operator-controlled.
+          EXISTING=$(gh issue list --state open --label dev-audit --json number --jq '.[0].number // empty')
+          BODY=$(printf '%s\n' \
+            "Scheduled \`dev-audit.yml\` run failed against the dev cluster." \
+            "" \
+            "- Commit: \`$HEAD_SHA\`" \
+            "- Run: $RUN_URL" \
+            "" \
+            "Most recent failure attached as an artifact on the run page. Re-run manually via workflow_dispatch after the underlying fix merges; this issue auto-closes on the next green run.")
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+          else
+            gh issue create --title "$TITLE" --body "$BODY" --label "dev-audit"
+          fi
+      - name: Close stale dev-audit issues on success
+        if: needs.audit.result == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # Same label-based lookup as the failure path: exact and
+          # operator-controlled.
+          for NUM in $(gh issue list --state open --label dev-audit --json number --jq '.[].number'); do
+            gh issue comment "$NUM" --body "Resolved by green run at $HEAD_SHA: $RUN_URL"
+            gh issue close "$NUM" --reason completed
+          done

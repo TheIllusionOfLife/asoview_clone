@@ -2,6 +2,12 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
+  // smoke/ holds live-cluster audits that hard-fail without API_BASE_URL +
+  // Firebase test creds in env. Excluded from the default run so
+  // `bunx playwright test` (local dev + CI without those secrets) stays
+  // green. The audit config (playwright.audit.config.ts) opts smoke/ in
+  // explicitly via its own testMatch.
+  testIgnore: ["**/smoke/**"],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
