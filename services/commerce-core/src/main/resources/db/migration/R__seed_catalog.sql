@@ -74,23 +74,95 @@ BEGIN
   ON CONFLICT (id) DO NOTHING;
 
   -- ===== Products (50) =====
-  -- Deterministically spread: product N maps to venue[N % 8] and category[N % 4].
+  -- Deterministically spread: product N maps to venue[1 + N % 8] and category[1 + N % 4].
+  -- Product UUIDs are derived from the integer N only (uuid_generate_v5 on
+  -- 'asoview-clone:product:<N>'), so downstream fixtures that hardcode these
+  -- UUIDs stay stable: scripts/seeds/bigquery/004_seed_product_venue_mapping.sql
+  -- and e2e tests that pin specific product ids must not break on this rewrite.
+  --
+  -- Titles are realistic placeholder names grouped by category so filter and
+  -- CJK-search tests resolve meaningfully (e.g. `q=温泉` hits the culture
+  -- hot-spring entry via the Japanese translation).
   INSERT INTO products (id, tenant_id, venue_id, category_id, title, description, image_url, status, translations, created_by, updated_by)
   SELECT
-    uuid_generate_v5(uuid_ns_oid(), 'asoview-clone:product:' || p.n),
+    uuid_generate_v5(uuid_ns_oid(), 'asoview-clone:product:' || t.n),
     uuid_generate_v5(uuid_ns_oid(), 'asoview-clone:tenant:default'),
-    uuid_generate_v5(uuid_ns_oid(), 'asoview-clone:venue:' || (ARRAY['tokyo','yokohama','kyoto','osaka','sapporo','fukuoka','okinawa','nagoya'])[1 + (p.n % 8)]),
-    uuid_generate_v5(uuid_ns_oid(), 'asoview-clone:category:' || (ARRAY['outdoor','indoor','food','culture'])[1 + (p.n % 4)]),
-    'Demo Experience #' || p.n,
-    'A seeded demo activity number ' || p.n || ' for local development. Not a real product.',
-    'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1200&sig=' || p.n,
+    uuid_generate_v5(uuid_ns_oid(), 'asoview-clone:venue:' || t.venue_slug),
+    uuid_generate_v5(uuid_ns_oid(), 'asoview-clone:category:' || t.category_slug),
+    t.title_en,
+    'A ' || t.category_slug || ' experience in ' || t.venue_name_en || ' — ' || t.title_en || '. Operated by AsoClone demo.',
+    'https://images.unsplash.com/photo-' || t.image_id || '?w=1200&sig=' || t.n,
     'ACTIVE',
     jsonb_build_object(
-      'ja', jsonb_build_object('name', 'デモ体験 #' || p.n, 'description', 'ローカル開発用のシードデータ #' || p.n),
-      'en', jsonb_build_object('name', 'Demo Experience #' || p.n, 'description', 'Seeded demo activity #' || p.n)
+      'ja', jsonb_build_object(
+        'name', t.title_ja,
+        'description', t.venue_name_ja || 'で楽しむ' || t.title_ja || '。AsoCloneのデモデータです。'
+      ),
+      'en', jsonb_build_object(
+        'name', t.title_en,
+        'description', 'A ' || t.category_slug || ' experience in ' || t.venue_name_en || ' — ' || t.title_en || '.'
+      )
     ),
     'seed', 'seed'
-  FROM generate_series(1, 50) AS p(n)
+  FROM (
+    SELECT
+      s.n,
+      (ARRAY['tokyo','yokohama','kyoto','osaka','sapporo','fukuoka','okinawa','nagoya'])[1 + (s.n % 8)] AS venue_slug,
+      (ARRAY['Tokyo','Yokohama','Kyoto','Osaka','Sapporo','Fukuoka','Okinawa','Nagoya'])[1 + (s.n % 8)] AS venue_name_en,
+      (ARRAY['東京','横浜','京都','大阪','札幌','福岡','沖縄','名古屋'])[1 + (s.n % 8)] AS venue_name_ja,
+      (ARRAY['outdoor','indoor','food','culture'])[1 + (s.n % 4)] AS category_slug,
+      CASE (s.n % 4)
+        WHEN 1 THEN (ARRAY[
+          'Pottery Studio A','Escape Room B','Art Gallery C','Bowling Alley D',
+          'VR Arena E','Planetarium F','Trampoline Park G','Climbing Gym H',
+          'Arcade Lounge I','Board Game Cafe J','Karaoke Night K','Museum Tour L','Aquarium M'
+        ])[1 + (((s.n - 1) / 4) % 13)]
+        WHEN 2 THEN (ARRAY[
+          'Sushi Workshop A','Ramen Tour B','Sake Tasting C','Cafe Hopping D',
+          'Street Food Walk E','Wagyu Dinner F','Tea Pairing G','Wine Tasting H',
+          'Bakery Class I','Cooking Class J','Izakaya Crawl K','Chocolate Atelier L','Whisky Bar M'
+        ])[1 + (((s.n - 1) / 4) % 13)]
+        WHEN 3 THEN (ARRAY[
+          'Tea Ceremony A','Calligraphy Class B','Kimono Experience C','Samurai Lesson D',
+          'Ninja Training E','Temple Visit F','Shrine Tour G','Hot Spring Retreat H',
+          'Geisha Evening I','Taiko Drum Workshop J','Ikebana Session K','Kabuki Show L','Noh Theater M'
+        ])[1 + (((s.n - 1) / 4) % 13)]
+        ELSE (ARRAY[
+          'Rafting Adventure A','Hiking Trail B','Kayak Tour C','Cycling Route D',
+          'Camping Retreat E','Surfing Lesson F','Climbing Crag G','SUP Session H',
+          'Paragliding Course I','Fishing Trip J','Zipline Forest K','Horseback Ride L','Canyoning M'
+        ])[1 + (((s.n - 1) / 4) % 13)]
+      END AS title_en,
+      CASE (s.n % 4)
+        WHEN 1 THEN (ARRAY[
+          '陶芸工房 A','脱出ゲーム B','アートギャラリー C','ボウリング D',
+          'VRアリーナ E','プラネタリウム F','トランポリン G','クライミングジム H',
+          'アーケード I','ボードゲームカフェ J','カラオケ K','博物館ツアー L','水族館 M'
+        ])[1 + (((s.n - 1) / 4) % 13)]
+        WHEN 2 THEN (ARRAY[
+          '寿司体験 A','ラーメンツアー B','日本酒試飲 C','カフェ巡り D',
+          '食べ歩き E','和牛ディナー F','お茶体験 G','ワインテイスティング H',
+          'ベーカリー教室 I','料理教室 J','居酒屋巡り K','ショコラトリー L','ウイスキーバー M'
+        ])[1 + (((s.n - 1) / 4) % 13)]
+        WHEN 3 THEN (ARRAY[
+          '茶道体験 A','書道教室 B','着物体験 C','侍体験 D',
+          '忍者修行 E','お寺巡り F','神社ツアー G','温泉リトリート H',
+          '芸者の夕べ I','太鼓体験 J','生け花 K','歌舞伎鑑賞 L','能楽堂 M'
+        ])[1 + (((s.n - 1) / 4) % 13)]
+        ELSE (ARRAY[
+          'ラフティング体験 A','ハイキング B','カヤックツアー C','サイクリング D',
+          'キャンプ体験 E','サーフィン F','クライミング G','SUP体験 H',
+          'パラグライダー I','フィッシング J','ジップライン K','乗馬体験 L','キャニオニング M'
+        ])[1 + (((s.n - 1) / 4) % 13)]
+      END AS title_ja,
+      CASE (s.n % 4)
+        WHEN 1 THEN '1533174072545-7a4b6ad7a6c3'
+        WHEN 2 THEN '1504674900247-0877df9cc836'
+        WHEN 3 THEN '1528164344705-47542687000d'
+        ELSE        '1551632811-561732d1e306'
+      END AS image_id
+    FROM generate_series(1, 50) AS s(n)
+  ) AS t
   ON CONFLICT (id) DO NOTHING;
 
   -- ===== Product variants (2 per product = 100) =====
