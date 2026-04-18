@@ -111,6 +111,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = useCallback(async () => {
+    // Defense in depth: the /signin page hides the button behind the same
+    // env flag, but other call sites (autofill, bfcache restore, a future
+    // component) could still invoke signIn() directly. Fail here with a
+    // clear message instead of letting Firebase return `auth/internal-error`
+    // when the Terraform-managed identity-platform config carries placeholder
+    // OAuth credentials. See docs/operations/google-oauth-setup.md.
+    if (process.env.NEXT_PUBLIC_ENABLE_GOOGLE_SIGNIN !== "true") {
+      throw new Error("Google sign-in is disabled in this deployment");
+    }
     const { auth } = await ensureFirebaseReady();
     const provider = new GoogleAuthProvider();
     await signInWithPopup(auth, provider);

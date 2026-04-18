@@ -73,7 +73,7 @@ test.describe("landing page /ja", () => {
 
   test("footer visible with copyright", async ({ page }) => {
     await page.goto("/ja");
-    await expect(page.getByText("© 2026 asoview! clone")).toBeVisible();
+    await expect(page.getByText("© 2026 AsoClone")).toBeVisible();
   });
 });
 
@@ -215,9 +215,17 @@ test.describe("sign-in page", () => {
     await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 10_000 });
   });
 
-  test("has Google sign-in button or link", async ({ page }) => {
+  test("hides Google sign-in button by default (fail-closed)", async ({ page }) => {
+    // NEXT_PUBLIC_ENABLE_GOOGLE_SIGNIN is unset in the dev overlay because
+    // the Terraform module still has PLACEHOLDER OAuth creds. Clicking a
+    // Google button would surface `auth/internal-error` to users, so the
+    // button is gated out of the render tree entirely. This test pins the
+    // fail-closed default; flip both env + assertion when real creds land.
     await page.goto("/ja/signin");
-    await expect(page.getByRole("button", { name: /Google/ })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 10_000 });
+    // Match the specific button label so a future "Google something else"
+    // button doesn't accidentally satisfy this fail-closed assertion.
+    await expect(page.getByRole("button", { name: /Continue with Google/ })).toHaveCount(0);
   });
 
   test("no Firebase errors visible on signin page", async ({ page }) => {
@@ -226,7 +234,7 @@ test.describe("sign-in page", () => {
       if (msg.type() === "error") consoleErrors.push(msg.text());
     });
     await page.goto("/ja/signin");
-    await expect(page.getByRole("button", { name: /Google/ })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 10_000 });
     const body = await page.locator("body").innerText();
     // BUG DETECTION: Firebase config missing
     expect(body).not.toContain("NEXT_PUBLIC_FIREBASE");

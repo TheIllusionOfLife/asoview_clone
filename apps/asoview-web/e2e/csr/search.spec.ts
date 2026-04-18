@@ -11,6 +11,12 @@ import { expect, test } from "@playwright/test";
 
 type Hit = { productId: string; name: string; description?: string; minPrice?: number };
 
+// Keep these in sync with the UUIDs Facets.tsx expects from /v1/categories/active
+// (see services/commerce-core/.../CategoryResponse). The values themselves are
+// arbitrary fixtures — the real dev-cluster UUIDs are different.
+const OUTDOOR_UUID = "ce61286b-0855-5726-b270-ef6079237eed";
+const INDOOR_UUID = "fa1a1636-7474-542e-b925-7a8a6c8e50bb";
+
 async function stubSearch(page: import("@playwright/test").Page, hits: Hit[]) {
   await page.route("**/v1/search**", (route) =>
     route.fulfill({
@@ -29,6 +35,20 @@ async function stubSearch(page: import("@playwright/test").Page, hits: Hit[]) {
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ suggestions: [] }),
+    }),
+  );
+  // /v1/categories/active feeds the category <select>. Without this stub the
+  // select stays disabled (Loading categories… placeholder) and selectOption
+  // times out. The slug-based fallback was removed because Vertex indexes
+  // categoryId as a UUID — slugs would silently return zero hits.
+  await page.route("**/v1/categories/active**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([
+        { id: OUTDOOR_UUID, name: "Outdoor" },
+        { id: INDOOR_UUID, name: "Indoor" },
+      ]),
     }),
   );
 }
@@ -54,12 +74,15 @@ test.describe("search URL state", () => {
     await page.goto("/ja/search?q=bbq");
 
     const categorySelect = page.locator("select").first();
-    await categorySelect.selectOption("outdoor");
+    // Wait for /v1/categories/active to resolve so the select enables.
+    await expect(categorySelect).toBeEnabled();
+    await categorySelect.selectOption(OUTDOOR_UUID);
 
-    await expect(page).toHaveURL(/\?q=bbq&category=outdoor/);
+    await expect(page).toHaveURL(new RegExp(`\\?q=bbq&category=${OUTDOOR_UUID}`));
 
     await page.reload();
-    await expect(categorySelect).toHaveValue("outdoor");
+    await expect(categorySelect).toBeEnabled();
+    await expect(categorySelect).toHaveValue(OUTDOOR_UUID);
   });
 });
 

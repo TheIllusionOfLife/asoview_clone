@@ -143,10 +143,20 @@ public class VertexAiSearchQueryService implements SearchQueryPort {
     if (sort == null) {
       return false;
     }
+    // Empirical: on this project's Discovery Engine data store (generic
+    // industry vertical, Standard search tier, global location), bare field
+    // names in orderBy produce
+    //   INVALID_ARGUMENT: Unsupported field in orderBy: minPrice asc
+    // while the `structData.` prefix is accepted. The asymmetry with
+    // filters (which take bare names) is not documented canonically for
+    // every tier combination, so validate against the live data store when
+    // changing tier or moving to Retail (reserved key-property shortcuts).
+    // The e2e/smoke/search-scenarios.spec.ts suite is the live-cluster
+    // guard that catches any regression.
     switch (sort) {
-      case "price_asc" -> builder.setOrderBy("minPrice asc");
-      case "price_desc" -> builder.setOrderBy("minPrice desc");
-      case "name_asc" -> builder.setOrderBy("name asc");
+      case "price_asc" -> builder.setOrderBy("structData.minPrice asc");
+      case "price_desc" -> builder.setOrderBy("structData.minPrice desc");
+      case "name_asc" -> builder.setOrderBy("structData.name asc");
       default -> {
         return false;
       }

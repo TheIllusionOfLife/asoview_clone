@@ -66,7 +66,7 @@ class VertexAiSearchQueryServiceTest {
   @Test
   void priceAscSortSetsOrderByAndSkipsBoostSpec() {
     SearchRequest req = service.buildSearchRequest("q", null, null, null, null, "price_asc", 0, 20);
-    assertThat(req.getOrderBy()).isEqualTo("minPrice asc");
+    assertThat(req.getOrderBy()).isEqualTo("structData.minPrice asc");
     assertThat(req.getBoostSpec().getConditionBoostSpecsCount()).isZero();
   }
 
@@ -74,13 +74,13 @@ class VertexAiSearchQueryServiceTest {
   void priceDescSortSetsOrderByAndSkipsBoostSpec() {
     SearchRequest req =
         service.buildSearchRequest("q", null, null, null, null, "price_desc", 0, 20);
-    assertThat(req.getOrderBy()).isEqualTo("minPrice desc");
+    assertThat(req.getOrderBy()).isEqualTo("structData.minPrice desc");
   }
 
   @Test
   void nameAscSortSetsOrderBy() {
     SearchRequest req = service.buildSearchRequest("q", null, null, null, null, "name_asc", 0, 20);
-    assertThat(req.getOrderBy()).isEqualTo("name asc");
+    assertThat(req.getOrderBy()).isEqualTo("structData.name asc");
   }
 
   @Test
