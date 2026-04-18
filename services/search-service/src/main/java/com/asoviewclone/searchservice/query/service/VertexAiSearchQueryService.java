@@ -92,7 +92,13 @@ public class VertexAiSearchQueryService implements SearchQueryPort {
           && api.getStatusCode() != null
           && "INVALID_ARGUMENT".equals(api.getStatusCode().getCode().name())) {
         String msg = api.getMessage() == null ? "" : api.getMessage();
-        return msg.contains("orderBy") || msg.contains("order_by");
+        // Discovery Engine's wording has drifted in the past ("orderBy",
+        // "order_by", "order by"). Normalize + match all three so the
+        // fallback doesn't silently stop firing on a phrasing change.
+        String lower = msg.toLowerCase(java.util.Locale.ROOT);
+        return lower.contains("orderby")
+            || lower.contains("order_by")
+            || lower.contains("order by");
       }
       cur = cur.getCause();
     }

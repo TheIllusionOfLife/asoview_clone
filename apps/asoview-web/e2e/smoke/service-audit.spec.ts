@@ -15,7 +15,10 @@ import { type APIRequestContext, expect, test } from "@playwright/test";
  * doesn't hit live.
  */
 
-const apiBase = process.env.API_BASE_URL ?? "https://asoview-clone-dev.duckdns.org/api";
+// No default for apiBase: the suite writes favorites and reviews, so a
+// run without API_BASE_URL should fail fast rather than silently target
+// whichever cluster the default happens to point at.
+const apiBase = process.env.API_BASE_URL;
 const FIREBASE_API_KEY = process.env.E2E_FIREBASE_API_KEY;
 const TEST_EMAIL = process.env.E2E_TEST_EMAIL;
 const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD;
@@ -38,6 +41,9 @@ async function signIn(): Promise<string> {
 let token = "";
 
 test.beforeAll(async () => {
+  if (!apiBase) {
+    throw new Error("API_BASE_URL required — the audit must target a specific cluster");
+  }
   if (!FIREBASE_API_KEY || !TEST_EMAIL || !TEST_PASSWORD) {
     throw new Error("E2E_FIREBASE_API_KEY, E2E_TEST_EMAIL, E2E_TEST_PASSWORD required");
   }
@@ -45,6 +51,14 @@ test.beforeAll(async () => {
   const me = await fetch(`${apiBase}/v1/me`, { headers: { Authorization: `Bearer ${token}` } });
   if (!me.ok) throw new Error(`User provisioning failed: ${me.status} ${await me.text()}`);
 });
+
+// ─── date helpers ────────────────────────────────────────────────────
+
+function relativeDate(daysAhead: number): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + daysAhead);
+  return d.toISOString().slice(0, 10);
+}
 
 // ─── helpers ─────────────────────────────────────────────────────────
 
@@ -102,10 +116,9 @@ test.describe("guest endpoints", () => {
   test("GET /v1/products/{id}/availability returns slots", async ({ request }) => {
     const list = await (await getGuest(request, "/v1/products?size=1")).json();
     const pid = list.content[0].id as string;
-    const r = await getGuest(
-      request,
-      `/v1/products/${pid}/availability?from=2026-05-01&to=2026-05-07`,
-    );
+    const from = relativeDate(1);
+    const to = relativeDate(7);
+    const r = await getGuest(request, `/v1/products/${pid}/availability?from=${from}&to=${to}`);
     expect(r.status()).toBe(200);
     const body = (await r.json()) as Array<{ slotId: string }>;
     expect(body.length).toBeGreaterThan(0);
@@ -294,7 +307,7 @@ test.describe("reviews write path", () => {
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
-        "Idempotency-Key": `audit-review-${pid}-${TEST_EMAIL}`,
+        "Idempotency-Key": `audit-review-${pid}`,
       },
       data: {
         productId: pid,
