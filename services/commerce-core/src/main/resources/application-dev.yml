@@ -17,6 +17,15 @@ spring:
       port: 6379
   cloud:
     gcp:
+      # Anchor the top-level property in an explicit PropertySource so
+      # @ConditionalOnProperty("spring.cloud.gcp.project-id") on PubSubConfig
+      # evaluates true when SPRING_CLOUD_GCP_PROJECT_ID is set in the
+      # environment. Env-var relaxed binding alone didn't satisfy the
+      # @ConditionalOnProperty match in live deployment (observed during
+      # PR #75 post-merge verification: the env var was set on the pod
+      # but PubSubTemplate / GcpPubSubPublisher never registered). Empty
+      # default so unit tests without the env var still skip gracefully.
+      project-id: ${GOOGLE_CLOUD_PROJECT:${SPRING_CLOUD_GCP_PROJECT_ID:}}
       spanner:
         project-id: ${GOOGLE_CLOUD_PROJECT:asoview-clone-dev}
         instance-id: ${SPANNER_INSTANCE:asoview-clone-dev}
