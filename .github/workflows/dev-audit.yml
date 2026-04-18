@@ -32,9 +32,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  asoview-audit:
-    name: asoview-web service audit
+  audit:
+    name: ${{ matrix.app }} service audit
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: asoview-web
+            base_url: https://asoview-clone-dev.duckdns.org
+            api_base_url: https://asoview-clone-dev.duckdns.org/api
+            needs_auth: "true"
+          - app: urakata-ticket-web
+            base_url: https://asoview-tickets.duckdns.org
+            api_base_url: https://asoview-tickets.duckdns.org/api
+            needs_auth: "true"
+          - app: urakata-reservation-web
+            base_url: https://asoview-operator.duckdns.org
+            api_base_url: https://asoview-operator.duckdns.org/api
+            needs_auth: "false"
     steps:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
@@ -42,36 +58,38 @@ jobs:
           bun-version: "1.2.23"
       - run: bun install --frozen-lockfile
       - name: Install Playwright chromium
-        run: cd apps/asoview-web && bunx playwright install --with-deps chromium
+        run: cd apps/${{ matrix.app }} && bunx playwright install --with-deps chromium
       - name: Run live-cluster audit
         env:
+          PLAYWRIGHT_BASE_URL: ${{ matrix.base_url }}
+          API_BASE_URL: ${{ matrix.api_base_url }}
           E2E_FIREBASE_API_KEY: ${{ secrets.E2E_FIREBASE_API_KEY }}
           E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
           E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
-        run: cd apps/asoview-web && bunx playwright test --config=playwright.audit.config.ts
+        run: cd apps/${{ matrix.app }} && bunx playwright test --config=playwright.audit.config.ts
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: asoview-audit-report
-          path: apps/asoview-web/playwright-report/
+          name: ${{ matrix.app }}-audit-report
+          path: apps/${{ matrix.app }}/playwright-report/
           retention-days: 14
 
   report-status:
     name: Report status
     runs-on: ubuntu-latest
-    needs: [asoview-audit]
+    needs: [audit]
     # Always run so we can close a stale issue on success as well as open one on failure.
     if: always()
     steps:
       - uses: actions/checkout@v6
       - name: Open or update issue on failure
-        if: needs.asoview-audit.result == 'failure'
+        if: needs.audit.result == 'failure'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           HEAD_SHA: ${{ github.sha }}
-          TITLE: "[dev-audit] failing: asoview-web"
+          TITLE: "[dev-audit] failing"
         run: |
           set -euo pipefail
           # Avoid opening duplicates: look for an existing open issue with the same title.
@@ -89,7 +107,7 @@ jobs:
             gh issue create --title "$TITLE" --body "$BODY" --label "dev-audit"
           fi
       - name: Close stale dev-audit issues on success
-        if: needs.asoview-audit.result == 'success'
+        if: needs.audit.result == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
