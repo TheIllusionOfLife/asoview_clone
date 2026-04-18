@@ -143,10 +143,16 @@ public class VertexAiSearchQueryService implements SearchQueryPort {
     if (sort == null) {
       return false;
     }
+    // Discovery Engine for generic structured data stores requires the
+    // `structData.` prefix on custom-schema fields in orderBy; bare field
+    // names (which work for filters) yield
+    //   INVALID_ARGUMENT: Unsupported field in orderBy: minPrice asc
+    // because the index stores the JSON under struct_data.*. Retail/Commerce
+    // tier has reserved key-property shortcuts; Standard tier does not.
     switch (sort) {
-      case "price_asc" -> builder.setOrderBy("minPrice asc");
-      case "price_desc" -> builder.setOrderBy("minPrice desc");
-      case "name_asc" -> builder.setOrderBy("name asc");
+      case "price_asc" -> builder.setOrderBy("structData.minPrice asc");
+      case "price_desc" -> builder.setOrderBy("structData.minPrice desc");
+      case "name_asc" -> builder.setOrderBy("structData.name asc");
       default -> {
         return false;
       }

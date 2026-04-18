@@ -113,8 +113,8 @@ export function Facets({ category, priceMin, priceMax, sort, onChange }: Props) 
           className="rounded border border-[var(--color-border)] px-2 py-1"
         >
           <option value="relevance">{t("sort.relevance")}</option>
-          <option value="price-asc">{t("sort.priceAsc")}</option>
-          <option value="price-desc">{t("sort.priceDesc")}</option>
+          <option value="price_asc">{t("sort.priceAsc")}</option>
+          <option value="price_desc">{t("sort.priceDesc")}</option>
         </select>
       </label>
     </div>

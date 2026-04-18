@@ -21,10 +21,12 @@ interface Props {
   searchParams: Promise<SearchParams>;
 }
 
-// Must match the <option value=...> emitted by Facets.tsx. Hyphenated
-// URL-canonical form. A mismatch would silently lose the user's sort on
-// reload because validation falls back to "relevance" (Devin PR #24 finding).
-const ALLOWED_SORTS = ["relevance", "price-asc", "price-desc"] as const;
+// Must match the <option value=...> emitted by Facets.tsx AND the
+// case-statement in search-service VertexAiSearchQueryService.applySort.
+// Underscored form is the backend-canonical one (Vertex AI Search rejects
+// the bare field name for orderBy; the service prepends `structData.`).
+// A mismatch here silently collapses deep-linked sort to "relevance".
+const ALLOWED_SORTS = ["relevance", "price_asc", "price_desc"] as const;
 
 function firstParam(v: Multi): string | undefined {
   if (v === undefined) return undefined;
