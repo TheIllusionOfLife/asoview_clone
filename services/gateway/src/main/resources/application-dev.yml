@@ -5,12 +5,44 @@ spring:
   cloud:
     gateway:
       # Spring Cloud Gateway WebFlux 2025.x moved the property path from
-      # spring.cloud.gateway.routes to spring.cloud.gateway.server.webflux.routes
+      # spring.cloud.gateway.routes to spring.cloud.gateway.server.webflux.routes.
+      # Ordered specific-first so /api/v1/search/**, /api/v1/reservations/**, etc.
+      # aren't shadowed by the catch-all commerce-core route.
       server:
         webflux:
           routes:
+            - id: search-service
+              uri: ${SEARCH_SERVICE_URL:http://search-service.search.svc.cluster.local:8082}
+              predicates:
+                - Path=/api/v1/search/**
+              filters:
+                - StripPrefix=1
+            - id: analytics-ingest-admin
+              uri: ${ANALYTICS_INGEST_URI:http://analytics-ingest.data-jobs.svc.cluster.local:8085}
+              predicates:
+                - Path=/api/v1/admin/analytics/**
+              filters:
+                - StripPrefix=1
+            - id: reservation-service-op
+              uri: ${RESERVATION_SERVICE_URI:http://reservation-service.core-services.svc.cluster.local:8083}
+              predicates:
+                - Path=/api/v1/op/reservation-slots/**,/api/v1/op/reservations/**,/api/v1/op/dashboard,/api/v1/op/me/venues
+              filters:
+                - StripPrefix=1
+            - id: reservation-service-consumer
+              uri: ${RESERVATION_SERVICE_URI:http://reservation-service.core-services.svc.cluster.local:8083}
+              predicates:
+                - Path=/api/v1/reservation-slots/**,/api/v1/reservations/**,/api/v1/me/reservations/**
+              filters:
+                - StripPrefix=1
+            - id: ticketing-service-op
+              uri: ${TICKETING_SERVICE_URI:http://ticketing-service.core-services.svc.cluster.local:8082}
+              predicates:
+                - Path=/api/v1/op/tickets/**
+              filters:
+                - StripPrefix=1
             - id: commerce-core
-              uri: http://commerce-core.core-services.svc.cluster.local:8081
+              uri: ${COMMERCE_CORE_URI:http://commerce-core.core-services.svc.cluster.local:8081}
               predicates:
                 - Path=/api/v1/**
               filters:

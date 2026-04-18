@@ -21,3 +21,18 @@ patches:
         value:
           name: TICKETING_SERVICE_URI
           value: http://ticketing-service.core-services.svc.cluster.local:8082
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: COMMERCE_CORE_URI
+          value: http://commerce-core.core-services.svc.cluster.local:8081
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: SEARCH_SERVICE_URL
+          value: http://search-service.search.svc.cluster.local:8082
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: ANALYTICS_INGEST_URI
+          value: http://analytics-ingest.data-jobs.svc.cluster.local:8085
