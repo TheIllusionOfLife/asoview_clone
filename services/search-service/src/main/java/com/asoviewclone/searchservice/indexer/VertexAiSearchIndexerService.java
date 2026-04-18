@@ -29,17 +29,22 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>Discovery Engine rejects subpath FieldMasks into {@code struct_data} ({@code INVALID_ARGUMENT:
  * Invalid update_mask.paths: struct_data.<field>}). {@code google.protobuf.Struct} is a map, and
  * FieldMask only addresses named proto fields. So both update paths use the whole {@code
- * struct_data} path and replace the struct atomically:
+ * struct_data} path and replace the struct atomically. Both paths also read-merge-write the other's
+ * owned fields so neither side silently drops data under normal (non-concurrent) operation:
  *
  * <ul>
- *   <li>{@code reindex} / upsert: {@code toDoc} carries every struct field we know; replacing the
- *       whole struct is semantically correct. {@code toDoc} passes {@code popularityScore=null}, so
- *       a reindex will drop any server-side popularityScore. To avoid that, {@code
- *       updatePopularityScore} must own popularity concurrently.
- *   <li>{@code updatePopularityScore}: since a whole-struct mask would clobber every other field we
- *       perform a read-merge-write — GetDocument first, merge only popularityScore, then
- *       UpdateDocument with {@code struct_data} as the mask path.
+ *   <li>{@code reindex} / upsert: {@code toDoc} carries every product-owned struct field but passes
+ *       {@code popularityScore=null}. On the update branch we first {@code GetDocument} and copy
+ *       the existing {@code popularityScore} into the outgoing struct before writing.
+ *   <li>{@code updatePopularityScore}: we first {@code GetDocument}, overwrite only {@code
+ *       popularityScore} on the existing struct, then write the merged struct back.
  * </ul>
+ *
+ * <p>Discovery Engine has no CAS / ETag for documents, so a narrow last-writer-wins window between
+ * each path's read and write remains: a reindex + popularity update racing at the millisecond level
+ * can still revert a field the loser had just written. Accepted — popularity is a soft metric,
+ * product updates are infrequent, and stronger semantics would require an explicit version field +
+ * retry loop.
  *
  * <p>Backfill completion is tracked by a sentinel document with {@code productId =
  * asoview-backfill-marker-v1} and {@code status = MARKER}. The hard {@code status: ANY("ACTIVE")}
@@ -111,9 +116,10 @@ public class VertexAiSearchIndexerService implements IndexerPort {
       // fetch the current struct, overwrite only popularityScore, push the
       // merged struct back with mask=["struct_data"].
       //
-      // Last-writer-wins is accepted here — popularity is a soft metric and a
-      // concurrent full reindex can overwrite it. Tighter semantics would
-      // require an explicit version field + CAS retry loop.
+      // Symmetry with upsertDocument: both paths read-merge-write so neither
+      // silently drops data on a sequential call. A narrow millisecond-level
+      // race between reads and writes across both paths remains (no CAS /
+      // ETag on Discovery Engine documents); accepted.
       Document existing =
           documentClient.getDocument(GetDocumentRequest.newBuilder().setName(docName).build());
       Struct merged =
@@ -186,14 +192,20 @@ public class VertexAiSearchIndexerService implements IndexerPort {
       }
       // Document already exists. Replace the whole struct_data atomically.
       // Subpath masks like `struct_data.<key>` are rejected by Discovery
-      // Engine (Struct is a map; FieldMask only addresses named proto fields),
-      // so we can't selectively preserve server-side fields here. toDoc
-      // always includes every product-owned field, so a full replace is
-      // semantically correct for reindex. popularityScore is owned by
-      // updatePopularityScore, which runs read-merge-write; a concurrent
-      // full reindex can clobber it — accepted last-writer-wins.
+      // Engine (Struct is a map; FieldMask only addresses named proto fields).
+      // To avoid dropping popularityScore (owned by updatePopularityScore)
+      // when toDoc doesn't carry it, read the existing document first and
+      // merge its popularityScore into the incoming struct — the reindex
+      // path thus stays symmetric with updatePopularityScore (both paths
+      // read-merge-write the whole struct). Discovery Engine has no CAS /
+      // ETag for documents, so a narrow last-writer-wins window between
+      // read and write remains; accepted.
       String docName = branchName + "/documents/" + documentId;
-      Document updated = document.toBuilder().setName(docName).build();
+      Document updated =
+          document.toBuilder()
+              .setName(docName)
+              .setStructData(mergePreservingPopularity(docName, document.getStructData()))
+              .build();
       FieldMask mask = FieldMask.newBuilder().addPaths("struct_data").build();
       documentClient.updateDocument(
           UpdateDocumentRequest.newBuilder()
@@ -201,6 +213,37 @@ public class VertexAiSearchIndexerService implements IndexerPort {
               .setUpdateMask(mask)
               .setAllowMissing(false)
               .build());
+    }
+  }
+
+  /**
+   * Returns {@code incoming} with {@code popularityScore} copied from the server's current
+   * document, if incoming omits it. If incoming already carries popularityScore (e.g. tests pass
+   * one in explicitly) it wins. If the server has no popularityScore yet, the returned struct is
+   * unchanged.
+   */
+  private Struct mergePreservingPopularity(String docName, Struct incoming) {
+    if (incoming.containsFields("popularityScore")) {
+      return incoming;
+    }
+    try {
+      Document existing =
+          documentClient.getDocument(GetDocumentRequest.newBuilder().setName(docName).build());
+      com.google.protobuf.Value popularity =
+          existing.getStructData().getFieldsOrDefault("popularityScore", null);
+      if (popularity == null) {
+        return incoming;
+      }
+      return incoming.toBuilder().putFields("popularityScore", popularity).build();
+    } catch (Exception e) {
+      // If the merge read fails, fall back to incoming — we accept the
+      // popularity-drop side of last-writer-wins rather than propagating
+      // a read failure that would abort the whole reindex.
+      log.warn(
+          "Failed to read existing document for popularity merge ({}): {}",
+          docName,
+          e.getMessage());
+      return incoming;
     }
   }
 

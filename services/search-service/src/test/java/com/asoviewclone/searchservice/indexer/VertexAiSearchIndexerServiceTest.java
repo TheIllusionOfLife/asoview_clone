@@ -138,6 +138,10 @@ class VertexAiSearchIndexerServiceTest {
         .createDocument(any(CreateDocumentRequest.class));
     when(mockClient.updateDocument(any(UpdateDocumentRequest.class)))
         .thenReturn(Document.getDefaultInstance());
+    // The update path reads the existing doc to preserve popularityScore; the
+    // marker doc has none on the server, so return an empty struct.
+    when(mockClient.getDocument(any(GetDocumentRequest.class)))
+        .thenReturn(Document.getDefaultInstance());
 
     // markBackfillComplete writes a MARKER doc. Because Discovery Engine
     // rejects subpath masks into struct_data, the update path must use the
@@ -157,5 +161,38 @@ class VertexAiSearchIndexerServiceTest {
     // Whole struct_data path — the only supported writable unit.
     assertThat(req.getUpdateMask().getPathsList()).containsExactly("struct_data");
     assertThat(req.getAllowMissing()).isFalse();
+  }
+
+  @Test
+  void upsertUpdatePathPreservesExistingPopularityScore() {
+    // Incoming struct (e.g. from toDoc in the reindex path) carries no
+    // popularityScore. The update branch must fetch the existing document and
+    // copy its popularityScore into the outgoing struct before writing, so a
+    // reindex doesn't wipe the server-side score. Driven here via
+    // markBackfillComplete as the simplest upsertDocument caller.
+    doThrow(new StatusRuntimeException(Status.ALREADY_EXISTS))
+        .when(mockClient)
+        .createDocument(any(CreateDocumentRequest.class));
+    Struct existingStruct =
+        Struct.newBuilder()
+            .putFields(
+                "popularityScore",
+                com.google.protobuf.Value.newBuilder().setNumberValue(77).build())
+            .build();
+    when(mockClient.getDocument(any(GetDocumentRequest.class)))
+        .thenReturn(Document.newBuilder().setStructData(existingStruct).build());
+    when(mockClient.updateDocument(any(UpdateDocumentRequest.class)))
+        .thenReturn(Document.getDefaultInstance());
+
+    service.markBackfillComplete();
+
+    ArgumentCaptor<UpdateDocumentRequest> captor =
+        ArgumentCaptor.forClass(UpdateDocumentRequest.class);
+    verify(mockClient).updateDocument(captor.capture());
+    Struct merged = captor.getValue().getDocument().getStructData();
+    // Incoming fields from markBackfillComplete are preserved…
+    assertThat(merged.getFieldsOrThrow("status").getStringValue()).isEqualTo("MARKER");
+    // …and popularityScore is carried over from the existing document.
+    assertThat(merged.getFieldsOrThrow("popularityScore").getNumberValue()).isEqualTo(77.0);
   }
 }
