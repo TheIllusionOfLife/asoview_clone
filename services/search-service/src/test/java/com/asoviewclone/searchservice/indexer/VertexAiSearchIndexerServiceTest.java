@@ -11,6 +11,7 @@ import com.asoviewclone.searchservice.query.model.ProductDoc;
 import com.google.cloud.discoveryengine.v1.CreateDocumentRequest;
 import com.google.cloud.discoveryengine.v1.Document;
 import com.google.cloud.discoveryengine.v1.DocumentServiceClient;
+import com.google.cloud.discoveryengine.v1.GetDocumentRequest;
 import com.google.cloud.discoveryengine.v1.UpdateDocumentRequest;
 import com.google.protobuf.Struct;
 import io.grpc.Status;
@@ -78,7 +79,25 @@ class VertexAiSearchIndexerServiceTest {
   }
 
   @Test
-  void updatePopularityScoreSendsOnlyPopularityFieldWithFieldMask() {
+  void updatePopularityScoreReadsMergesWritesWholeStruct() {
+    // Discovery Engine rejects subpath masks into struct_data, so the service
+    // fetches the current struct, overwrites popularityScore only, and writes
+    // the merged struct back with mask=["struct_data"].
+    Struct existingStruct =
+        Struct.newBuilder()
+            .putFields(
+                "productId",
+                com.google.protobuf.Value.newBuilder().setStringValue("prod-789").build())
+            .putFields(
+                "name",
+                com.google.protobuf.Value.newBuilder().setStringValue("Hakone Onsen").build())
+            .putFields(
+                "popularityScore", com.google.protobuf.Value.newBuilder().setNumberValue(5).build())
+            .build();
+    Document existing =
+        Document.newBuilder().setId("prod-789").setStructData(existingStruct).build();
+    when(mockClient.getDocument(any(GetDocumentRequest.class))).thenReturn(existing);
+
     boolean ok = service.updatePopularityScore("prod-789", 42L);
     assertThat(ok).isTrue();
 
@@ -87,12 +106,13 @@ class VertexAiSearchIndexerServiceTest {
     verify(mockClient).updateDocument(captor.capture());
     UpdateDocumentRequest req = captor.getValue();
 
-    // The patch struct only carries popularityScore; no other fields to clobber.
+    // Merged struct retains pre-existing fields and updates popularityScore.
     Struct patch = req.getDocument().getStructData();
-    assertThat(patch.getFieldsMap().keySet()).containsExactly("popularityScore");
+    assertThat(patch.getFieldsOrThrow("productId").getStringValue()).isEqualTo("prod-789");
+    assertThat(patch.getFieldsOrThrow("name").getStringValue()).isEqualTo("Hakone Onsen");
     assertThat(patch.getFieldsOrThrow("popularityScore").getNumberValue()).isEqualTo(42.0);
-    // FieldMask scopes the server-side write to the popularityScore path.
-    assertThat(req.getUpdateMask().getPathsList()).containsExactly("struct_data.popularityScore");
+    // Whole struct_data path — the only supported writable unit.
+    assertThat(req.getUpdateMask().getPathsList()).containsExactly("struct_data");
     assertThat(req.getAllowMissing()).isFalse();
     assertThat(req.getDocument().getName())
         .endsWith(
@@ -111,7 +131,7 @@ class VertexAiSearchIndexerServiceTest {
   }
 
   @Test
-  void upsertUpdatePathUsesFieldMaskToPreserveUnsetFields() {
+  void upsertUpdatePathReplacesWholeStructData() {
     // Stub create to throw ALREADY_EXISTS so upsertDocument falls through to update.
     doThrow(new StatusRuntimeException(Status.ALREADY_EXISTS))
         .when(mockClient)
@@ -119,9 +139,9 @@ class VertexAiSearchIndexerServiceTest {
     when(mockClient.updateDocument(any(UpdateDocumentRequest.class)))
         .thenReturn(Document.getDefaultInstance());
 
-    // markBackfillComplete writes a MARKER doc with productId + status but no
-    // popularityScore. The update path should send a FieldMask scoped to only
-    // those two fields, leaving any server-side popularityScore untouched.
+    // markBackfillComplete writes a MARKER doc. Because Discovery Engine
+    // rejects subpath masks into struct_data, the update path must use the
+    // whole `struct_data` path — this atomically replaces the struct.
     service.markBackfillComplete();
 
     ArgumentCaptor<UpdateDocumentRequest> captor =
@@ -133,11 +153,9 @@ class VertexAiSearchIndexerServiceTest {
     assertThat(updatedStruct.getFieldsOrThrow("productId").getStringValue())
         .isEqualTo("asoview-backfill-marker-v1");
     assertThat(updatedStruct.getFieldsOrThrow("status").getStringValue()).isEqualTo("MARKER");
-    assertThat(updatedStruct.containsFields("popularityScore")).isFalse();
 
-    // FieldMask covers only the fields present in the struct.
-    assertThat(req.getUpdateMask().getPathsList())
-        .containsExactlyInAnyOrder("struct_data.productId", "struct_data.status");
+    // Whole struct_data path — the only supported writable unit.
+    assertThat(req.getUpdateMask().getPathsList()).containsExactly("struct_data");
     assertThat(req.getAllowMissing()).isFalse();
   }
 }

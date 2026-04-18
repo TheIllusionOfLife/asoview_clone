@@ -26,9 +26,20 @@ import tools.jackson.databind.json.JsonMapper;
  * Vertex AI Search implementation of {@link IndexerPort}. Pulls a product from commerce-core and
  * writes it into the Discovery Engine data store's default branch.
  *
- * <p>Popularity updates scope the UpdateDocument call with a FieldMask on {@code
- * struct_data.popularityScore}; concurrent {@code reindex} calls that omit popularityScore (see
- * {@code toDoc}) therefore cannot clobber the sweep-written score.
+ * <p>Discovery Engine rejects subpath FieldMasks into {@code struct_data} ({@code INVALID_ARGUMENT:
+ * Invalid update_mask.paths: struct_data.<field>}). {@code google.protobuf.Struct} is a map, and
+ * FieldMask only addresses named proto fields. So both update paths use the whole {@code
+ * struct_data} path and replace the struct atomically:
+ *
+ * <ul>
+ *   <li>{@code reindex} / upsert: {@code toDoc} carries every struct field we know; replacing the
+ *       whole struct is semantically correct. {@code toDoc} passes {@code popularityScore=null}, so
+ *       a reindex will drop any server-side popularityScore. To avoid that, {@code
+ *       updatePopularityScore} must own popularity concurrently.
+ *   <li>{@code updatePopularityScore}: since a whole-struct mask would clobber every other field we
+ *       perform a read-merge-write — GetDocument first, merge only popularityScore, then
+ *       UpdateDocument with {@code struct_data} as the mask path.
+ * </ul>
  *
  * <p>Backfill completion is tracked by a sentinel document with {@code productId =
  * asoview-backfill-marker-v1} and {@code status = MARKER}. The hard {@code status: ANY("ACTIVE")}
@@ -94,19 +105,26 @@ public class VertexAiSearchIndexerService implements IndexerPort {
   public boolean updatePopularityScore(String productId, long score) {
     try {
       String docName = branchName + "/documents/" + productId;
-      Struct popularityOnly =
-          Struct.newBuilder()
+      // Discovery Engine has no partial-struct patch API: a subpath mask like
+      // `struct_data.popularityScore` is rejected as INVALID_ARGUMENT. The only
+      // writable unit is the whole `struct_data` path. So read-merge-write:
+      // fetch the current struct, overwrite only popularityScore, push the
+      // merged struct back with mask=["struct_data"].
+      //
+      // Last-writer-wins is accepted here — popularity is a soft metric and a
+      // concurrent full reindex can overwrite it. Tighter semantics would
+      // require an explicit version field + CAS retry loop.
+      Document existing =
+          documentClient.getDocument(GetDocumentRequest.newBuilder().setName(docName).build());
+      Struct merged =
+          existing.getStructData().toBuilder()
               .putFields(
                   "popularityScore",
                   com.google.protobuf.Value.newBuilder().setNumberValue(score).build())
               .build();
       Document patch =
-          Document.newBuilder()
-              .setName(docName)
-              .setId(productId)
-              .setStructData(popularityOnly)
-              .build();
-      FieldMask mask = FieldMask.newBuilder().addPaths("struct_data.popularityScore").build();
+          Document.newBuilder().setName(docName).setId(productId).setStructData(merged).build();
+      FieldMask mask = FieldMask.newBuilder().addPaths("struct_data").build();
       documentClient.updateDocument(
           UpdateDocumentRequest.newBuilder()
               .setDocument(patch)
@@ -166,14 +184,17 @@ public class VertexAiSearchIndexerService implements IndexerPort {
       if (!isAlreadyExists(createException)) {
         throw createException;
       }
-      // Document already exists. Use a FieldMask scoped to the struct fields
-      // present in the incoming document so only those fields are overwritten;
-      // any absent field (e.g. popularityScore, omitted by toDoc) is preserved
-      // server-side. This avoids the extra getDocument round-trip and the race
-      // window of read-merge-full-write.
+      // Document already exists. Replace the whole struct_data atomically.
+      // Subpath masks like `struct_data.<key>` are rejected by Discovery
+      // Engine (Struct is a map; FieldMask only addresses named proto fields),
+      // so we can't selectively preserve server-side fields here. toDoc
+      // always includes every product-owned field, so a full replace is
+      // semantically correct for reindex. popularityScore is owned by
+      // updatePopularityScore, which runs read-merge-write; a concurrent
+      // full reindex can clobber it — accepted last-writer-wins.
       String docName = branchName + "/documents/" + documentId;
       Document updated = document.toBuilder().setName(docName).build();
-      FieldMask mask = buildStructFieldMask(document.getStructData());
+      FieldMask mask = FieldMask.newBuilder().addPaths("struct_data").build();
       documentClient.updateDocument(
           UpdateDocumentRequest.newBuilder()
               .setDocument(updated)
@@ -181,14 +202,6 @@ public class VertexAiSearchIndexerService implements IndexerPort {
               .setAllowMissing(false)
               .build());
     }
-  }
-
-  private static FieldMask buildStructFieldMask(Struct struct) {
-    FieldMask.Builder builder = FieldMask.newBuilder();
-    for (String field : struct.getFieldsMap().keySet()) {
-      builder.addPaths("struct_data." + field);
-    }
-    return builder.build();
   }
 
   private static boolean isAlreadyExists(Throwable t) {
