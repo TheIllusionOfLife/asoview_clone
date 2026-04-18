@@ -16,7 +16,11 @@ public class FirebaseConfig {
 
   private static final Logger log = LoggerFactory.getLogger(FirebaseConfig.class);
 
-  @Value("${firebase.project-id:asoview-clone}")
+  // Fall back through spring.cloud.gcp.spanner.project-id so operators only
+  // need to set one env var (SPANNER_PROJECT_ID). Without the cascade the
+  // Firebase SDK keeps its "asoview-clone" default while Spanner runs against
+  // "asoview-clone-dev", and token verification fails with an aud-mismatch.
+  @Value("${firebase.project-id:${spring.cloud.gcp.spanner.project-id:asoview-clone}}")
   private String projectId;
 
   @Bean

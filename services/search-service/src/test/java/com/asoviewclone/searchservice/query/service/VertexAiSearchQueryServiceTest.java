@@ -66,7 +66,10 @@ class VertexAiSearchQueryServiceTest {
   @Test
   void priceAscSortSetsOrderByAndSkipsBoostSpec() {
     SearchRequest req = service.buildSearchRequest("q", null, null, null, null, "price_asc", 0, 20);
-    assertThat(req.getOrderBy()).isEqualTo("structData.minPrice asc");
+    // `price` is the key property Vertex recognizes for sort on generic
+    // vertical; the schema's `keyPropertyMapping: price` on `minPrice` wires
+    // our field into that key.
+    assertThat(req.getOrderBy()).isEqualTo("price asc");
     assertThat(req.getBoostSpec().getConditionBoostSpecsCount()).isZero();
   }
 
@@ -74,13 +77,17 @@ class VertexAiSearchQueryServiceTest {
   void priceDescSortSetsOrderByAndSkipsBoostSpec() {
     SearchRequest req =
         service.buildSearchRequest("q", null, null, null, null, "price_desc", 0, 20);
-    assertThat(req.getOrderBy()).isEqualTo("structData.minPrice desc");
+    assertThat(req.getOrderBy()).isEqualTo("price desc");
   }
 
   @Test
-  void nameAscSortSetsOrderBy() {
+  void unknownSortKeyTreatedAsRelevance() {
     SearchRequest req = service.buildSearchRequest("q", null, null, null, null, "name_asc", 0, 20);
-    assertThat(req.getOrderBy()).isEqualTo("structData.name asc");
+    // `name_asc` is no longer supported (Vertex generic vertical only sorts
+    // on predefined key properties). Unknown sort values fall through to
+    // relevance with the popularity boost re-attached.
+    assertThat(req.getOrderBy()).isEmpty();
+    assertThat(req.getBoostSpec().getConditionBoostSpecsCount()).isEqualTo(5);
   }
 
   @Test
