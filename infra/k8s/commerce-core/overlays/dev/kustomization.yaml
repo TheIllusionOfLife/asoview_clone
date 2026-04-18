@@ -10,4 +10,4 @@ patches:
       name: commerce-core
 images:
   - name: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/commerce-core
-    newTag: dc0a298
+    newTag: 41a665c
