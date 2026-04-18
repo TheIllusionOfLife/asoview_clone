@@ -2,7 +2,7 @@
 
 import { apiRequest } from "@/lib/api";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type CategoryOption = { id: string; name: string };
 
@@ -14,7 +14,7 @@ type Props = {
   onChange: (updates: Record<string, string | null>) => void;
 };
 
-const FALLBACK_CATEGORY_IDS = ["outdoor", "indoor", "food", "culture"] as const;
+type LoadState = "loading" | "ready" | "error";
 
 /**
  * Facet + sort controls. Every change calls `onChange` which rewrites
@@ -22,38 +22,42 @@ const FALLBACK_CATEGORY_IDS = ["outdoor", "indoor", "food", "culture"] as const;
  * units (yen) — per CLAUDE.md PR #21 rule we parse as integer via
  * `parseInt` and reject anything fractional.
  *
- * Category option values: the API returns UUID-based ids (matching
- * OpenSearch categoryId index). Fallback uses slug-based ids with
- * translated names for immediate UX. When search-service is deployed,
- * the search controller should accept both slug and UUID.
+ * The category `<option value>` is always a UUID fetched from
+ * `/v1/categories/active`. A slug fallback was removed because
+ * Vertex AI Search stores `categoryId` as a UUID; if a user picked a
+ * slug value before the fetch resolved, the URL would capture the
+ * slug and every downstream search silently returned zero hits.
  */
 export function Facets({ category, priceMin, priceMax, sort, onChange }: Props) {
   const t = useTranslations("search");
-  const fallback: CategoryOption[] = FALLBACK_CATEGORY_IDS.map((id) => ({
-    id,
-    name: t(`facets.categories.${id}`),
-  }));
-  const [categories, setCategories] = useState<CategoryOption[]>(fallback);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [loadState, setLoadState] = useState<LoadState>("loading");
+
+  const fetchCategories = useCallback(async () => {
+    setLoadState("loading");
+    try {
+      const data = await apiRequest<CategoryOption[]>("/v1/categories/active", {
+        method: "GET",
+        retries: 1,
+      });
+      setCategories(data);
+      setLoadState("ready");
+    } catch (err) {
+      console.warn("Failed to load active categories", err);
+      setLoadState("error");
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const data = await apiRequest<CategoryOption[]>("/v1/categories/active", {
-          method: "GET",
-          retries: 1,
-        });
-        if (!cancelled && data.length > 0) {
-          setCategories(data);
-        }
-      } catch (err) {
-        console.warn("Failed to load active categories; using fallback", err);
-      }
+      await fetchCategories();
+      if (cancelled) return;
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [fetchCategories]);
 
   // Integer yen only — strings from URL / inputs are validated to digits.
   // Japanese IMEs commonly emit full-width digits (０-９); normalize to
@@ -72,15 +76,34 @@ export function Facets({ category, priceMin, priceMax, sort, onChange }: Props) 
         <select
           value={category}
           onChange={(e) => onChange({ category: e.target.value || null })}
-          className="rounded border border-[var(--color-border)] px-2 py-1"
+          disabled={loadState !== "ready"}
+          aria-busy={loadState === "loading"}
+          className="rounded border border-[var(--color-border)] px-2 py-1 disabled:opacity-60"
         >
-          <option value="">{t("facets.any")}</option>
-          {categories.map((cat) => (
-            <option key={cat.id} value={cat.id}>
-              {cat.name}
-            </option>
-          ))}
+          {loadState === "loading" && <option value="">{t("facets.loadingCategories")}</option>}
+          {loadState === "error" && <option value="">{t("facets.categoriesLoadError")}</option>}
+          {loadState === "ready" && (
+            <>
+              <option value="">{t("facets.any")}</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+            </>
+          )}
         </select>
+        {loadState === "error" && (
+          <button
+            type="button"
+            onClick={() => {
+              void fetchCategories();
+            }}
+            className="mt-1 text-xs text-[var(--color-accent)] underline"
+          >
+            {t("facets.retry")}
+          </button>
+        )}
       </label>
 
       <label className="flex flex-col text-sm">

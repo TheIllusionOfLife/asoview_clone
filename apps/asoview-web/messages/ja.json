@@ -49,6 +49,9 @@
       "priceMax": "上限価格（円）",
       "sort": "並び替え",
       "any": "すべて",
+      "loadingCategories": "カテゴリを読み込み中…",
+      "categoriesLoadError": "カテゴリの読み込みに失敗しました",
+      "retry": "再試行",
       "categories": {
         "outdoor": "アウトドア",
         "indoor": "インドア",

@@ -49,6 +49,9 @@
       "priceMax": "Max price (JPY)",
       "sort": "Sort",
       "any": "Any",
+      "loadingCategories": "Loading categories…",
+      "categoriesLoadError": "Could not load categories",
+      "retry": "Retry",
       "categories": {
         "outdoor": "Outdoor",
         "indoor": "Indoor",
