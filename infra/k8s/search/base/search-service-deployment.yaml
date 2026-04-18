@@ -78,8 +78,15 @@ spec:
             # opts in so VertexAiSearchSchemaBootstrap runs on pod start.
             - name: VERTEX_SCHEMA_BOOTSTRAP
               value: "true"
+            # Inter-service call from search-service to commerce-core goes
+            # direct to the in-cluster Service FQDN, not through the gateway.
+            # The gateway's dev profile exposes routes under /api/v1/** with
+            # StripPrefix=1 for external ingress traffic — routing internal
+            # calls through it would require the /api prefix and add an extra
+            # hop for no benefit. IndexerBackfillJob + reindex use this URL
+            # to pull product data for ingestion into Vertex AI Search.
             - name: COMMERCE_CORE_BASE_URL
-              value: http://gateway.edge.svc.cluster.local
+              value: http://commerce-core.core-services.svc.cluster.local:8081
             - name: SPRING_PROFILES_ACTIVE
               value: gke
             # Popularity-boosted search: PopularityScoreSyncJob reads

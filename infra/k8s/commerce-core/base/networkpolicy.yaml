@@ -19,6 +19,16 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: core-services
+        # search-service pulls product data from commerce-core for
+        # IndexerBackfillJob + reindex endpoint. Traffic stays in-cluster
+        # and bypasses the gateway (see COMMERCE_CORE_BASE_URL in the
+        # search deployment) so list this namespace explicitly.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: search
+          podSelector:
+            matchLabels:
+              app: search-service
       ports:
         - protocol: TCP
           port: 8081
