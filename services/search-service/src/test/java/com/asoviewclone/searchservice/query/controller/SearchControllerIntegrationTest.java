@@ -1,6 +1,7 @@
 package com.asoviewclone.searchservice.query.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -25,6 +26,11 @@ import org.springframework.test.web.servlet.MockMvc;
  * doesn't need a Vertex AI Search client or Workload Identity. Asserts the param-to-service
  * plumbing is correct: default page/size, null-vs-blank query forwarding, filter / sort /
  * pagination params.
+ *
+ * <p>Scope note: @WebMvcTest does NOT load BasicErrorController / ErrorMvcAutoConfiguration, so the
+ * 500-JSON response body that Spring Boot renders in prod from an uncaught RuntimeException is not
+ * exercised here. The existing unit test (VertexAiSearchQueryServiceTest) and the live-cluster
+ * smoke suite (e2e/smoke/search-scenarios.spec.ts) together cover the error path end-to-end.
  */
 @WebMvcTest(SearchController.class)
 class SearchControllerIntegrationTest {
@@ -112,5 +118,20 @@ class SearchControllerIntegrationTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.suggestions.length()").value(2))
         .andExpect(jsonPath("$.suggestions[0].productId").value("p-1"));
+  }
+
+  @Test
+  void unhandledServiceErrorPropagatesToDispatcher() throws Exception {
+    // Without BasicErrorController in scope, the MVC dispatcher wraps the RuntimeException in a
+    // ServletException and lets it escape to the test. This assertion proves the controller
+    // doesn't swallow the failure — the prod Spring Boot error machinery (loaded via
+    // ErrorMvcAutoConfiguration in a real app context, not this slice) is what translates it to a
+    // 500 JSON body. The live smoke suite verifies that translation end-to-end.
+    when(searchQueryService.search(
+            eq("broken"), eq(null), eq(null), eq(null), eq(null), eq(null), eq(0), eq(20)))
+        .thenThrow(new RuntimeException("vertex search query failed"));
+
+    assertThatThrownBy(() -> mockMvc.perform(get("/v1/search").param("q", "broken")))
+        .hasRootCauseMessage("vertex search query failed");
   }
 }

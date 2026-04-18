@@ -143,12 +143,16 @@ public class VertexAiSearchQueryService implements SearchQueryPort {
     if (sort == null) {
       return false;
     }
-    // Discovery Engine for generic structured data stores requires the
-    // `structData.` prefix on custom-schema fields in orderBy; bare field
-    // names (which work for filters) yield
+    // Empirical: on this project's Discovery Engine data store (generic
+    // industry vertical, Standard search tier, global location), bare field
+    // names in orderBy produce
     //   INVALID_ARGUMENT: Unsupported field in orderBy: minPrice asc
-    // because the index stores the JSON under struct_data.*. Retail/Commerce
-    // tier has reserved key-property shortcuts; Standard tier does not.
+    // while the `structData.` prefix is accepted. The asymmetry with
+    // filters (which take bare names) is not documented canonically for
+    // every tier combination, so validate against the live data store when
+    // changing tier or moving to Retail (reserved key-property shortcuts).
+    // The e2e/smoke/search-scenarios.spec.ts suite is the live-cluster
+    // guard that catches any regression.
     switch (sort) {
       case "price_asc" -> builder.setOrderBy("structData.minPrice asc");
       case "price_desc" -> builder.setOrderBy("structData.minPrice desc");

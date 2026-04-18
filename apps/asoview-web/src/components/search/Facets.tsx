@@ -2,7 +2,7 @@
 
 import { apiRequest } from "@/lib/api";
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type CategoryOption = { id: string; name: string };
 
@@ -32,30 +32,35 @@ export function Facets({ category, priceMin, priceMax, sort, onChange }: Props) 
   const t = useTranslations("search");
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
+  // Generation counter + mount guard so concurrent in-flight fetches (e.g.
+  // user hammers the retry button) don't overwrite a newer result, and a
+  // fetch that resolves after unmount doesn't call setState on a dead tree.
+  const fetchGeneration = useRef(0);
+  const mountedRef = useRef(true);
 
   const fetchCategories = useCallback(async () => {
+    const myGen = ++fetchGeneration.current;
     setLoadState("loading");
     try {
       const data = await apiRequest<CategoryOption[]>("/v1/categories/active", {
         method: "GET",
         retries: 1,
       });
+      if (!mountedRef.current || myGen !== fetchGeneration.current) return;
       setCategories(data);
       setLoadState("ready");
     } catch (err) {
+      if (!mountedRef.current || myGen !== fetchGeneration.current) return;
       console.warn("Failed to load active categories", err);
       setLoadState("error");
     }
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      await fetchCategories();
-      if (cancelled) return;
-    })();
+    mountedRef.current = true;
+    void fetchCategories();
     return () => {
-      cancelled = true;
+      mountedRef.current = false;
     };
   }, [fetchCategories]);
 
