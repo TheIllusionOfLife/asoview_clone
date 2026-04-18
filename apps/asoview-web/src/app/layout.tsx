@@ -27,7 +27,7 @@ const notoSansJp = Noto_Sans_JP({
 });
 
 export const metadata = {
-  title: "Asoview",
+  title: "AsoClone",
   description: "日本のレジャー・体験予約",
 };
 

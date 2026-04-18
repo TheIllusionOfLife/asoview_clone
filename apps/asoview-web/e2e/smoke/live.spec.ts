@@ -73,7 +73,7 @@ test.describe("landing page /ja", () => {
 
   test("footer visible with copyright", async ({ page }) => {
     await page.goto("/ja");
-    await expect(page.getByText("© 2026 asoview! clone")).toBeVisible();
+    await expect(page.getByText("© 2026 AsoClone")).toBeVisible();
   });
 });
 
