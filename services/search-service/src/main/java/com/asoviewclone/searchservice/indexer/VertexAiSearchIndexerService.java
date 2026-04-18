@@ -26,9 +26,25 @@ import tools.jackson.databind.json.JsonMapper;
  * Vertex AI Search implementation of {@link IndexerPort}. Pulls a product from commerce-core and
  * writes it into the Discovery Engine data store's default branch.
  *
- * <p>Popularity updates scope the UpdateDocument call with a FieldMask on {@code
- * struct_data.popularityScore}; concurrent {@code reindex} calls that omit popularityScore (see
- * {@code toDoc}) therefore cannot clobber the sweep-written score.
+ * <p>Discovery Engine rejects subpath FieldMasks into {@code struct_data} ({@code INVALID_ARGUMENT:
+ * Invalid update_mask.paths: struct_data.<field>}). {@code google.protobuf.Struct} is a map, and
+ * FieldMask only addresses named proto fields. So both update paths use the whole {@code
+ * struct_data} path and replace the struct atomically. Both paths also read-merge-write the other's
+ * owned fields so neither side silently drops data under normal (non-concurrent) operation:
+ *
+ * <ul>
+ *   <li>{@code reindex} / upsert: {@code toDoc} carries every product-owned struct field but passes
+ *       {@code popularityScore=null}. On the update branch we first {@code GetDocument} and copy
+ *       the existing {@code popularityScore} into the outgoing struct before writing.
+ *   <li>{@code updatePopularityScore}: we first {@code GetDocument}, overwrite only {@code
+ *       popularityScore} on the existing struct, then write the merged struct back.
+ * </ul>
+ *
+ * <p>Discovery Engine has no CAS / ETag for documents, so a narrow last-writer-wins window between
+ * each path's read and write remains: a reindex + popularity update racing at the millisecond level
+ * can still revert a field the loser had just written. Accepted — popularity is a soft metric,
+ * product updates are infrequent, and stronger semantics would require an explicit version field +
+ * retry loop.
  *
  * <p>Backfill completion is tracked by a sentinel document with {@code productId =
  * asoview-backfill-marker-v1} and {@code status = MARKER}. The hard {@code status: ANY("ACTIVE")}
@@ -94,19 +110,27 @@ public class VertexAiSearchIndexerService implements IndexerPort {
   public boolean updatePopularityScore(String productId, long score) {
     try {
       String docName = branchName + "/documents/" + productId;
-      Struct popularityOnly =
-          Struct.newBuilder()
+      // Discovery Engine has no partial-struct patch API: a subpath mask like
+      // `struct_data.popularityScore` is rejected as INVALID_ARGUMENT. The only
+      // writable unit is the whole `struct_data` path. So read-merge-write:
+      // fetch the current struct, overwrite only popularityScore, push the
+      // merged struct back with mask=["struct_data"].
+      //
+      // Symmetry with upsertDocument: both paths read-merge-write so neither
+      // silently drops data on a sequential call. A narrow millisecond-level
+      // race between reads and writes across both paths remains (no CAS /
+      // ETag on Discovery Engine documents); accepted.
+      Document existing =
+          documentClient.getDocument(GetDocumentRequest.newBuilder().setName(docName).build());
+      Struct merged =
+          existing.getStructData().toBuilder()
               .putFields(
                   "popularityScore",
                   com.google.protobuf.Value.newBuilder().setNumberValue(score).build())
               .build();
       Document patch =
-          Document.newBuilder()
-              .setName(docName)
-              .setId(productId)
-              .setStructData(popularityOnly)
-              .build();
-      FieldMask mask = FieldMask.newBuilder().addPaths("struct_data.popularityScore").build();
+          Document.newBuilder().setName(docName).setId(productId).setStructData(merged).build();
+      FieldMask mask = FieldMask.newBuilder().addPaths("struct_data").build();
       documentClient.updateDocument(
           UpdateDocumentRequest.newBuilder()
               .setDocument(patch)
@@ -114,6 +138,16 @@ public class VertexAiSearchIndexerService implements IndexerPort {
               .setAllowMissing(false)
               .build());
       return true;
+    } catch (StatusRuntimeException e) {
+      if (e.getStatus().getCode() == Status.Code.NOT_FOUND) {
+        // Product not yet indexed (popularity sync racing a cold backfill, or
+        // BigQuery referencing a product that never landed in Vertex). This
+        // is routine, not an error — log at debug to keep ops signal clean.
+        log.debug("popularityScore skipped; document not yet indexed: {}", productId);
+        return false;
+      }
+      log.error("Failed to update popularityScore for {}: {}", productId, e.getMessage(), e);
+      return false;
     } catch (Exception e) {
       log.error("Failed to update popularityScore for {}: {}", productId, e.getMessage(), e);
       return false;
@@ -166,14 +200,23 @@ public class VertexAiSearchIndexerService implements IndexerPort {
       if (!isAlreadyExists(createException)) {
         throw createException;
       }
-      // Document already exists. Use a FieldMask scoped to the struct fields
-      // present in the incoming document so only those fields are overwritten;
-      // any absent field (e.g. popularityScore, omitted by toDoc) is preserved
-      // server-side. This avoids the extra getDocument round-trip and the race
-      // window of read-merge-full-write.
+      // Document already exists. Replace the whole struct_data atomically.
+      // Subpath masks like `struct_data.<key>` are rejected by Discovery
+      // Engine (Struct is a map; FieldMask only addresses named proto fields).
+      // To avoid dropping popularityScore (owned by updatePopularityScore)
+      // when toDoc doesn't carry it, read the existing document first and
+      // merge its popularityScore into the incoming struct — the reindex
+      // path thus stays symmetric with updatePopularityScore (both paths
+      // read-merge-write the whole struct). Discovery Engine has no CAS /
+      // ETag for documents, so a narrow last-writer-wins window between
+      // read and write remains; accepted.
       String docName = branchName + "/documents/" + documentId;
-      Document updated = document.toBuilder().setName(docName).build();
-      FieldMask mask = buildStructFieldMask(document.getStructData());
+      Document updated =
+          document.toBuilder()
+              .setName(docName)
+              .setStructData(mergePreservingPopularity(docName, document.getStructData()))
+              .build();
+      FieldMask mask = FieldMask.newBuilder().addPaths("struct_data").build();
       documentClient.updateDocument(
           UpdateDocumentRequest.newBuilder()
               .setDocument(updated)
@@ -183,12 +226,42 @@ public class VertexAiSearchIndexerService implements IndexerPort {
     }
   }
 
-  private static FieldMask buildStructFieldMask(Struct struct) {
-    FieldMask.Builder builder = FieldMask.newBuilder();
-    for (String field : struct.getFieldsMap().keySet()) {
-      builder.addPaths("struct_data." + field);
+  /**
+   * Returns {@code incoming} with {@code popularityScore} copied from the server's current
+   * document, if incoming omits it. Behaviour by merge-read outcome:
+   *
+   * <ul>
+   *   <li>incoming already carries popularityScore: skip the read, return incoming unchanged.
+   *   <li>getDocument returns NOT_FOUND: the server has nothing to preserve. Return incoming as the
+   *       full struct. (Create-path race: ALREADY_EXISTS on create, then delete before our Get.
+   *       Treat the subsequent Update as a fresh write.)
+   *   <li>getDocument returns a doc with no popularityScore: nothing to copy. Return incoming.
+   *   <li>getDocument returns a doc with popularityScore: merge and return.
+   *   <li>getDocument fails with any other error (UNAVAILABLE, DEADLINE_EXCEEDED, etc.): propagate.
+   *       Silently writing a score-less struct on a transient blip would deterministically zero out
+   *       popularity — worse than surfacing the error to the caller.
+   * </ul>
+   */
+  private Struct mergePreservingPopularity(String docName, Struct incoming) {
+    if (incoming.containsFields("popularityScore")) {
+      return incoming;
     }
-    return builder.build();
+    Document existing;
+    try {
+      existing =
+          documentClient.getDocument(GetDocumentRequest.newBuilder().setName(docName).build());
+    } catch (StatusRuntimeException e) {
+      if (e.getStatus().getCode() == Status.Code.NOT_FOUND) {
+        return incoming;
+      }
+      throw e;
+    }
+    com.google.protobuf.Value popularity =
+        existing.getStructData().getFieldsOrDefault("popularityScore", null);
+    if (popularity == null) {
+      return incoming;
+    }
+    return incoming.toBuilder().putFields("popularityScore", popularity).build();
   }
 
   private static boolean isAlreadyExists(Throwable t) {
