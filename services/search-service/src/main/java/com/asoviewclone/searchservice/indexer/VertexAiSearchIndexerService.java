@@ -228,33 +228,40 @@ public class VertexAiSearchIndexerService implements IndexerPort {
 
   /**
    * Returns {@code incoming} with {@code popularityScore} copied from the server's current
-   * document, if incoming omits it. If incoming already carries popularityScore (e.g. tests pass
-   * one in explicitly) it wins. If the server has no popularityScore yet, the returned struct is
-   * unchanged.
+   * document, if incoming omits it. Behaviour by merge-read outcome:
+   *
+   * <ul>
+   *   <li>incoming already carries popularityScore: skip the read, return incoming unchanged.
+   *   <li>getDocument returns NOT_FOUND: the server has nothing to preserve. Return incoming as the
+   *       full struct. (Create-path race: ALREADY_EXISTS on create, then delete before our Get.
+   *       Treat the subsequent Update as a fresh write.)
+   *   <li>getDocument returns a doc with no popularityScore: nothing to copy. Return incoming.
+   *   <li>getDocument returns a doc with popularityScore: merge and return.
+   *   <li>getDocument fails with any other error (UNAVAILABLE, DEADLINE_EXCEEDED, etc.): propagate.
+   *       Silently writing a score-less struct on a transient blip would deterministically zero out
+   *       popularity — worse than surfacing the error to the caller.
+   * </ul>
    */
   private Struct mergePreservingPopularity(String docName, Struct incoming) {
     if (incoming.containsFields("popularityScore")) {
       return incoming;
     }
+    Document existing;
     try {
-      Document existing =
+      existing =
           documentClient.getDocument(GetDocumentRequest.newBuilder().setName(docName).build());
-      com.google.protobuf.Value popularity =
-          existing.getStructData().getFieldsOrDefault("popularityScore", null);
-      if (popularity == null) {
+    } catch (StatusRuntimeException e) {
+      if (e.getStatus().getCode() == Status.Code.NOT_FOUND) {
         return incoming;
       }
-      return incoming.toBuilder().putFields("popularityScore", popularity).build();
-    } catch (Exception e) {
-      // If the merge read fails, fall back to incoming — we accept the
-      // popularity-drop side of last-writer-wins rather than propagating
-      // a read failure that would abort the whole reindex.
-      log.warn(
-          "Failed to read existing document for popularity merge ({}): {}",
-          docName,
-          e.getMessage());
+      throw e;
+    }
+    com.google.protobuf.Value popularity =
+        existing.getStructData().getFieldsOrDefault("popularityScore", null);
+    if (popularity == null) {
       return incoming;
     }
+    return incoming.toBuilder().putFields("popularityScore", popularity).build();
   }
 
   private static boolean isAlreadyExists(Throwable t) {

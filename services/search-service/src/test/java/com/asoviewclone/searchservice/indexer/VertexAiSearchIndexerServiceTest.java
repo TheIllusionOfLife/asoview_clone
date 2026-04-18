@@ -209,6 +209,51 @@ class VertexAiSearchIndexerServiceTest {
   }
 
   @Test
+  void upsertUpdatePathPropagatesTransientMergeReadFailures() {
+    // The merge-read must NOT swallow transient errors: if getDocument fails
+    // with UNAVAILABLE (or any non-NOT_FOUND status), we'd otherwise write a
+    // score-less struct back, deterministically zeroing out popularityScore
+    // on the next reindex after a blip. Propagate instead so the caller can
+    // retry; updateDocument must never fire on this path.
+    doThrow(new StatusRuntimeException(Status.ALREADY_EXISTS))
+        .when(mockClient)
+        .createDocument(any(CreateDocumentRequest.class));
+    doThrow(new StatusRuntimeException(Status.UNAVAILABLE))
+        .when(mockClient)
+        .getDocument(any(GetDocumentRequest.class));
+
+    assertThatThrownBy(service::markBackfillComplete)
+        .isInstanceOf(StatusRuntimeException.class)
+        .hasMessageContaining("UNAVAILABLE");
+    verify(mockClient, never()).updateDocument(any(UpdateDocumentRequest.class));
+  }
+
+  @Test
+  void upsertUpdatePathTreatsNotFoundMergeReadAsEmptyServerState() {
+    // Corner case: create races a concurrent delete — ALREADY_EXISTS on
+    // create, then getDocument returns NOT_FOUND. Treat the server as empty
+    // and still issue the update (which will fail with NOT_FOUND downstream
+    // since allowMissing=false, but the merge step itself must not throw).
+    doThrow(new StatusRuntimeException(Status.ALREADY_EXISTS))
+        .when(mockClient)
+        .createDocument(any(CreateDocumentRequest.class));
+    doThrow(new StatusRuntimeException(Status.NOT_FOUND))
+        .when(mockClient)
+        .getDocument(any(GetDocumentRequest.class));
+    when(mockClient.updateDocument(any(UpdateDocumentRequest.class)))
+        .thenReturn(Document.getDefaultInstance());
+
+    service.markBackfillComplete();
+
+    ArgumentCaptor<UpdateDocumentRequest> captor =
+        ArgumentCaptor.forClass(UpdateDocumentRequest.class);
+    verify(mockClient).updateDocument(captor.capture());
+    Struct struct = captor.getValue().getDocument().getStructData();
+    assertThat(struct.containsFields("popularityScore")).isFalse();
+    assertThat(struct.getFieldsOrThrow("status").getStringValue()).isEqualTo("MARKER");
+  }
+
+  @Test
   void upsertUpdatePathPreservesExistingPopularityScore() {
     // Incoming struct (e.g. from toDoc in the reindex path) carries no
     // popularityScore. The update branch must fetch the existing document and
