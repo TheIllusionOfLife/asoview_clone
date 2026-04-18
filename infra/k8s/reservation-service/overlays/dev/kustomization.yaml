@@ -24,7 +24,7 @@ patches:
         path: /spec/template/spec/containers/0/env/-
         value:
           name: SPANNER_INSTANCE_ID
-          value: asoview-clone
+          value: asoview-clone-dev
       - op: add
         path: /spec/template/spec/containers/0/env/-
         value:
