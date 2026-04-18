@@ -5,7 +5,7 @@ resources:
   - ../../base
 images:
   - name: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/gateway
-    newTag: e76d1e9
+    newTag: b42d142
 patches:
   - target:
       kind: Deployment
