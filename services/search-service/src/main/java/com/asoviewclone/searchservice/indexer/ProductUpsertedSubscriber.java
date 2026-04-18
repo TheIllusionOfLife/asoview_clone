@@ -17,9 +17,18 @@ import org.springframework.stereotype.Component;
  * catalog write and drives a reindex against Vertex AI Search.
  *
  * <p>The message body is the raw productId UTF-8 string (matches commerce-core's publisher
- * contract). On successful reindex: ack. On exception: nack so Pub/Sub's retry_policy re-delivers
- * with backoff. No DLQ routing — a failed reindex is recoverable via the startup {@link
- * IndexerBackfillJob} + per-product admin endpoint.
+ * contract). Outcomes:
+ *
+ * <ul>
+ *   <li>empty / blank payload: ack + log.error. Treat as a poison-pill we won't retry — replaying
+ *       forever on a malformed publisher bug just inflates logs.
+ *   <li>reindex succeeds: ack + log.info.
+ *   <li>reindex fails: nack so Pub/Sub's retry_policy re-delivers with backoff. Pub/Sub's built-in
+ *       delivery_attempt count caps retries; after N attempts the message either flows to a DLQ
+ *       (when configured) or is acked by Pub/Sub's retention policy (7d default). Recovery paths
+ *       (startup {@link IndexerBackfillJob}, per-product admin endpoint, next seed re-run) cover
+ *       the worst case.
+ * </ul>
  *
  * <p>Gated on {@code search.pubsub.subscriber.enabled=true} so local / test profiles without real
  * Pub/Sub wiring don't fail to start. Defaults to true; the dev overlay keeps the default, tests
@@ -58,6 +67,13 @@ public class ProductUpsertedSubscriber {
 
   void handle(ConvertedBasicAcknowledgeablePubsubMessage<String> message) {
     String productId = message.getPayload();
+    if (productId == null || productId.isBlank()) {
+      // Poison pill: publisher bug or malformed message. Ack and log loudly;
+      // infinite retry just inflates logs without ever succeeding.
+      log.error("Discarding product-index-events message with empty productId payload");
+      message.ack();
+      return;
+    }
     try {
       indexerService.reindex(productId);
       message.ack();

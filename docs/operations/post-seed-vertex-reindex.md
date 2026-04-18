@@ -13,8 +13,11 @@ Seed updates now propagate to Vertex AI Search without operator action:
 Verify via:
 
 ```sh
-curl https://asoview-clone-dev.duckdns.org/api/v1/search?q=<new-title>
+NEW_TITLE_TERM="pottery studio"  # replace with the term you seeded
+curl "https://asoview-clone-dev.duckdns.org/api/v1/search?q=${NEW_TITLE_TERM// /%20}"
 ```
+
+The URL is quoted so shell metacharacters (`?`, `&`) inside the query string don't trip word-splitting; URL-encode spaces yourself if the seed title contains any.
 
 ## Troubleshooting
 
@@ -33,7 +36,7 @@ If the Pub/Sub path is degraded (topic / subscription mis-provisioned, search-se
    kubectl -n search rollout restart deployment/search-service
    ```
 3. On startup, `IndexerBackfillJob` paginates `/v1/products?status=ACTIVE` from commerce-core, upserts every doc into Vertex, and writes a fresh marker.
-4. Verify via `curl https://asoview-clone-dev.duckdns.org/api/v1/search?q=<new-title-term>`.
+4. Verify via `curl "https://asoview-clone-dev.duckdns.org/api/v1/search?q=NEW_TITLE_TERM"` (replace the placeholder with your seeded term).
 
 ## Option B — per-product reindex (for targeted changes)
 

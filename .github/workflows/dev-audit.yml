@@ -92,8 +92,11 @@ jobs:
           TITLE: "[dev-audit] failing"
         run: |
           set -euo pipefail
-          # Avoid opening duplicates: look for an existing open issue with the same title.
-          EXISTING=$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty')
+          # Dedup by the `dev-audit` label, not a title substring search —
+          # `[`/`]` are tokenized inconsistently across gh search and can
+          # match unrelated issues (e.g. someone types "[dev-audit]" in an
+          # unrelated bug report). Label is exact + operator-controlled.
+          EXISTING=$(gh issue list --state open --label dev-audit --json number --jq '.[0].number // empty')
           BODY=$(printf '%s\n' \
             "Scheduled \`dev-audit.yml\` run failed against the dev cluster." \
             "" \
@@ -114,7 +117,9 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          for NUM in $(gh issue list --state open --search "[dev-audit] in:title" --json number --jq '.[].number'); do
+          # Same label-based lookup as the failure path: exact and
+          # operator-controlled.
+          for NUM in $(gh issue list --state open --label dev-audit --json number --jq '.[].number'); do
             gh issue comment "$NUM" --body "Resolved by green run at $HEAD_SHA: $RUN_URL"
             gh issue close "$NUM" --reason completed
           done

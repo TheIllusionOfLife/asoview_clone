@@ -94,10 +94,11 @@ resource "google_pubsub_subscription" "analytics" {
 
 # Search-service subscription for auto-reindex. Listens on
 # `product-index-events` so commerce-core's AFTER_COMMIT publish drives
-# Vertex AI Search updates without operator runbook steps. Separate from
-# the analytics DLQ wiring: reindex failures are recoverable via the
-# startup IndexerBackfillJob + per-product admin endpoint, so we keep
-# the subscription simple (ack+redrive via retry_policy, no dead-letter).
+# Vertex AI Search updates without operator runbook steps. Poison-pill
+# messages (malformed payloads or persistently failing reindex) dead-letter
+# into the shared analytics DLQ after 5 attempts so they don't infinitely
+# retry. Recovery for legitimate backlog uses IndexerBackfillJob + the
+# per-product admin endpoint.
 resource "google_pubsub_subscription" "search" {
   for_each = local.search_subscriptions
   name     = each.key
@@ -107,10 +108,27 @@ resource "google_pubsub_subscription" "search" {
   ack_deadline_seconds       = 60
   message_retention_duration = "604800s" # 7 days
 
+  dead_letter_policy {
+    dead_letter_topic     = google_pubsub_topic.dlq.id
+    max_delivery_attempts = 5
+  }
+
   retry_policy {
     minimum_backoff = "10s"
     maximum_backoff = "600s"
   }
+}
+
+# DLQ forwarding requires the Pub/Sub service agent to hold subscriber on
+# each source subscription AND publisher on the DLQ topic. The publisher
+# grant is already in `dlq_publisher` above; add the subscriber grant on
+# the search subscriptions so the agent can forward dead letters.
+resource "google_pubsub_subscription_iam_member" "search_dlq_subscriber" {
+  for_each     = local.search_subscriptions
+  subscription = google_pubsub_subscription.search[each.key].id
+  role         = "roles/pubsub.subscriber"
+  member       = "serviceAccount:service-${data.google_project.current.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+  project      = var.project_id
 }
 
 resource "google_pubsub_subscription_iam_member" "search_subscriber" {

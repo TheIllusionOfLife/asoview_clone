@@ -81,7 +81,7 @@ resource "google_service_account_iam_member" "search_service_vertex_workload_ide
 # to run queries and dataset-level `bigquery.dataViewer` on analytics_mart
 # to read the ranking table. Without these the job logs
 # "Access Denied: Project ...: User does not have bigquery.jobs.create
-# permission" on every schedule tick (the known-limitation trackd until
+# permission" on every schedule tick (the known-limitation tracked until
 # this PR — see plan "Known limitations"). Narrower than a blanket
 # project dataViewer so other datasets (ads_mart, ops_raw) stay off-limits.
 resource "google_project_iam_member" "search_service_bigquery_job_user" {
@@ -95,4 +95,9 @@ resource "google_bigquery_dataset_iam_member" "search_service_analytics_mart_vie
   role       = "roles/bigquery.dataViewer"
   member     = "serviceAccount:${google_service_account.search_service_vertex.email}"
   project    = var.project_id
+  # The dataset is provisioned by module.bigquery; reference it via depends_on
+  # because dataset_id is a string literal (no implicit edge). Without this,
+  # a fresh `terraform apply` can race the binding and fail with
+  # "Dataset not found: analytics_mart".
+  depends_on = [module.bigquery]
 }

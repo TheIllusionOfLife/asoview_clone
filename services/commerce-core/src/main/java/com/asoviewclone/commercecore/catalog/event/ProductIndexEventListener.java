@@ -3,6 +3,7 @@ package com.asoviewclone.commercecore.catalog.event;
 import com.asoviewclone.commercecore.events.PubSubPublisher;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -19,9 +20,12 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * The decoupling lets seed updates flow end-to-end without the manual runbook in {@code
  * docs/operations/post-seed-vertex-reindex.md}.
  *
- * <p>Publish failures are logged but not rethrown: this path is best-effort because the startup
- * {@code IndexerBackfillJob} and the per-product admin endpoint provide recovery paths. A transient
- * Pub/Sub blip doesn't deserve a retry storm on the catalog write.
+ * <p>Publish failures rethrow. Spring's {@code @TransactionalEventListener(AFTER_COMMIT)} handler
+ * catches the exception and logs at ERROR — the JPA tx is already committed, so rethrowing surfaces
+ * the delivery failure in ops dashboards without affecting catalog data. Recovery paths (startup
+ * {@code IndexerBackfillJob}, per-product admin reindex, the next seed re-run) still catch up
+ * eventually, but the ERROR line makes Pub/Sub health visible instead of silent. Per CLAUDE.md
+ * "logging is not error handling" — at system boundaries, error paths throw.
  *
  * <p>{@code PubSubPublisher} is {@code @ConditionalOnBean(PubSubTemplate.class)} so unit / test
  * profiles without Pub/Sub wiring still load this bean — hence the {@code Optional} injection.
@@ -45,18 +49,11 @@ public class ProductIndexEventListener {
       log.info("Product indexed (publisher disabled, skipping Pub/Sub): {}", productId);
       return;
     }
-    try {
-      publisher.get().publish(TOPIC, productId, productId.getBytes(StandardCharsets.UTF_8));
-      log.info("Published product-index-events for productId={}", productId);
-    } catch (RuntimeException ex) {
-      // Recovery paths: IndexerBackfillJob on search-service startup + the
-      // per-product admin endpoint + the next seed re-run re-publish. Not
-      // rethrowing keeps catalog writes resilient to Pub/Sub flakiness.
-      log.warn(
-          "Failed to publish product-index-events for productId={}; reindex will catch up via"
-              + " IndexerBackfillJob or admin reindex: {}",
-          productId,
-          ex.getMessage());
-    }
+    // Fresh eventId per publish so log correlation reflects the update
+    // attempt, not the product identity (which would collide across
+    // successive updates of the same row).
+    String eventId = UUID.randomUUID().toString();
+    publisher.get().publish(TOPIC, eventId, productId.getBytes(StandardCharsets.UTF_8));
+    log.info("Published product-index-events eventId={} productId={}", eventId, productId);
   }
 }
