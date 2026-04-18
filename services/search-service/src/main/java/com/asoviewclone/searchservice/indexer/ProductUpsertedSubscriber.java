@@ -7,8 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 
 /**
@@ -35,11 +34,18 @@ import org.springframework.stereotype.Component;
  * override via property.
  */
 @Component
-@ConditionalOnBean(PubSubTemplate.class)
-@ConditionalOnProperty(
-    name = "search.pubsub.subscriber.enabled",
-    havingValue = "true",
-    matchIfMissing = true)
+// Gate on spring.cloud.gcp.project-id (the same property Spring Cloud GCP's
+// GcpPubSubAutoConfiguration uses to create PubSubTemplate) combined with the
+// explicit subscriber.enabled off-switch. @ConditionalOnBean(PubSubTemplate)
+// on a @Component is evaluated before all @Configuration classes are
+// processed, so it can return false even when PubSubTemplate will later be
+// registered — which is exactly what happened in live deploy (PR #75
+// post-merge: PubSubTemplate existed but this subscriber never started).
+// @ConditionalOnExpression sidesteps that ordering gotcha. An empty project-id
+// (unit tests / local without the env var) short-circuits the bean off.
+@ConditionalOnExpression(
+    "'${spring.cloud.gcp.project-id:}' != ''"
+        + " && '${search.pubsub.subscriber.enabled:true}' == 'true'")
 public class ProductUpsertedSubscriber {
 
   private static final Logger log = LoggerFactory.getLogger(ProductUpsertedSubscriber.class);

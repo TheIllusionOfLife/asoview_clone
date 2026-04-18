@@ -23,3 +23,12 @@ vertex:
 spring:
   application:
     name: search-service
+  cloud:
+    gcp:
+      # Anchor the top-level project-id property so Spring Cloud GCP auto-config
+      # plus @ConditionalOnProperty("spring.cloud.gcp.project-id") on
+      # ProductUpsertedSubscriber both match reliably. Env-var relaxed binding
+      # alone proved unreliable for @ConditionalOnProperty in live deploy (see
+      # PR #75 post-merge verification). Empty default so unit tests / local
+      # runs without the env var still skip the Pub/Sub path gracefully.
+      project-id: ${SPRING_CLOUD_GCP_PROJECT_ID:${GOOGLE_CLOUD_PROJECT:}}
