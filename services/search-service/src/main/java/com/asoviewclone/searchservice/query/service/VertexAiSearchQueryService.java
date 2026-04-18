@@ -63,8 +63,46 @@ public class VertexAiSearchQueryService implements SearchQueryPort {
     int safePage = Math.max(0, page);
     SearchRequest request =
         buildSearchRequest(q, areaId, categoryId, minPrice, maxPrice, sort, safePage, safeSize);
-    SearchResponse response = executeSearch(request);
+    SearchResponse response;
+    try {
+      response = executeSearch(request);
+    } catch (RuntimeException e) {
+      // Graceful fallback for sort-config drift: if Vertex rejects the
+      // orderBy (key-property mapping not yet applied, tier limitation, or
+      // a schema regression) retry once without orderBy + popularity boost
+      // so the user sees relevance-ordered results instead of an HTTP 500.
+      // The caller still paginates, so the UX impact is just "sort ignored".
+      if (sort != null && !sort.isBlank() && isInvalidOrderBy(e)) {
+        log.warn(
+            "orderBy '{}' rejected by Vertex; falling back to relevance sort for this query", sort);
+        SearchRequest fallback =
+            buildSearchRequest(q, areaId, categoryId, minPrice, maxPrice, null, safePage, safeSize);
+        response = executeSearch(fallback);
+      } else {
+        throw e;
+      }
+    }
     return parseSearchResponse(response, safePage, safeSize);
+  }
+
+  private static boolean isInvalidOrderBy(Throwable t) {
+    Throwable cur = t;
+    while (cur != null) {
+      if (cur instanceof ApiException api
+          && api.getStatusCode() != null
+          && "INVALID_ARGUMENT".equals(api.getStatusCode().getCode().name())) {
+        String msg = api.getMessage() == null ? "" : api.getMessage();
+        // Discovery Engine's wording has drifted in the past ("orderBy",
+        // "order_by", "order by"). Normalize + match all three so the
+        // fallback doesn't silently stop firing on a phrasing change.
+        String lower = msg.toLowerCase(java.util.Locale.ROOT);
+        return lower.contains("orderby")
+            || lower.contains("order_by")
+            || lower.contains("order by");
+      }
+      cur = cur.getCause();
+    }
+    return false;
   }
 
   /** Package-private for testing the filter/sort/boost-spec composition. */
@@ -143,20 +181,16 @@ public class VertexAiSearchQueryService implements SearchQueryPort {
     if (sort == null) {
       return false;
     }
-    // Empirical: on this project's Discovery Engine data store (generic
-    // industry vertical, Standard search tier, global location), bare field
-    // names in orderBy produce
-    //   INVALID_ARGUMENT: Unsupported field in orderBy: minPrice asc
-    // while the `structData.` prefix is accepted. The asymmetry with
-    // filters (which take bare names) is not documented canonically for
-    // every tier combination, so validate against the live data store when
-    // changing tier or moving to Retail (reserved key-property shortcuts).
-    // The e2e/smoke/search-scenarios.spec.ts suite is the live-cluster
-    // guard that catches any regression.
+    // Discovery Engine generic vertical accepts orderBy only on predefined
+    // key properties (price, rating, etc.) or on fields tagged with a
+    // keyPropertyMapping. `minPrice` carries `keyPropertyMapping: price` in
+    // products-schema.json — so the orderBy path is the bare key property
+    // name `price`, not `minPrice` or `structData.minPrice` (both produce
+    // `Unsupported field in orderBy`). `name` is not a key property so
+    // sorting by name is not supported on this vertical.
     switch (sort) {
-      case "price_asc" -> builder.setOrderBy("structData.minPrice asc");
-      case "price_desc" -> builder.setOrderBy("structData.minPrice desc");
-      case "name_asc" -> builder.setOrderBy("structData.name asc");
+      case "price_asc" -> builder.setOrderBy("price asc");
+      case "price_desc" -> builder.setOrderBy("price desc");
       default -> {
         return false;
       }

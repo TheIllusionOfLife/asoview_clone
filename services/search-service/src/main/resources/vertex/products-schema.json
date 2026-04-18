@@ -39,7 +39,8 @@
       "type": "number",
       "indexable": true,
       "retrievable": true,
-      "dynamicFacetable": true
+      "dynamicFacetable": true,
+      "keyPropertyMapping": "price"
     },
     "imageUrl": {
       "type": "string",
