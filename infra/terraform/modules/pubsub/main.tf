@@ -21,6 +21,20 @@ locals {
     "order-events-analytics-sub"   = "order-events"
     "payment-events-analytics-sub" = "payment-events"
   }
+
+  # Subscriptions consumed by search-service. Separate map (not merged into
+  # analytics_subscriptions) because the search lane doesn't share the
+  # analytics DLQ routing — a failed reindex is recoverable from the startup
+  # IndexerBackfillJob, not a back-of-queue forward.
+  search_subscriptions = {
+    "search-service-product-index-sub" = "product-index-events"
+  }
+}
+
+variable "search_service_member" {
+  type        = string
+  description = "Pub/Sub subscriber principal for search-service (e.g. serviceAccount:search-service-vertex@<project>.iam.gserviceaccount.com). Empty string skips IAM wiring so local/unit terraform can still plan."
+  default     = ""
 }
 
 resource "google_pubsub_topic" "topics" {
@@ -76,6 +90,35 @@ resource "google_pubsub_subscription" "analytics" {
     minimum_backoff = "10s"
     maximum_backoff = "600s"
   }
+}
+
+# Search-service subscription for auto-reindex. Listens on
+# `product-index-events` so commerce-core's AFTER_COMMIT publish drives
+# Vertex AI Search updates without operator runbook steps. Separate from
+# the analytics DLQ wiring: reindex failures are recoverable via the
+# startup IndexerBackfillJob + per-product admin endpoint, so we keep
+# the subscription simple (ack+redrive via retry_policy, no dead-letter).
+resource "google_pubsub_subscription" "search" {
+  for_each = local.search_subscriptions
+  name     = each.key
+  topic    = google_pubsub_topic.topics[each.value].id
+  project  = var.project_id
+
+  ack_deadline_seconds       = 60
+  message_retention_duration = "604800s" # 7 days
+
+  retry_policy {
+    minimum_backoff = "10s"
+    maximum_backoff = "600s"
+  }
+}
+
+resource "google_pubsub_subscription_iam_member" "search_subscriber" {
+  for_each     = var.search_service_member == "" ? {} : local.search_subscriptions
+  subscription = google_pubsub_subscription.search[each.key].id
+  role         = "roles/pubsub.subscriber"
+  member       = var.search_service_member
+  project      = var.project_id
 }
 
 # Subscription for dead-letter monitoring/alerting.

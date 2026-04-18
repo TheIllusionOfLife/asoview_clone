@@ -1,12 +1,24 @@
 # Post-Seed Vertex AI Search Reindex
 
-When the commerce-core repeatable seed migration (`R__seed_catalog.sql`) changes — for example a title / description / translation rewrite — Postgres rows get upserted on the next pod restart, but Vertex AI Search is **not** refreshed automatically.
+## Normal path (automatic)
 
-## Why
+Seed updates now propagate to Vertex AI Search without operator action:
 
-`DevSearchReindexer` publishes a `ProductUpsertedEvent` for every seeded product on startup, but `ProductIndexEventListener` is a log-only `AFTER_COMMIT` hook today — it does not forward to search-service. The search-service `IndexerBackfillJob` also runs on pod startup but short-circuits when the `asoview-backfill-marker-v1` sentinel doc is present, so a restart alone does not re-ingest.
+1. `R__seed_catalog.sql` checksum changes → Flyway re-runs the repeatable migration on the next commerce-core pod start (or on demand via `mvn flyway:repair`-equivalent).
+2. `DevSearchReindexer` publishes a `ProductUpsertedEvent` per product during the seed re-run.
+3. `ProductIndexEventListener` (AFTER_COMMIT) forwards the productId to the `product-index-events` Pub/Sub topic.
+4. search-service's `ProductUpsertedSubscriber` pulls the message, calls `VertexAiSearchIndexerService.reindex(productId)`, upserts into Discovery Engine.
+5. New titles / translations are searchable within a few seconds of deploy — no `gcloud` or `kubectl` steps required.
 
-A proper cross-service wire (Pub/Sub `product-upserted` topic → search-service subscriber → DocumentService upsert) is tracked as the "replace log-only listener" TODO in `ProductIndexEventListener.java`. Until that ships, a seed content rewrite requires one of the operational steps below.
+Verify via:
+
+```sh
+curl https://asoview-clone-dev.duckdns.org/api/v1/search?q=<new-title>
+```
+
+## Troubleshooting
+
+If the Pub/Sub path is degraded (topic / subscription mis-provisioned, search-service GSA missing subscriber role, commerce-core can't publish), use one of the escape hatches below. The startup `IndexerBackfillJob` in search-service still acts as a floor — worst case, a pod roll re-seeds Vertex from commerce-core's REST endpoint.
 
 ## Option A — force a full reindex (preferred for wholesale changes)
 

@@ -15,6 +15,9 @@ dependencies {
     implementation(platform(libs.spring.cloud.gcp.bom))
     implementation("com.google.cloud:google-cloud-bigquery")
     implementation(libs.google.cloud.discoveryengine)
+    // Auto-reindex path: search-service subscribes to product-index-events so
+    // commerce-core seed updates flow through without a manual runbook.
+    implementation(libs.spring.cloud.gcp.starter.pubsub)
     // Spring 7 RestClient still uses fasterxml jackson 2 converters even though
     // Boot 4 ships tools.jackson 3 by default; pull jackson 2 explicitly so the
     // default HTTP message converters don't NoClassDefFoundError.

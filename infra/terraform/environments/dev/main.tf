@@ -70,6 +70,12 @@ module "redis" {
 module "pubsub" {
   source     = "../../modules/pubsub"
   project_id = var.project_id
+
+  # Grant search-service-vertex GSA `roles/pubsub.subscriber` on the
+  # product-index-events subscription so the auto-reindex pipeline works.
+  # GSA is declared in vertex-search.tf; pass its email through so the
+  # pubsub module can bind IAM without needing a back-reference.
+  search_service_member = "serviceAccount:${google_service_account.search_service_vertex.email}"
 }
 
 module "bigquery" {
