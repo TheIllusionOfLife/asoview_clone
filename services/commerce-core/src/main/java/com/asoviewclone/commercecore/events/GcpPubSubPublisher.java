@@ -6,15 +6,23 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
  * Pub/Sub publisher backed by Spring Cloud GCP PubSubTemplate. Blocks until delivery is confirmed
  * so the outbox relay can safely mark the row as published only after success.
+ *
+ * <p>Gated on {@code spring.cloud.gcp.project-id} (the same property {@code PubSubConfig} uses to
+ * create {@code PubSubTemplate}) rather than {@code @ConditionalOnBean(PubSubTemplate.class)}.
+ * {@code @ConditionalOnBean} on a {@code @Component} is evaluated before all {@code @Configuration}
+ * classes are processed, so it returned false even when {@code PubSubTemplate} was registered —
+ * which is exactly what happened in live deploy after PR #75/#76 (outbox publisher and {@code
+ * ProductIndexEventListener} both silently took the {@code publisher.isEmpty()} path).
+ * Property-gating sidesteps the ordering gotcha while matching the same activation condition.
  */
 @Component
-@ConditionalOnBean(PubSubTemplate.class)
+@ConditionalOnProperty("spring.cloud.gcp.project-id")
 public class GcpPubSubPublisher implements PubSubPublisher {
 
   private static final Logger log = LoggerFactory.getLogger(GcpPubSubPublisher.class);
