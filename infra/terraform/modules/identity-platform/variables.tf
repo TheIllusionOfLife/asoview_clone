@@ -15,15 +15,8 @@ variable "google_oauth_client_id" {
     Console (APIs & Services → Credentials → OAuth client ID) because the
     consent screen requires interactive publishing steps Terraform cannot
     automate. See docs/operations/google-oauth-setup.md.
-  EOT
-}
 
-variable "google_oauth_client_secret_id" {
-  type        = string
-  description = <<-EOT
-    Secret Manager resource ID of the Google OAuth client secret (format:
-    projects/<number>/secrets/<name>). Terraform reads the latest secret
-    version at apply time via google_secret_manager_secret_version. Store
-    the client_secret itself out-of-band via `gcloud secrets versions add`.
+    The OAuth client_secret is intentionally managed outside Terraform and
+    set via GCP Console post-apply; no secret variable exists.
   EOT
 }

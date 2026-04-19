@@ -54,12 +54,6 @@ variable "notification_email" {
 
 variable "google_oauth_client_id" {
   type        = string
-  description = "OAuth 2.0 Web Client ID for Google sign-in. Provisioned manually in GCP Console; see docs/operations/google-oauth-setup.md."
-}
-
-variable "google_oauth_client_secret_id" {
-  type        = string
-  description = "Secret Manager resource ID of the Google OAuth client secret (projects/<number>/secrets/<name>)."
-  default     = "projects/30423153640/secrets/identity-platform-google-client-secret"
+  description = "OAuth 2.0 Web Client ID for Google sign-in. Provisioned manually in GCP Console; see docs/operations/google-oauth-setup.md. The matching client_secret is set in GCP Console post-apply and is intentionally NOT managed by Terraform (avoids plaintext in state)."
 }
 

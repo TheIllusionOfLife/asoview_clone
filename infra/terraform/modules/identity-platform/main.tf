@@ -3,20 +3,17 @@
 // The asoview-web frontend (PR 3d) signs users in with Google OAuth via the
 // Firebase JS SDK. Spring Cloud Gateway and commerce-core verify the ID
 // tokens via the Firebase Admin SDK. This module enables Identity Platform
-// on the project and wires the Google OAuth client created out-of-band in
-// GCP Console (see docs/operations/google-oauth-setup.md).
-
-data "google_project" "current" {
-  project_id = var.project_id
-}
-
-data "google_secret_manager_secret_version" "google_oauth_secret" {
-  # secret is the fully-qualified resource ID (projects/<num>/secrets/<name>);
-  # the provider parses the project from it, so passing project here too
-  # would conflict when project_id is the human slug vs. the number.
-  secret  = var.google_oauth_client_secret_id
-  version = "latest"
-}
+// on the project and registers the Google provider.
+//
+// The OAuth client_secret is intentionally NOT managed by Terraform. Reading
+// it into a resource attribute materializes the plaintext secret into
+// Terraform state on every plan/apply — and the state backend today is
+// local/unencrypted. The resource is created with a dummy value and
+// lifecycle.ignore_changes keeps Terraform from overwriting whatever the
+// operator sets via Console. First-time bring-up: `terraform apply` creates
+// the enabled provider with the dummy, then the operator pastes the real
+// secret via GCP Console → Identity Platform → Google provider → Edit.
+// See docs/operations/google-oauth-setup.md.
 
 resource "google_project_service" "identity_toolkit" {
   project            = var.project_id
@@ -45,22 +42,15 @@ resource "google_identity_platform_default_supported_idp_config" "google" {
   enabled       = true
   idp_id        = "google.com"
   client_id     = var.google_oauth_client_id
-  client_secret = data.google_secret_manager_secret_version.google_oauth_secret.secret_data
+  client_secret = "MANAGED_OUTSIDE_TERRAFORM"
 
-  depends_on = [
-    google_identity_platform_config.default,
-    google_secret_manager_secret_iam_member.identity_platform_access,
-  ]
-}
+  lifecycle {
+    // Client secret is set in GCP Console post-apply and never owned by
+    // Terraform. Plans never propose updates; state holds the literal dummy.
+    ignore_changes = [client_secret]
+  }
 
-// Grant the Identity Platform service agent read access on the OAuth client
-// secret. Without this, Identity Platform cannot rotate / refresh the secret
-// at sign-in time once Terraform manages the resource.
-resource "google_secret_manager_secret_iam_member" "identity_platform_access" {
-  project   = var.project_id
-  secret_id = var.google_oauth_client_secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:service-${data.google_project.current.number}@gcp-sa-identitytoolkit.iam.gserviceaccount.com"
+  depends_on = [google_identity_platform_config.default]
 }
 
 output "identity_platform_enabled" {
