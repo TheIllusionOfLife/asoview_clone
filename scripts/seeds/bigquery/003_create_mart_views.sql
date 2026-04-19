@@ -54,5 +54,5 @@ SELECT
   SUM(subtotal_jpy) AS ltv_jpy,
   SAFE_DIVIDE(SUM(subtotal_jpy), COUNT(DISTINCT order_id)) AS avg_order_value_jpy
 FROM `asoview-clone-dev.analytics_raw.order_events`
-WHERE event_type = 'order.paid'
+WHERE event_type = 'order.paid' AND user_id IS NOT NULL
 GROUP BY 1;
