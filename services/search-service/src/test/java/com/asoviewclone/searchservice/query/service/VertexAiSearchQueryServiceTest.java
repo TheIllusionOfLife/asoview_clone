@@ -199,6 +199,21 @@ class VertexAiSearchQueryServiceTest {
   }
 
   @Test
+  void extractHitsReadsPopularityScoreFromStructData() {
+    // Audit smoke test asserts the API surfaces popularityScore after
+    // PopularityScoreSyncJob runs. Pin that extractHits() actually reads
+    // the field — omitting it from SearchHit would let the audit skip
+    // forever (Devin review on PR #90).
+    SearchResponse response = searchResponseOf(docHit("a", 1000L, 42L), docHit("b", 2000L, null));
+    when(mockClient.search(any(SearchRequest.class)).getPage().getResponse()).thenReturn(response);
+    Mockito.clearInvocations(mockClient);
+
+    ProductSearchResponse result = service.search("q", null, null, null, null, null, 0, 20);
+
+    assertThat(result.content()).extracting(SearchHit::popularityScore).containsExactly(42L, null);
+  }
+
+  @Test
   void clientSideSortReturnsEmptyContentWhenPageExceedsWindow() {
     // page=10 at size=20 → offset 200, which is well past the 100-doc window.
     // subList must not throw; content is empty; totalElements still capped.
@@ -247,10 +262,14 @@ class VertexAiSearchQueryServiceTest {
   // ─── helpers ───────────────────────────────────────────────────────────
 
   private static SearchHit hit(String id, Long price) {
-    return new SearchHit(id, "name-" + id, "desc", price, "area-x", "cat-y");
+    return new SearchHit(id, "name-" + id, "desc", price, "area-x", "cat-y", null);
   }
 
   private static SearchResponse.SearchResult docHit(String id, Long price) {
+    return docHit(id, price, null);
+  }
+
+  private static SearchResponse.SearchResult docHit(String id, Long price, Long popularityScore) {
     Struct.Builder struct =
         Struct.newBuilder()
             .putFields("productId", Value.newBuilder().setStringValue(id).build())
@@ -260,6 +279,10 @@ class VertexAiSearchQueryServiceTest {
             .putFields("categoryId", Value.newBuilder().setStringValue("cat-y").build());
     if (price != null) {
       struct.putFields("minPrice", Value.newBuilder().setNumberValue(price).build());
+    }
+    if (popularityScore != null) {
+      struct.putFields(
+          "popularityScore", Value.newBuilder().setNumberValue(popularityScore).build());
     }
     return SearchResponse.SearchResult.newBuilder()
         .setDocument(Document.newBuilder().setStructData(struct.build()).build())

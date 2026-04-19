@@ -323,7 +323,8 @@ public class VertexAiSearchQueryService implements SearchQueryPort {
               stringField(data, "description"),
               longField(data, "minPrice"),
               stringField(data, "areaId"),
-              stringField(data, "categoryId")));
+              stringField(data, "categoryId"),
+              longField(data, "popularityScore")));
     }
     return content;
   }
