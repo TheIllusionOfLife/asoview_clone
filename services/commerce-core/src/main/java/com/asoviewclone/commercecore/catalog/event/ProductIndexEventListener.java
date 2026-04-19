@@ -35,9 +35,9 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * case. Revisit if ops ever observes stale-index reports that the ERROR log can confirm but the
  * recovery floors miss.
  *
- * <p>{@code PubSubPublisher} is {@code @ConditionalOnProperty("spring.cloud.gcp.project-id")} so
- * unit / test profiles without Pub/Sub wiring still load this bean — hence the {@code Optional}
- * injection.
+ * <p>The only {@code PubSubPublisher} implementation ({@code GcpPubSubPublisher}) is gated on a
+ * non-empty {@code spring.cloud.gcp.project-id} via {@code @ConditionalOnExpression}, so unit /
+ * test profiles without Pub/Sub wiring don't get one — hence the {@code Optional} injection here.
  */
 @Component
 public class ProductIndexEventListener {
