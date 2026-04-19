@@ -29,9 +29,12 @@ import org.springframework.stereotype.Component;
  *       the worst case.
  * </ul>
  *
- * <p>Gated on {@code search.pubsub.subscriber.enabled=true} so local / test profiles without real
- * Pub/Sub wiring don't fail to start. Defaults to true; the dev overlay keeps the default, tests
- * override via property.
+ * <p>Gated by a combined {@code @ConditionalOnExpression} that requires BOTH a non-empty {@code
+ * spring.cloud.gcp.project-id} (so local / test profiles without Pub/Sub wiring don't try to
+ * subscribe) AND {@code search.pubsub.subscriber.enabled} unset-or-{@code "true"} (explicit
+ * off-switch for tests). The search-service {@code application.yml} anchors {@code
+ * spring.cloud.gcp.project-id} to the empty string by default, so the project-id gate
+ * short-circuits this bean off outside deployed environments.
  */
 @Component
 // Gate on spring.cloud.gcp.project-id (the same property Spring Cloud GCP's

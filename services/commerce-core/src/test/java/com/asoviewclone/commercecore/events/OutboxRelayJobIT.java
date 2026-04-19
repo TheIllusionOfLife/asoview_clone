@@ -57,8 +57,10 @@ class OutboxRelayJobIT {
     assertThat(outboxRepository.findById(e1.getId()).orElseThrow().getPublishedAt()).isNull();
     assertThat(outboxRepository.findById(e2.getId()).orElseThrow().getPublishedAt()).isNull();
 
-    // Construct relay manually since OutboxRelayJob is @ConditionalOnBean(PubSubPublisher)
-    // and @TestConfiguration beans are registered after condition evaluation.
+    // Construct relay manually since OutboxRelayJob is gated on a non-empty
+    // spring.cloud.gcp.project-id via @ConditionalOnExpression — the test
+    // profile deliberately leaves that property empty, so the Spring-managed
+    // bean never registers.
     OutboxRelayJob relay = new OutboxRelayJob(outboxRepository, publisher);
     relay.relay();
 
