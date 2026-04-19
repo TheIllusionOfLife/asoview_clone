@@ -9,6 +9,7 @@ import com.google.cloud.discoveryengine.v1.SearchResponse;
 import com.google.cloud.discoveryengine.v1.SearchServiceClient;
 import com.google.protobuf.Struct;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +41,14 @@ public class VertexAiSearchQueryService implements SearchQueryPort {
 
   private static final Logger log = LoggerFactory.getLogger(VertexAiSearchQueryService.class);
 
+  /**
+   * Upper bound for client-side {@code minPrice} sort. Discovery Engine caps {@code pageSize} at
+   * 100, so this is also the natural ceiling. Catalog grows past this, client-side sort is no
+   * longer globally monotonic — revisit (Retail-tier Discovery Engine, or a backing sorted store)
+   * per {@code docs/adr/002-client-side-sort-for-price.md}.
+   */
+  static final int CLIENT_SORT_WINDOW = 100;
+
   private final SearchServiceClient searchClient;
   private final String servingConfig;
 
@@ -69,6 +78,16 @@ public class VertexAiSearchQueryService implements SearchQueryPort {
       int size) {
     int safeSize = Math.max(1, Math.min(size, 100));
     int safePage = Math.max(0, page);
+    // Price sort is done client-side. Discovery Engine generic vertical
+    // rejects every orderBy form on the custom minPrice field (verified
+    // through PRs #71/#72), and Retail-vertical migration is too large a
+    // scope for this data shape. Client-side sort over a wide window is
+    // bounded and correct up to CLIENT_SORT_WINDOW. See
+    // docs/adr/002-client-side-sort-for-price.md.
+    if ("price_asc".equals(sort) || "price_desc".equals(sort)) {
+      return clientSideSortByPrice(
+          q, areaId, categoryId, minPrice, maxPrice, sort, safePage, safeSize);
+    }
     SearchRequest request =
         buildSearchRequest(q, areaId, categoryId, minPrice, maxPrice, sort, safePage, safeSize);
     SearchResponse response;
@@ -79,7 +98,7 @@ public class VertexAiSearchQueryService implements SearchQueryPort {
       // orderBy (key-property mapping not yet applied, tier limitation, or
       // a schema regression) retry once without orderBy + popularity boost
       // so the user sees relevance-ordered results instead of an HTTP 500.
-      // The caller still paginates, so the UX impact is just "sort ignored".
+      // Kept as defense-in-depth for any new sort value we might add later.
       if (sort != null && !sort.isBlank() && isInvalidOrderBy(e)) {
         log.warn(
             "orderBy '{}' rejected by Vertex; falling back to relevance sort for this query", sort);
@@ -91,6 +110,53 @@ public class VertexAiSearchQueryService implements SearchQueryPort {
       }
     }
     return parseSearchResponse(response, safePage, safeSize);
+  }
+
+  private ProductSearchResponse clientSideSortByPrice(
+      String q,
+      String areaId,
+      String categoryId,
+      Long minPrice,
+      Long maxPrice,
+      String sort,
+      int safePage,
+      int safeSize) {
+    SearchRequest request =
+        buildSearchRequest(q, areaId, categoryId, minPrice, maxPrice, null, 0, CLIENT_SORT_WINDOW);
+    SearchResponse response = executeSearch(request);
+    List<SearchHit> hits = extractHits(response);
+    long totalSize = response.getTotalSize();
+    if (totalSize > CLIENT_SORT_WINDOW) {
+      // Sort is only globally monotonic across the wide window. If filter
+      // matches exceed the window, log so we notice before users do.
+      log.warn(
+          "client-side price sort: totalSize={} exceeds window={} for filter; results not globally sorted",
+          totalSize,
+          CLIENT_SORT_WINDOW);
+    }
+    hits.sort(priceComparator(sort));
+    int start = Math.min(safePage * safeSize, hits.size());
+    int end = Math.min(start + safeSize, hits.size());
+    return new ProductSearchResponse(hits.subList(start, end), totalSize, safePage, safeSize);
+  }
+
+  /** Nulls always trail; direction only swaps non-null comparisons. */
+  static Comparator<SearchHit> priceComparator(String sort) {
+    boolean desc = "price_desc".equals(sort);
+    return (a, b) -> {
+      Long pa = a.minPrice();
+      Long pb = b.minPrice();
+      if (pa == null && pb == null) {
+        return 0;
+      }
+      if (pa == null) {
+        return 1;
+      }
+      if (pb == null) {
+        return -1;
+      }
+      return desc ? Long.compare(pb, pa) : Long.compare(pa, pb);
+    };
   }
 
   private static boolean isInvalidOrderBy(Throwable t) {
@@ -186,24 +252,12 @@ public class VertexAiSearchQueryService implements SearchQueryPort {
   }
 
   private boolean applySort(SearchRequest.Builder builder, String sort) {
-    if (sort == null) {
-      return false;
-    }
-    // Discovery Engine generic vertical accepts orderBy only on predefined
-    // key properties (price, rating, etc.) or on fields tagged with a
-    // keyPropertyMapping. `minPrice` carries `keyPropertyMapping: price` in
-    // products-schema.json — so the orderBy path is the bare key property
-    // name `price`, not `minPrice` or `structData.minPrice` (both produce
-    // `Unsupported field in orderBy`). `name` is not a key property so
-    // sorting by name is not supported on this vertical.
-    switch (sort) {
-      case "price_asc" -> builder.setOrderBy("price asc");
-      case "price_desc" -> builder.setOrderBy("price desc");
-      default -> {
-        return false;
-      }
-    }
-    return true;
+    // `price_asc` / `price_desc` are handled in the caller via client-side
+    // sort and never reach here. Other sort values fall through to relevance
+    // order with the popularity boost applied; if a future commit tries to
+    // emit an orderBy that Discovery Engine rejects, isInvalidOrderBy
+    // retries without orderBy so the user never sees a 500.
+    return false;
   }
 
   /**
@@ -256,6 +310,10 @@ public class VertexAiSearchQueryService implements SearchQueryPort {
   }
 
   private ProductSearchResponse parseSearchResponse(SearchResponse response, int page, int size) {
+    return new ProductSearchResponse(extractHits(response), response.getTotalSize(), page, size);
+  }
+
+  private static List<SearchHit> extractHits(SearchResponse response) {
     List<SearchHit> content = new ArrayList<>();
     for (SearchResponse.SearchResult result : response.getResultsList()) {
       Struct data = result.getDocument().getStructData();
@@ -268,7 +326,7 @@ public class VertexAiSearchQueryService implements SearchQueryPort {
               stringField(data, "areaId"),
               stringField(data, "categoryId")));
     }
-    return new ProductSearchResponse(content, response.getTotalSize(), page, size);
+    return content;
   }
 
   private static String stringField(Struct data, String field) {

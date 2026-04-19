@@ -177,26 +177,37 @@ test.describe("search", () => {
     }
   });
 
-  test("GET /v1/search sort=price_asc returns 200 (relevance fallback acceptable)", async ({
+  test("GET /v1/search sort=price_asc returns monotonic non-decreasing minPrice", async ({
     request,
   }) => {
-    // Discovery Engine generic vertical doesn't sort numeric custom fields;
-    // the service's isInvalidOrderBy fallback returns relevance-sorted
-    // results with HTTP 200 instead of propagating a 500. A future tier /
-    // schema change can tighten this to assert monotonic order.
+    // Client-side sort in VertexAiSearchQueryService over a 100-doc window;
+    // nulls trail. Assert monotonic over the non-null prefix.
+    // See docs/adr/002-client-side-sort-for-price.md.
     const r = await getGuest(request, "/v1/search?sort=price_asc&size=20");
     expect(r.status(), `sort=price_asc HTTP ${r.status()}: ${await r.text()}`).toBe(200);
-    const body = (await r.json()) as { content: Array<{ minPrice: number }> };
+    const body = (await r.json()) as { content: Array<{ minPrice: number | null }> };
     expect(body.content.length).toBeGreaterThan(0);
+    const priced = body.content
+      .map((h) => h.minPrice)
+      .filter((p): p is number => typeof p === "number");
+    for (let i = 1; i < priced.length; i++) {
+      expect(priced[i]).toBeGreaterThanOrEqual(priced[i - 1]);
+    }
   });
 
-  test("GET /v1/search sort=price_desc returns 200 (relevance fallback acceptable)", async ({
+  test("GET /v1/search sort=price_desc returns monotonic non-increasing minPrice", async ({
     request,
   }) => {
     const r = await getGuest(request, "/v1/search?sort=price_desc&size=20");
     expect(r.status(), `sort=price_desc HTTP ${r.status()}: ${await r.text()}`).toBe(200);
-    const body = (await r.json()) as { content: Array<{ minPrice: number }> };
+    const body = (await r.json()) as { content: Array<{ minPrice: number | null }> };
     expect(body.content.length).toBeGreaterThan(0);
+    const priced = body.content
+      .map((h) => h.minPrice)
+      .filter((p): p is number => typeof p === "number");
+    for (let i = 1; i < priced.length; i++) {
+      expect(priced[i]).toBeLessThanOrEqual(priced[i - 1]);
+    }
   });
 
   test("GET /v1/search exposes popularityScore after PopularityScoreSyncJob runs", async ({

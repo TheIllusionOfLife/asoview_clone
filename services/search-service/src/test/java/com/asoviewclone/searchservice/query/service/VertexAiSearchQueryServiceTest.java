@@ -8,11 +8,17 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.asoviewclone.searchservice.query.dto.ProductSearchResponse;
+import com.asoviewclone.searchservice.query.model.SearchHit;
 import com.google.api.gax.rpc.ApiException;
 import com.google.api.gax.rpc.StatusCode;
+import com.google.cloud.discoveryengine.v1.Document;
 import com.google.cloud.discoveryengine.v1.SearchRequest;
 import com.google.cloud.discoveryengine.v1.SearchResponse;
 import com.google.cloud.discoveryengine.v1.SearchServiceClient;
+import com.google.protobuf.Struct;
+import com.google.protobuf.Value;
+import java.util.Arrays;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -75,28 +81,19 @@ class VertexAiSearchQueryServiceTest {
   }
 
   @Test
-  void priceAscSortSetsOrderByAndSkipsBoostSpec() {
+  void priceSortIsHandledClientSideNotByOrderBy() {
+    // Price sort skips Discovery Engine orderBy entirely — it's applied in
+    // Java after fetching a wide window. buildSearchRequest with the price
+    // sort value still produces a request without orderBy, and the popularity
+    // boost stays attached because applySort returns false.
     SearchRequest req = service.buildSearchRequest("q", null, null, null, null, "price_asc", 0, 20);
-    // `price` is the key property Vertex recognizes for sort on generic
-    // vertical; the schema's `keyPropertyMapping: price` on `minPrice` wires
-    // our field into that key.
-    assertThat(req.getOrderBy()).isEqualTo("price asc");
-    assertThat(req.getBoostSpec().getConditionBoostSpecsCount()).isZero();
-  }
-
-  @Test
-  void priceDescSortSetsOrderByAndSkipsBoostSpec() {
-    SearchRequest req =
-        service.buildSearchRequest("q", null, null, null, null, "price_desc", 0, 20);
-    assertThat(req.getOrderBy()).isEqualTo("price desc");
+    assertThat(req.getOrderBy()).isEmpty();
+    assertThat(req.getBoostSpec().getConditionBoostSpecsCount()).isEqualTo(5);
   }
 
   @Test
   void unknownSortKeyTreatedAsRelevance() {
     SearchRequest req = service.buildSearchRequest("q", null, null, null, null, "name_asc", 0, 20);
-    // `name_asc` is no longer supported (Vertex generic vertical only sorts
-    // on predefined key properties). Unknown sort values fall through to
-    // relevance with the popularity boost re-attached.
     assertThat(req.getOrderBy()).isEmpty();
     assertThat(req.getBoostSpec().getConditionBoostSpecsCount()).isEqualTo(5);
   }
@@ -110,41 +107,136 @@ class VertexAiSearchQueryServiceTest {
         .contains("popularityScore");
   }
 
+  // ─── client-side sort ──────────────────────────────────────────────────
+
   @Test
-  void searchRetriesWithoutSortWhenVertexRejectsOrderBy() {
-    // First call (with orderBy) throws INVALID_ARGUMENT; fallback call
-    // (without orderBy) succeeds. Service must swallow the first error,
-    // emit a second request with no orderBy, and return the success body.
-    SearchResponse empty = SearchResponse.getDefaultInstance();
-    when(mockClient.search(any(SearchRequest.class)).getPage().getResponse())
-        .thenThrow(invalidArgument("Unsupported field in orderBy: minPrice asc"))
-        .thenReturn(empty);
-    // The deep-stub chain above records one invocation on `search`; reset so
-    // the subsequent verify counts only the real service calls.
+  void priceComparatorAscSortsNullsLast() {
+    List<SearchHit> hits =
+        Arrays.asList(hit("c", 3000L), hit("a", null), hit("b", 1000L), hit("d", 2000L));
+    hits.sort(VertexAiSearchQueryService.priceComparator("price_asc"));
+    assertThat(hits).extracting(SearchHit::productId).containsExactly("b", "d", "c", "a");
+  }
+
+  @Test
+  void priceComparatorDescSortsNullsLast() {
+    List<SearchHit> hits =
+        Arrays.asList(hit("c", 3000L), hit("a", null), hit("b", 1000L), hit("d", 2000L));
+    hits.sort(VertexAiSearchQueryService.priceComparator("price_desc"));
+    assertThat(hits).extracting(SearchHit::productId).containsExactly("c", "d", "b", "a");
+  }
+
+  @Test
+  void priceAscReturnsMonotonicNonDecreasingHits() {
+    SearchResponse response =
+        searchResponseOf(docHit("c", 3000L), docHit("a", 1000L), docHit("b", 2000L));
+    when(mockClient.search(any(SearchRequest.class)).getPage().getResponse()).thenReturn(response);
     Mockito.clearInvocations(mockClient);
 
     ProductSearchResponse result = service.search("q", null, null, null, null, "price_asc", 0, 20);
-    assertThat(result).isNotNull();
 
+    assertThat(result.content())
+        .extracting(SearchHit::minPrice)
+        .containsExactly(1000L, 2000L, 3000L);
+    // Discovery Engine was called exactly once with pageSize=100, no orderBy.
     ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
-    verify(mockClient, times(2)).search(captor.capture());
-    // First request carries the orderBy; second is the relevance fallback.
-    assertThat(captor.getAllValues().get(0).getOrderBy()).isEqualTo("price asc");
-    assertThat(captor.getAllValues().get(1).getOrderBy()).isEmpty();
+    verify(mockClient, times(1)).search(captor.capture());
+    SearchRequest emitted = captor.getValue();
+    assertThat(emitted.getOrderBy()).isEmpty();
+    assertThat(emitted.getPageSize()).isEqualTo(VertexAiSearchQueryService.CLIENT_SORT_WINDOW);
+    assertThat(emitted.getOffset()).isZero();
+  }
+
+  @Test
+  void priceDescReturnsMonotonicNonIncreasingHits() {
+    SearchResponse response =
+        searchResponseOf(docHit("a", 1000L), docHit("c", 3000L), docHit("b", 2000L));
+    when(mockClient.search(any(SearchRequest.class)).getPage().getResponse()).thenReturn(response);
+    Mockito.clearInvocations(mockClient);
+
+    ProductSearchResponse result = service.search("q", null, null, null, null, "price_desc", 0, 20);
+
+    assertThat(result.content())
+        .extracting(SearchHit::minPrice)
+        .containsExactly(3000L, 2000L, 1000L);
+  }
+
+  @Test
+  void clientSideSortAppliesCallerPaginationToSortedList() {
+    SearchResponse response =
+        searchResponseOf(
+            docHit("e", 5000L),
+            docHit("a", 1000L),
+            docHit("d", 4000L),
+            docHit("b", 2000L),
+            docHit("c", 3000L));
+    when(mockClient.search(any(SearchRequest.class)).getPage().getResponse()).thenReturn(response);
+    Mockito.clearInvocations(mockClient);
+
+    // page=1, size=2 over globally-sorted [1000, 2000, 3000, 4000, 5000] → [3000, 4000].
+    ProductSearchResponse result = service.search("q", null, null, null, null, "price_asc", 1, 2);
+
+    assertThat(result.content()).extracting(SearchHit::minPrice).containsExactly(3000L, 4000L);
+    assertThat(result.number()).isEqualTo(1);
+    assertThat(result.size()).isEqualTo(2);
+  }
+
+  // ─── defense-in-depth: orderBy fallback still fires for non-price sorts ───
+
+  @Test
+  void searchRetriesWithoutSortWhenVertexRejectsOrderByForNonPriceSort() {
+    // Client-side sort only intercepts price_asc/price_desc. For any other
+    // non-null sort value a future commit might set via applySort(), the
+    // isInvalidOrderBy fallback must still catch an orderBy rejection.
+    SearchResponse empty = SearchResponse.getDefaultInstance();
+    when(mockClient.search(any(SearchRequest.class)).getPage().getResponse())
+        .thenThrow(invalidArgument("Unsupported field in orderBy: rating asc"))
+        .thenReturn(empty);
+    Mockito.clearInvocations(mockClient);
+
+    ProductSearchResponse result = service.search("q", null, null, null, null, "rating_asc", 0, 20);
+    assertThat(result).isNotNull();
+    verify(mockClient, times(2)).search(any(SearchRequest.class));
   }
 
   @Test
   void searchPropagatesInvalidArgumentThatIsUnrelatedToOrderBy() {
-    // INVALID_ARGUMENT on filter (or any other reason) must NOT trigger
-    // the fallback — the bug would otherwise be masked and hard to debug.
     when(mockClient.search(any(SearchRequest.class)).getPage().getResponse())
         .thenThrow(invalidArgument("Invalid filter expression: foo"));
     Mockito.clearInvocations(mockClient);
 
-    assertThatThrownBy(() -> service.search("q", null, null, null, null, "price_asc", 0, 20))
+    assertThatThrownBy(() -> service.search("q", null, null, null, null, "rating_asc", 0, 20))
         .isInstanceOf(RuntimeException.class);
-    // Exactly one attempt; no fallback retry.
     verify(mockClient, times(1)).search(any(SearchRequest.class));
+  }
+
+  // ─── helpers ───────────────────────────────────────────────────────────
+
+  private static SearchHit hit(String id, Long price) {
+    return new SearchHit(id, "name-" + id, "desc", price, "area-x", "cat-y");
+  }
+
+  private static SearchResponse.SearchResult docHit(String id, Long price) {
+    Struct.Builder struct =
+        Struct.newBuilder()
+            .putFields("productId", Value.newBuilder().setStringValue(id).build())
+            .putFields("name", Value.newBuilder().setStringValue("name-" + id).build())
+            .putFields("description", Value.newBuilder().setStringValue("desc").build())
+            .putFields("areaId", Value.newBuilder().setStringValue("area-x").build())
+            .putFields("categoryId", Value.newBuilder().setStringValue("cat-y").build());
+    if (price != null) {
+      struct.putFields("minPrice", Value.newBuilder().setNumberValue(price).build());
+    }
+    return SearchResponse.SearchResult.newBuilder()
+        .setDocument(Document.newBuilder().setStructData(struct.build()).build())
+        .build();
+  }
+
+  private static SearchResponse searchResponseOf(SearchResponse.SearchResult... results) {
+    SearchResponse.Builder b = SearchResponse.newBuilder();
+    for (SearchResponse.SearchResult r : results) {
+      b.addResults(r);
+    }
+    return b.setTotalSize(results.length).build();
   }
 
   private static ApiException invalidArgument(String message) {
