@@ -125,38 +125,34 @@ public class VertexAiSearchQueryService implements SearchQueryPort {
         buildSearchRequest(q, areaId, categoryId, minPrice, maxPrice, null, 0, CLIENT_SORT_WINDOW);
     SearchResponse response = executeSearch(request);
     List<SearchHit> hits = extractHits(response);
-    long totalSize = response.getTotalSize();
-    if (totalSize > CLIENT_SORT_WINDOW) {
+    long rawTotal = response.getTotalSize();
+    if (rawTotal > CLIENT_SORT_WINDOW) {
       // Sort is only globally monotonic across the wide window. If filter
       // matches exceed the window, log so we notice before users do.
       log.warn(
           "client-side price sort: totalSize={} exceeds window={} for filter; results not globally sorted",
-          totalSize,
+          rawTotal,
           CLIENT_SORT_WINDOW);
     }
     hits.sort(priceComparator(sort));
-    int start = Math.min(safePage * safeSize, hits.size());
-    int end = Math.min(start + safeSize, hits.size());
-    return new ProductSearchResponse(hits.subList(start, end), totalSize, safePage, safeSize);
+    // Cap totalElements to the sort window. Returning rawTotal would let
+    // callers compute phantom pages past hits.size() (empty content but a
+    // page index that looks valid); capping keeps page math honest.
+    long cappedTotal = Math.min(rawTotal, (long) CLIENT_SORT_WINDOW);
+    // Long math avoids int overflow on large safePage * safeSize products.
+    int start = (int) Math.min((long) safePage * safeSize, (long) hits.size());
+    int end = (int) Math.min((long) start + safeSize, (long) hits.size());
+    return new ProductSearchResponse(hits.subList(start, end), cappedTotal, safePage, safeSize);
   }
 
-  /** Nulls always trail; direction only swaps non-null comparisons. */
+  /**
+   * Price comparator with nulls-last in both directions. Direction swaps the non-null comparison
+   * only; nulls trail independent of ascending/descending.
+   */
   static Comparator<SearchHit> priceComparator(String sort) {
     boolean desc = "price_desc".equals(sort);
-    return (a, b) -> {
-      Long pa = a.minPrice();
-      Long pb = b.minPrice();
-      if (pa == null && pb == null) {
-        return 0;
-      }
-      if (pa == null) {
-        return 1;
-      }
-      if (pb == null) {
-        return -1;
-      }
-      return desc ? Long.compare(pb, pa) : Long.compare(pa, pb);
-    };
+    Comparator<Long> direction = desc ? Comparator.reverseOrder() : Comparator.naturalOrder();
+    return Comparator.comparing(SearchHit::minPrice, Comparator.nullsLast(direction));
   }
 
   private static boolean isInvalidOrderBy(Throwable t) {
@@ -251,12 +247,15 @@ public class VertexAiSearchQueryService implements SearchQueryPort {
     return f.toString();
   }
 
+  /**
+   * Extension point for future non-price sort values (rating, name, etc.). Returns {@code true}
+   * when an orderBy was applied so the caller knows to skip the popularity boost. Always {@code
+   * false} today: {@code price_asc}/{@code price_desc} are intercepted upstream and handled
+   * client-side, and no other sort value is supported. Kept as a hook so {@code buildSearchRequest}
+   * doesn't need restructuring when a new sort lands. Any orderBy Discovery Engine rejects at
+   * runtime falls back to relevance order via {@code isInvalidOrderBy}.
+   */
   private boolean applySort(SearchRequest.Builder builder, String sort) {
-    // `price_asc` / `price_desc` are handled in the caller via client-side
-    // sort and never reach here. Other sort values fall through to relevance
-    // order with the popularity boost applied; if a future commit tries to
-    // emit an orderBy that Discovery Engine rejects, isInvalidOrderBy
-    // retries without orderBy so the user never sees a 500.
     return false;
   }
 

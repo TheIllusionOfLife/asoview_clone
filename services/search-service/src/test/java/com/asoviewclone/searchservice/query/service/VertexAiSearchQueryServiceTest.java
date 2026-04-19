@@ -81,11 +81,11 @@ class VertexAiSearchQueryServiceTest {
   }
 
   @Test
-  void priceSortIsHandledClientSideNotByOrderBy() {
-    // Price sort skips Discovery Engine orderBy entirely — it's applied in
-    // Java after fetching a wide window. buildSearchRequest with the price
-    // sort value still produces a request without orderBy, and the popularity
-    // boost stays attached because applySort returns false.
+  void buildSearchRequestEmitsNoOrderByForPriceSortDefenseInDepth() {
+    // Defense-in-depth: price_asc/price_desc are intercepted upstream by
+    // search() and never reach buildSearchRequest. This test pins the low-level
+    // invariant that even if they did, applySort returns false (no orderBy)
+    // and the popularity boost stays attached.
     SearchRequest req = service.buildSearchRequest("q", null, null, null, null, "price_asc", 0, 20);
     assertThat(req.getOrderBy()).isEmpty();
     assertThat(req.getBoostSpec().getConditionBoostSpecsCount()).isEqualTo(5);
@@ -178,6 +178,41 @@ class VertexAiSearchQueryServiceTest {
     assertThat(result.content()).extracting(SearchHit::minPrice).containsExactly(3000L, 4000L);
     assertThat(result.number()).isEqualTo(1);
     assertThat(result.size()).isEqualTo(2);
+  }
+
+  @Test
+  void clientSideSortCapsTotalSizeToWindowWhenMatchesExceedIt() {
+    // Discovery Engine reports 250 total matches but only returns 100.
+    // ProductSearchResponse must cap totalElements at CLIENT_SORT_WINDOW so
+    // callers don't compute phantom pages (251-indexed pageCount where
+    // content is always empty past page 100/size).
+    SearchResponse.Builder b = SearchResponse.newBuilder().setTotalSize(250);
+    for (int i = 0; i < VertexAiSearchQueryService.CLIENT_SORT_WINDOW; i++) {
+      b.addResults(docHit("p" + i, (long) (i * 100)));
+    }
+    when(mockClient.search(any(SearchRequest.class)).getPage().getResponse()).thenReturn(b.build());
+    Mockito.clearInvocations(mockClient);
+
+    ProductSearchResponse result = service.search("q", null, null, null, null, "price_asc", 0, 20);
+
+    assertThat(result.totalElements()).isEqualTo(VertexAiSearchQueryService.CLIENT_SORT_WINDOW);
+  }
+
+  @Test
+  void clientSideSortReturnsEmptyContentWhenPageExceedsWindow() {
+    // page=10 at size=20 → offset 200, which is well past the 100-doc window.
+    // subList must not throw; content is empty; totalElements still capped.
+    SearchResponse.Builder b = SearchResponse.newBuilder().setTotalSize(500);
+    for (int i = 0; i < VertexAiSearchQueryService.CLIENT_SORT_WINDOW; i++) {
+      b.addResults(docHit("p" + i, (long) (i * 100)));
+    }
+    when(mockClient.search(any(SearchRequest.class)).getPage().getResponse()).thenReturn(b.build());
+    Mockito.clearInvocations(mockClient);
+
+    ProductSearchResponse result = service.search("q", null, null, null, null, "price_asc", 10, 20);
+
+    assertThat(result.content()).isEmpty();
+    assertThat(result.totalElements()).isEqualTo(VertexAiSearchQueryService.CLIENT_SORT_WINDOW);
   }
 
   // ─── defense-in-depth: orderBy fallback still fires for non-price sorts ───

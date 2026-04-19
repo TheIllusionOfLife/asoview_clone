@@ -50,6 +50,14 @@ Sort client-side in `VertexAiSearchQueryService`:
 4. Apply the caller's original `(page, size)` to the sorted list and
    return.
 
+`ProductSearchResponse.totalElements` is capped at `CLIENT_SORT_WINDOW` on
+the price-sort path. Discovery Engine's `totalSize` can legitimately exceed
+the window (up to all filter matches), but returning the raw total would
+let callers compute phantom pages past `hits.size()` — empty content with
+a page index that looks valid. The cap keeps `totalPages = ceil(total /
+size)` honest at the cost of hiding the "there's actually more" signal on
+the price-sort path only.
+
 Retail-vertical migration stays on the long-term roadmap but is not
 scheduled.
 
