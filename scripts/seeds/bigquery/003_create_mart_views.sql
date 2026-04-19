@@ -1,6 +1,12 @@
 -- Create analytics_mart views over analytics_raw tables.
 -- Idempotent: CREATE OR REPLACE VIEW.
 -- Run: bq query --use_legacy_sql=false --project_id=asoview-clone-dev < scripts/seeds/bigquery/003_create_mart_views.sql
+--
+-- NOTE: Terraform now owns these views via `google_bigquery_table` resources
+-- in `infra/terraform/modules/bigquery/main.tf`. A `terraform apply` in the
+-- dev environment is the normal bring-up path. This SQL file is kept in sync
+-- with the Terraform view definitions and serves as the recovery path if
+-- Terraform state is ever lost or as a quick manual reference.
 
 -- Daily bookings aggregation
 CREATE OR REPLACE VIEW `asoview-clone-dev.analytics_mart.daily_bookings` AS
