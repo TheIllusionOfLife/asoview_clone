@@ -332,6 +332,21 @@ test.describe("orders + reservations + tickets", () => {
   });
 });
 
+// ─── signin surface ──────────────────────────────────────────────────
+
+test.describe("sign-in surface", () => {
+  test("/ja/signin renders Continue with Google button", async ({ page }) => {
+    // Flags: asoview-web image built with NEXT_PUBLIC_ENABLE_GOOGLE_SIGNIN=true
+    // (via _ENABLE_GOOGLE_SIGNIN Cloud Build substitution) and Identity
+    // Platform's google.com provider carries real OAuth creds sourced from
+    // Secret Manager. The full OAuth handshake is verified manually — a
+    // headless Playwright flow against Google is out of scope.
+    await page.goto("/ja/signin");
+    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("button", { name: /Continue with Google/ })).toBeVisible();
+  });
+});
+
 // ─── reviews: submit + helpful ───────────────────────────────────────
 
 test.describe("reviews write path", () => {
