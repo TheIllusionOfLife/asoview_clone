@@ -27,3 +27,15 @@ billing_account_id = "REPLACE-ME-WITH-BILLING-ID"
 
 # Email that receives Cloud Billing budget + monitoring alerts for dev.
 notification_email = "you@example.com"
+
+# Google OAuth 2.0 Web Client ID for Identity Platform Google sign-in.
+# Provisioned manually in GCP Console (APIs & Services → Credentials →
+# OAuth client ID). See docs/operations/google-oauth-setup.md for the
+# operator steps including consent screen + test-user setup. The matching
+# client_secret lives in Secret Manager at
+# projects/<number>/secrets/identity-platform-google-client-secret (v1).
+google_oauth_client_id = "XXXXXXXXXX-xxxxxxxxxxxxxxxx.apps.googleusercontent.com"
+
+# Optional override if the secret is stored under a different resource ID
+# (defaults to the dev-env secret):
+# google_oauth_client_secret_id = "projects/<number>/secrets/identity-platform-google-client-secret"

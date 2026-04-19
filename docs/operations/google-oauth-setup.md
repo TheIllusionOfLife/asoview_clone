@@ -39,11 +39,18 @@ Identity Platform forwards these to Google at sign-in time. A real OAuth 2.0 Web
    The client ID is not a secret and can be wired via a Terraform variable directly.
 
 4. **Wire the real values into Terraform**.
-   - Add two variables to `infra/terraform/modules/identity-platform/variables.tf`:
-     - `google_oauth_client_id` (string)
-     - `google_oauth_client_secret` (string, sensitive; sourced via `data.google_secret_manager_secret_version`).
-   - Replace the placeholder strings in the module resource.
-   - `terraform apply` in `infra/terraform/environments/dev/`.
+   - Set `google_oauth_client_id` and (optionally) `google_oauth_client_secret_id` in
+     `infra/terraform/environments/<env>/terraform.tfvars`. The secret ID defaults
+     to `projects/<project-number>/secrets/identity-platform-google-client-secret`.
+   - **Pre-provision the Identity Platform service agent** once per project — the
+     first `terraform apply` of the new IAM binding fails if the agent hasn't been
+     created yet:
+     ```sh
+     gcloud beta services identity create \
+       --service=identitytoolkit.googleapis.com \
+       --project=<project-id>
+     ```
+   - `terraform apply` in `infra/terraform/environments/<env>/`.
 
 5. **Enable the frontend button**.
    - In `infra/k8s/web/overlays/dev/kustomization.yaml`, add
