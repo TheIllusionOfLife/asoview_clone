@@ -234,9 +234,10 @@ export function ReservationForm({ venueId }: { venueId: string }) {
           <input
             type="text"
             required
+            autoComplete="name"
             value={guestName}
             onChange={(e) => setGuestName(e.target.value)}
-            className="mt-1 block w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
+            className="mt-1 block min-h-[44px] w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
           />
         </label>
         <label className="block text-sm">
@@ -244,9 +245,11 @@ export function ReservationForm({ venueId }: { venueId: string }) {
           <input
             type="email"
             required
+            inputMode="email"
+            autoComplete="email"
             value={guestEmail}
             onChange={(e) => setGuestEmail(e.target.value)}
-            className="mt-1 block w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
+            className="mt-1 block min-h-[44px] w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
           />
         </label>
         <label className="block text-sm">
@@ -255,7 +258,7 @@ export function ReservationForm({ venueId }: { venueId: string }) {
             value={guestCount}
             onChange={(e) => setGuestCount(Number(e.target.value))}
             disabled={!selected}
-            className="mt-1 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm disabled:opacity-50"
+            className="mt-1 min-h-[44px] rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm disabled:opacity-50"
           >
             {Array.from({ length: maxQty }, (_, i) => i + 1).map((n) => (
               <option key={n} value={n}>
@@ -269,7 +272,7 @@ export function ReservationForm({ venueId }: { venueId: string }) {
         <button
           type="submit"
           disabled={!selected || submitting || !ready || !guestName.trim() || !guestEmail.trim()}
-          className="w-full rounded-[var(--radius-md)] bg-[var(--color-primary)] px-5 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full min-h-[44px] rounded-[var(--radius-md)] bg-[var(--color-primary)] px-5 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {submitting ? t("submitting") : t("submitButton")}
         </button>

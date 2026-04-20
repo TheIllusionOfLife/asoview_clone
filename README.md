@@ -11,7 +11,7 @@ on the client side) while swapping AWS for GCP-native equivalents.
 
 | Surface | URL | Status |
 |---|---|---|
-| asoview! consumer marketplace | https://asoview-clone-dev.duckdns.org | Full funnel: browse, search, checkout (Stripe test mode), orders, favorites, points. AI recommendations, chatbot, popularity-boosted search all enabled via Gemini + BigQuery ranking sync. |
+| asoview! consumer marketplace | https://asoview-clone-dev.duckdns.org | Full funnel: browse, search, checkout (Stripe test mode), orders, favorites, points. AI recommendations, chatbot, popularity-boosted search all enabled via Gemini + BigQuery ranking sync. Installable as a PWA with offline fallback (`docs/adr/003-pwa-hand-rolled-minimal-sw.md`). |
 | UraKata Ticket — consumer display | https://asoview-tickets.duckdns.org | Signed-in consumer lists ticket passes, taps one to show QR at the gate. |
 | UraKata Reservation — operator UI | https://asoview-operator.duckdns.org | Operators run slot CRUD + reservation approval; SMTP notifications via MailHog in dev. |
 | UraKata Ticket — scanner-app | Expo Go / EAS internal build | Camera scan → `POST /v1/op/tickets/redeem` with Firebase-token zero-trust auth + Spanner FGAC enforcement. See `apps/scanner-app/README.md`. |

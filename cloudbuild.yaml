@@ -27,6 +27,11 @@
 #   _DOMAIN       e.g. asoview-clone.dev
 #   _FIREBASE_API_KEY, _FIREBASE_AUTH_DOMAIN, _FIREBASE_PROJECT_ID,
 #   _FIREBASE_APP_ID, _STRIPE_PUBLISHABLE_KEY
+# Optional (defaults to "false"):
+#   _ENABLE_GOOGLE_SIGNIN — set to "true" to show the Google sign-in
+#   button on asoview-web (requires Identity Platform Google provider
+#   wired with real OAuth creds; see
+#   docs/operations/google-oauth-setup.md).
 #
 # Sensitive values (Firebase API key, Stripe publishable key) should
 # live in Secret Manager and be wired via availableSecrets at the
@@ -49,6 +54,12 @@ substitutions:
   _FIREBASE_PROJECT_ID: ""
   _FIREBASE_APP_ID: ""
   _STRIPE_PUBLISHABLE_KEY: ""
+  # Bakes NEXT_PUBLIC_ENABLE_GOOGLE_SIGNIN into the asoview-web bundle at
+  # build time. Flip to "true" on the trigger when Identity Platform has
+  # real OAuth creds wired (see docs/operations/google-oauth-setup.md).
+  # Any value other than the string "true" keeps the button hidden via
+  # the fail-closed check in apps/asoview-web/src/lib/auth.tsx.
+  _ENABLE_GOOGLE_SIGNIN: "false"
 
 options:
   # E2_HIGHCPU_32 (32 vCPU / 32 GB RAM): the 6 parallel Gradle builds
@@ -170,6 +181,8 @@ steps:
       - NEXT_PUBLIC_FIREBASE_APP_ID=${_FIREBASE_APP_ID}
       - --build-arg
       - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${_STRIPE_PUBLISHABLE_KEY}
+      - --build-arg
+      - NEXT_PUBLIC_ENABLE_GOOGLE_SIGNIN=${_ENABLE_GOOGLE_SIGNIN}
       - -t
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/web:$SHORT_SHA
       - -t
