@@ -17,7 +17,7 @@ bucket4j = "8.10.1"
 caffeine = "3.2.3"
 bouncycastle = "1.83"
 jjwt = "0.13.0"
-archunit = "1.4.1"
+archunit = "1.4.2"
 google-genai = "1.47.0"
 google-cloud-libraries-bom = "26.68.0"
 
