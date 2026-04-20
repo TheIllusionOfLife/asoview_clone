@@ -60,6 +60,8 @@ export function buildCsp(env: NodeJS.ProcessEnv = process.env): string {
     "img-src 'self' data: https://*.googleusercontent.com https://images.unsplash.com",
     `connect-src ${connect.join(" ")}`,
     `frame-src ${frame.join(" ")}`,
+    "manifest-src 'self'",
+    "worker-src 'self'",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
