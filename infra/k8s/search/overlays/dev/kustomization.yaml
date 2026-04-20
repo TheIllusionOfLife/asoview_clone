@@ -10,4 +10,4 @@ patches:
       name: search-service
 images:
   - name: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/search-service
-    newTag: "69d5a7b"
+    newTag: "ed902a4"

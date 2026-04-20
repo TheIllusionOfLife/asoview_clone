@@ -5,4 +5,4 @@ resources:
   - ../../base
 images:
   - name: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/analytics-ingest
-    newTag: "69d5a7b"
+    newTag: "ed902a4"
