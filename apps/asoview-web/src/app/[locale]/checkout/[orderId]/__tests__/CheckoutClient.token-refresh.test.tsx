@@ -14,7 +14,7 @@
  * the same `uid` must NOT re-run the init effect.
  */
 
-import { act, render, waitFor } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // ---- Mocks (must be set up before importing the component under test) ----

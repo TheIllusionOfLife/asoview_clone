@@ -1,8 +1,16 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.4.12/schema.json",
   "files": {
-    "include": ["apps/**/*.ts", "apps/**/*.tsx", "libraries/**/*.ts", "libraries/**/*.tsx"],
-    "ignore": ["**/node_modules", "**/.next", "**/.expo", "**/dist"]
+    "includes": [
+      "**/apps/**/*.ts",
+      "**/apps/**/*.tsx",
+      "**/libraries/**/*.ts",
+      "**/libraries/**/*.tsx",
+      "!**/node_modules",
+      "!**/.next",
+      "!**/.expo",
+      "!**/dist"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -13,7 +21,15 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
+      "recommended": true,
+      "a11y": {
+        "noStaticElementInteractions": "off",
+        "useAriaPropsSupportedByRole": "off",
+        "useSemanticElements": "off"
+      },
+      "performance": {
+        "noImgElement": "off"
+      }
     }
   },
   "javascript": {

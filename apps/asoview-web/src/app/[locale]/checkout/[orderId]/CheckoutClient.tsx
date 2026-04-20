@@ -26,19 +26,18 @@
  *       - CONFIRMING → keep polling (transient).
  */
 
-import { Link } from "@/i18n/navigation";
-import { useRouter } from "@/i18n/navigation";
-import { ApiError, NetworkError, SignInRedirect, api } from "@/lib/api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useRouter } from "@/i18n/navigation";
+import { ApiError, api, NetworkError, SignInRedirect } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { clearCart, readCart, writeCart } from "@/lib/cart";
 import { clearIdempotencyKey, clearOrderFingerprint, getOrderFingerprint } from "@/lib/idempotency";
 import type { OrderResponse, OrderStatus, PaymentResponse } from "@/lib/types";
-import { useCallback, useEffect, useRef, useState } from "react";
 
 const POLL_INTERVAL_MS = 1500;
 const POLL_TIMEOUT_MS = 30_000;
 const PAYMENT_PENDING_FLAG_PREFIX = "asoview:payment-pending:";
-const TERMINAL_STATES: ReadonlySet<OrderStatus> = new Set(["PAID", "CANCELLED", "FAILED"]);
+const _TERMINAL_STATES: ReadonlySet<OrderStatus> = new Set(["PAID", "CANCELLED", "FAILED"]);
 
 function paymentPendingKey(orderId: string): string {
   return `${PAYMENT_PENDING_FLAG_PREFIX}${orderId}`;
@@ -76,13 +75,7 @@ function clearOrderLinesFromCart(uid: string | null, order: OrderResponse): void
   }
 }
 
-export function CheckoutClient({
-  orderId,
-  fakeMode,
-}: {
-  orderId: string;
-  fakeMode: boolean;
-}) {
+export function CheckoutClient({ orderId, fakeMode }: { orderId: string; fakeMode: boolean }) {
   const router = useRouter();
   const { user, ready } = useAuth();
   const [order, setOrder] = useState<OrderResponse | null>(null);

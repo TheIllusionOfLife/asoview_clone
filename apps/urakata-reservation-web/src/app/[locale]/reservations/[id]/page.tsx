@@ -1,11 +1,11 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import { ReasonModal } from "@/components/ReasonModal";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Link } from "@/i18n/navigation";
 import { ApiError, api } from "@/lib/api";
-import { useTranslations } from "next-intl";
-import { use, useCallback, useEffect, useRef, useState } from "react";
 
 type Reservation = {
   reservationId: string;
@@ -34,11 +34,7 @@ type AuditEntry = {
 
 const TERMINAL_STATUSES = ["REJECTED", "CANCELLED", "COMPLETED"];
 
-export default function ReservationDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function ReservationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const t = useTranslations("reservations");
   const tc = useTranslations("common");

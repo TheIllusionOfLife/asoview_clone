@@ -1,9 +1,9 @@
 "use client";
 
-import { AppleWalletButton } from "@/components/wallet/AppleWalletButton";
-import { GoogleWalletButton } from "@/components/wallet/GoogleWalletButton";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { AppleWalletButton } from "@/components/wallet/AppleWalletButton";
+import { GoogleWalletButton } from "@/components/wallet/GoogleWalletButton";
 
 type TicketView = {
   ticketPassId: string;

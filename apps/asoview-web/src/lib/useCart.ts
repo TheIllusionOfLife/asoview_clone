@@ -9,9 +9,9 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useAuth } from "./auth";
 import {
+  addLine,
   type Cart,
   type CartLine,
-  addLine,
   emptyCart,
   mergeGuestIntoUser,
   readCart,

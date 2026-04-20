@@ -1,8 +1,8 @@
-import { Link } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 import { CartBadge } from "./CartBadge";
-import { ThemeToggle } from "./ThemeToggle";
 import { PointsBalance } from "./points/PointsBalance";
+import { ThemeToggle } from "./ThemeToggle";
 
 export function Header() {
   const t = useTranslations("nav");

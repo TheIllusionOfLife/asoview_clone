@@ -1,19 +1,19 @@
 "use client";
 
+import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "@/i18n/navigation";
 import {
   ApiError,
+  listAvailableSlots,
   NetworkError,
+  requestReservation,
   SignInRedirect,
   type SlotAvailability,
-  listAvailableSlots,
-  requestReservation,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { addDaysIso, todayIsoJst } from "@/lib/slot-date";
-import { useTranslations } from "next-intl";
-import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const IDEM_STORAGE_PREFIX = "asoview:idem:rsv:";
 

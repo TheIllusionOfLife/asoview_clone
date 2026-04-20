@@ -1,10 +1,10 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+import { useState } from "react";
 import { VenueSelector } from "@/components/VenueSelector";
 import { useRouter } from "@/i18n/navigation";
 import { api } from "@/lib/api";
-import { useTranslations } from "next-intl";
-import { useState } from "react";
 
 export default function CreateSlotPage() {
   const t = useTranslations("slots");

@@ -1,13 +1,13 @@
-import { SlotPicker } from "@/components/SlotPicker";
+import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { FavoriteToggle } from "@/components/favorites/FavoriteToggle";
 import { SimilarProducts } from "@/components/recommendations/SimilarProducts";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
 import { ReviewList } from "@/components/reviews/ReviewList";
+import { SlotPicker } from "@/components/SlotPicker";
 import { Link } from "@/i18n/navigation";
 import { ServerFetchError, serverGet } from "@/lib/server-api";
 import type { ProductResponse } from "@/lib/types";
-import { getTranslations } from "next-intl/server";
-import { notFound } from "next/navigation";
 
 export const revalidate = 60;
 

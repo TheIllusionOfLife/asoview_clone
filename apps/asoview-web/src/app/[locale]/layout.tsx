@@ -1,8 +1,3 @@
-import { Footer } from "@/components/Footer";
-import { Header } from "@/components/Header";
-import { routing } from "@/i18n/routing";
-import { NextIntlClientProvider, hasLocale } from "next-intl";
-import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
 /**
  * Locale-scoped layout. Validates the locale segment, pins the active
  * locale into next-intl's request context, hands messages to
@@ -12,6 +7,11 @@ import { getMessages, getTranslations, setRequestLocale } from "next-intl/server
  * theme/auth providers; anything that calls next-intl APIs lives here.
  */
 import { notFound } from "next/navigation";
+import { hasLocale, NextIntlClientProvider } from "next-intl";
+import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
+import { Footer } from "@/components/Footer";
+import { Header } from "@/components/Header";
+import { routing } from "@/i18n/routing";
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));

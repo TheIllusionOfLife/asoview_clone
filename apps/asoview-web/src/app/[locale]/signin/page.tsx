@@ -1,10 +1,10 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter } from "@/i18n/navigation";
 import { useAuth } from "@/lib/auth";
 import { sanitizeNext } from "@/lib/redirect";
-import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
 
 // Google sign-in is gated behind an explicit build-time flag because the
 // Terraform-managed Identity Platform config in
