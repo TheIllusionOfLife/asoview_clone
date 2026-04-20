@@ -362,3 +362,37 @@ test.describe("reviews write path", () => {
     expect([200, 201, 403, 409]).toContain(r.status());
   });
 });
+
+// ─── PWA: manifest + service worker + offline page ───────────────────
+
+test.describe("PWA assets", () => {
+  test("manifest.webmanifest served", async ({ request }) => {
+    const r = await request.get("/manifest.webmanifest");
+    expect(r.status()).toBe(200);
+    expect(r.headers()["content-type"] ?? "").toMatch(/application\/manifest\+json/);
+    const body = await r.json();
+    expect(body.name).toBe("AsoClone");
+    expect(Array.isArray(body.icons)).toBe(true);
+    expect((body.icons as unknown[]).length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("sw.js served with a JS mime type", async ({ request }) => {
+    const r = await request.get("/sw.js");
+    expect(r.status()).toBe(200);
+    expect(r.headers()["content-type"] ?? "").toMatch(/(application|text)\/javascript/);
+  });
+
+  test("<link rel=manifest> present on home HTML", async ({ page }) => {
+    await page.goto("/ja");
+    const href = await page.locator('link[rel="manifest"]').first().getAttribute("href");
+    expect(href).toBeTruthy();
+    expect(href).toMatch(/manifest\.webmanifest$/);
+  });
+
+  test("/ja/offline renders", async ({ page }) => {
+    await page.goto("/ja/offline");
+    await expect(page.getByRole("button", { name: /再読み込み|Retry/ })).toBeVisible({
+      timeout: 10_000,
+    });
+  });
+});

@@ -28,4 +28,10 @@ describe("buildCsp", () => {
       expect(csp).toContain("https://js.stripe.com");
     }
   });
+
+  it("allowlists manifest-src and worker-src for PWA", () => {
+    const csp = buildCsp({ ...baseEnv, NODE_ENV: "production" });
+    expect(csp).toContain("manifest-src 'self'");
+    expect(csp).toContain("worker-src 'self'");
+  });
 });
