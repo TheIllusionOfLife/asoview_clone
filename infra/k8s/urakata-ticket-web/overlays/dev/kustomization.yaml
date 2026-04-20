@@ -5,4 +5,4 @@ resources:
   - ../../base
 images:
   - name: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/urakata-ticket-web
-    newTag: "7fc097c"
+    newTag: "1f66157"
