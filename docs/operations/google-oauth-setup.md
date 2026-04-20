@@ -1,23 +1,13 @@
 # Google Sign-In Setup (one-time, manual)
 
-Status: pending. Google sign-in on `apps/asoview-web` is gated out until this runbook is completed. The button is hidden behind `NEXT_PUBLIC_ENABLE_GOOGLE_SIGNIN`; leaving the flag unset is the fail-closed default.
+Status: the Terraform module at `infra/terraform/modules/identity-platform/` registers the Google provider and ships the real `client_id` via variable. The matching `client_secret` is set in GCP Console after `terraform apply`. The `NEXT_PUBLIC_ENABLE_GOOGLE_SIGNIN` build-time flag (Cloud Build substitution `_ENABLE_GOOGLE_SIGNIN`) controls whether the button renders; flip to `true` once sign-in is verified.
 
 ## Why this is manual
 
-The Terraform module at `infra/terraform/modules/identity-platform/main.tf` carries placeholder strings for the Google provider's OAuth client:
+Two reasons the flow cannot be end-to-end Terraformed:
 
-```hcl
-resource "google_identity_platform_default_supported_idp_config" "google" {
-  client_id     = "PLACEHOLDER_OAUTH_CLIENT_ID"
-  client_secret = "PLACEHOLDER_OAUTH_CLIENT_SECRET"
-  enabled       = true
-}
-```
-
-Identity Platform forwards these to Google at sign-in time. A real OAuth 2.0 Web Client has to be provisioned through the GCP Console because:
-
-1. The OAuth consent screen requires interactive review (publisher, scopes, test users) that Terraform cannot automate.
-2. The client secret should land in Secret Manager, not in a committed `.tf` file.
+1. **OAuth consent screen + client provisioning**: creating the OAuth 2.0 Web Client and publishing the consent screen (audience, test users, scopes) requires interactive GCP Console review. No Terraform resource covers that API surface.
+2. **The client_secret must never land in Terraform state**. Any Terraform path that reads or assigns the secret — a `data.google_secret_manager_secret_version`, a `sensitive` input variable, a `-var` at apply time — materializes plaintext into state on every plan/apply. The state backend today is local/unencrypted. The resource is therefore created with a dummy `MANAGED_OUTSIDE_TERRAFORM` placeholder and `lifecycle.ignore_changes = [client_secret]` keeps Terraform from overwriting whatever the operator later pastes via Console.
 
 ## Steps
 
@@ -31,30 +21,44 @@ Identity Platform forwards these to Google at sign-in time. A real OAuth 2.0 Web
    - User type: Internal (org-scoped) if the project sits under a Google Workspace org. External + "Testing" status otherwise — study users must be added as test users.
    - Required scopes: `openid`, `email`, `profile`. Nothing else.
 
-3. **Store the client secret in Secret Manager**.
+3. **Pre-provision the Identity Platform service agent**.
+   - First `terraform apply` of Identity Platform resources fails if the service agent hasn't been created yet. Run once per project:
+     ```sh
+     gcloud beta services identity create \
+       --service=identitytoolkit.googleapis.com \
+       --project=<project-id>
+     ```
+
+4. **Wire the client_id into Terraform**.
+   - Set `google_oauth_client_id` in `infra/terraform/environments/<env>/terraform.tfvars` (the client ID is not a secret — safe to commit to a gitignored tfvars or pass via `TF_VAR_google_oauth_client_id`).
+   - Run `terraform apply` in `infra/terraform/environments/<env>/`. The Identity Platform config is created with `client_id = <real>` and `client_secret = "MANAGED_OUTSIDE_TERRAFORM"`.
+
+5. **Paste the real client_secret via GCP Console**.
+   - GCP Console → Identity Platform → Providers → Google → Edit.
+   - Paste the OAuth client secret generated in step 1.
+   - Save. Sign-in starts working immediately.
+   - Subsequent `terraform apply` runs will NOT overwrite the value because of `lifecycle.ignore_changes`.
+
+   Operator convenience: if you want a backup copy of the secret, store it in Secret Manager manually — it is not referenced by Terraform.
    ```sh
    echo -n "<client-secret>" | gcloud secrets create identity-platform-google-client-secret \
-     --project=asoview-clone-dev --data-file=-
+     --project=<project-id> --data-file=-
    ```
-   The client ID is not a secret and can be wired via a Terraform variable directly.
 
-4. **Wire the real values into Terraform**.
-   - Add two variables to `infra/terraform/modules/identity-platform/variables.tf`:
-     - `google_oauth_client_id` (string)
-     - `google_oauth_client_secret` (string, sensitive; sourced via `data.google_secret_manager_secret_version`).
-   - Replace the placeholder strings in the module resource.
-   - `terraform apply` in `infra/terraform/environments/dev/`.
+6. **Enable the frontend button**.
+   - In the Cloud Build trigger for `web-deploy`, set substitution `_ENABLE_GOOGLE_SIGNIN=true`.
+   - Re-run the trigger. The rebuilt image has `NEXT_PUBLIC_ENABLE_GOOGLE_SIGNIN=true` baked in.
+   - Argo CD rolls out the new image within its sync interval.
 
-5. **Enable the frontend button**.
-   - In `infra/k8s/web/overlays/dev/kustomization.yaml`, add
-     `NEXT_PUBLIC_ENABLE_GOOGLE_SIGNIN=true` to the frontend env.
-   - Update the E2E assertion in `apps/asoview-web/e2e/smoke/live.spec.ts` from "button has count 0" to "button is visible" in the same commit that flips the flag.
-
-6. **Verify**.
-   - `curl https://asoview-clone-dev.duckdns.org/ja/signin` now shows the "Continue with Google" button.
-   - Click it in a browser → OAuth popup → consent → returns signed in.
+7. **Verify**.
+   - `curl -s https://asoview-clone-dev.duckdns.org/ja/signin | grep -i "Continue with Google"` matches.
+   - Click the button in a browser → OAuth popup → consent → returns signed in.
    - Console shows no `auth/internal-error`.
+
+## Rotation
+
+The OAuth client secret rotates via the same Console path as step 5. Terraform remains ignorant of the value. If you rotate: (a) generate a new secret in GCP Console → Credentials, (b) paste it into Identity Platform → Google provider → Edit, (c) optionally update the Secret Manager backup. No `terraform apply` needed.
 
 ## Rollback
 
-Set `NEXT_PUBLIC_ENABLE_GOOGLE_SIGNIN=false` in the overlay and redeploy. The button disappears from the render tree; no data is lost. Email/password sign-in keeps working either way.
+Set substitution `_ENABLE_GOOGLE_SIGNIN=false` on the Cloud Build trigger and re-run. The rebuilt image hides the button; email/password sign-in keeps working. No infra changes.
