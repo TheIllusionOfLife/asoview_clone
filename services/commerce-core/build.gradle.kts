@@ -20,6 +20,7 @@ dependencies {
     // Cloud SQL / JPA
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     runtimeOnly(libs.postgresql)
+    runtimeOnly(libs.jackson.module.kotlin)
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation(libs.flyway.database.postgresql)
 

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#c8553d"/>
+  <g fill="#ffffff">
+    <circle cx="256" cy="200" r="72"/>
+    <path d="M 128 384 Q 256 280 384 384 L 384 416 L 128 416 Z"/>
+    <path d="M 200 320 L 256 240 L 312 320 Z" fill="#c8553d"/>
+  </g>
+  <text x="256" y="460" text-anchor="middle" font-family="sans-serif" font-weight="700" font-size="56" fill="#ffffff">Aso</text>
+</svg>

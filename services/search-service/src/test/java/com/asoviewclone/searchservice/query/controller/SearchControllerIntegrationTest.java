@@ -55,7 +55,8 @@ class SearchControllerIntegrationTest {
   @Test
   void allFilterAndSortParamsFlowThroughToService() throws Exception {
     SearchHit hit =
-        new SearchHit("p-1", "Hot Spring Retreat H", "desc", 4800L, "area-kanto", "cat-culture");
+        new SearchHit(
+            "p-1", "Hot Spring Retreat H", "desc", 4800L, "area-kanto", "cat-culture", 42L);
     when(searchQueryService.search(
             eq("温泉"),
             eq("area-kanto"),

@@ -69,7 +69,7 @@ jobs:
         run: cd apps/${{ matrix.app }} && bunx playwright test --config=playwright.audit.config.ts
       - name: Upload Playwright report on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.app }}-audit-report
           path: apps/${{ matrix.app }}/playwright-report/
