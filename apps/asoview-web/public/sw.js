@@ -9,12 +9,29 @@
 // See `docs/adr/003-pwa-hand-rolled-minimal-sw.md` for the full rationale.
 
 const CACHE_NAME = "asoclone-shell-v1";
+const LOCALES = ["ja", "en"];
+const DEFAULT_LOCALE = "ja";
+const OFFLINE_PATHS = LOCALES.map((loc) => `/${loc}/offline`);
 const PRECACHE_URLS = [
-  "/offline",
+  ...OFFLINE_PATHS,
   "/icons/icon-192.png",
   "/icons/icon-512.png",
   "/manifest.webmanifest",
 ];
+
+function offlinePathForRequest(request) {
+  try {
+    const url = new URL(request.url);
+    const segments = url.pathname.split("/").filter(Boolean);
+    const first = segments[0];
+    if (first && LOCALES.includes(first)) {
+      return `/${first}/offline`;
+    }
+  } catch {
+    // fall through
+  }
+  return `/${DEFAULT_LOCALE}/offline`;
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -68,22 +85,25 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Rule 2: HTML navigation requests → NetworkOnly, fallback to pre-cached
-  // /offline when the network fails. Never cache the navigation response
-  // itself, so live data, RSC streams, and auth-dependent pages always
-  // reflect current server state.
+  // Rule 2: HTML navigation requests → NetworkOnly, fallback to the
+  // pre-cached locale-specific /<locale>/offline when the network fails.
+  // Never cache the navigation response itself, so live data, RSC
+  // streams, and auth-dependent pages always reflect current server state.
   if (request.mode === "navigate") {
+    const fallbackPath = offlinePathForRequest(request);
     event.respondWith(
-      fetch(request).catch(() =>
-        caches.match("/offline", { ignoreSearch: true }).then(
-          (cached) =>
-            cached ??
-            new Response("Offline", {
-              status: 503,
-              headers: { "Content-Type": "text/plain; charset=utf-8" },
-            }),
-        ),
-      ),
+      fetch(request).catch(async () => {
+        const cached =
+          (await caches.match(fallbackPath, { ignoreSearch: true })) ??
+          (await caches.match(`/${DEFAULT_LOCALE}/offline`, { ignoreSearch: true }));
+        return (
+          cached ??
+          new Response("Offline", {
+            status: 503,
+            headers: { "Content-Type": "text/plain; charset=utf-8" },
+          })
+        );
+      }),
     );
     return;
   }

@@ -470,6 +470,50 @@ test.describe("PWA", () => {
     await expect(retry).toBeVisible({ timeout: 10_000 });
   });
 
+  test("offline navigation falls back to the locale offline page", async ({
+    page,
+    browserName,
+    context,
+  }) => {
+    test.skip(browserName !== "chromium", "service worker offline test uses CDP only on Chromium");
+    // First load: register SW + warm cache.
+    await page.goto("/ja", { waitUntil: "networkidle" });
+    await page.waitForFunction(
+      () => navigator.serviceWorker.controller !== null || navigator.serviceWorker.ready,
+      { timeout: 15_000 },
+    );
+    // Wait for the SW to be "activated" so PRECACHE_URLS have been fetched.
+    await page.evaluate(async () => {
+      const reg = await navigator.serviceWorker.ready;
+      // If a worker is still installing/activating, wait for it to settle.
+      if (reg.active?.state !== "activated") {
+        await new Promise<void>((resolve) => {
+          const worker = reg.installing ?? reg.waiting ?? reg.active;
+          if (!worker) return resolve();
+          if (worker.state === "activated") return resolve();
+          worker.addEventListener("statechange", () => {
+            if (worker.state === "activated") resolve();
+          });
+        });
+      }
+    });
+    await context.setOffline(true);
+    try {
+      const response = await page.goto("/ja/areas/does-not-exist", {
+        waitUntil: "domcontentloaded",
+      });
+      // Chromium returns a synthetic response for the SW-served fallback;
+      // status may be 200 (OK from cache) or 0 (opaque). Assert the page
+      // content instead of the raw status.
+      expect(response).toBeTruthy();
+      await expect(page.getByRole("button", { name: /再読み込み|Retry/ })).toBeVisible({
+        timeout: 10_000,
+      });
+    } finally {
+      await context.setOffline(false);
+    }
+  });
+
   test("install banner surfaces on second visit in Chromium", async ({ page, browserName }) => {
     test.skip(browserName !== "chromium", "beforeinstallprompt is Chromium-only");
     // First load primes the visit counter.

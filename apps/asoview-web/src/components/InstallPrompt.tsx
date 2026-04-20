@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // Install prompt UX for PWA installability.
 //
@@ -96,6 +96,7 @@ export function InstallPrompt() {
   const t = useTranslations("pwa");
   const [mode, setMode] = useState<Mode>("none");
   const [hasDeferred, setHasDeferred] = useState<boolean>(deferredPrompt !== null);
+  const visitsRef = useRef<number | null>(null);
 
   useEffect(() => {
     const onChange = (e: DeferredPromptEvent | null) => setHasDeferred(e !== null);
@@ -105,12 +106,20 @@ export function InstallPrompt() {
     };
   }, []);
 
+  // Bump the visit counter exactly once per mount — NOT inside the
+  // `[hasDeferred]` effect below, or `beforeinstallprompt` firing after
+  // hydration would re-run the effect and double-count, triggering the
+  // banner on the very first visit.
   useEffect(() => {
-    // Capability gate first.
     if (isStandalone()) return;
-    const outcome = readOutcome();
-    if (outcome) return;
-    const visits = incrementVisitCount();
+    if (readOutcome()) return;
+    visitsRef.current = incrementVisitCount();
+  }, []);
+
+  useEffect(() => {
+    if (isStandalone()) return;
+    if (readOutcome()) return;
+    const visits = visitsRef.current ?? 0;
     if (hasDeferred && visits >= 2) {
       setMode("android");
       return;
