@@ -19,7 +19,7 @@ bouncycastle = "1.84"
 jjwt = "0.13.0"
 archunit = "1.4.2"
 google-genai = "1.51.0"
-google-cloud-libraries-bom = "26.68.0"
+google-cloud-libraries-bom = "26.80.0"
 
 [libraries]
 # Spring Cloud
