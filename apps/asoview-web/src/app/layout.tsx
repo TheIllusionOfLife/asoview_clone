@@ -29,6 +29,18 @@ const notoSansJp = Noto_Sans_JP({
 export const metadata = {
   title: "AsoClone",
   description: "日本のレジャー・体験予約",
+  appleWebApp: {
+    capable: true,
+    title: "AsoClone",
+  },
+  icons: {
+    apple: "/icons/apple-touch-180.png",
+  },
+};
+
+export const viewport = {
+  themeColor: "#c8553d",
+  viewportFit: "cover" as const,
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
