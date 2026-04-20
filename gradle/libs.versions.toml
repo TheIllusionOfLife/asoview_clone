@@ -47,6 +47,7 @@ flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql
 
 # Database drivers
 postgresql = { module = "org.postgresql:postgresql" }
+jackson-module-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin" }
 
 # Firebase
 firebase-admin = { module = "com.google.firebase:firebase-admin", version.ref = "firebase-admin" }
