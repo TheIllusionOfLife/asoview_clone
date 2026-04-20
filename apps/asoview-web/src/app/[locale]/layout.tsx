@@ -11,6 +11,8 @@ import { hasLocale, NextIntlClientProvider } from "next-intl";
 import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
+import { InstallPrompt } from "@/components/InstallPrompt";
+import { SWRegister } from "@/components/SWRegister";
 import { routing } from "@/i18n/routing";
 
 export function generateStaticParams() {
@@ -43,6 +45,8 @@ export default async function LocaleLayout({ children, params }: Props) {
         {children}
       </main>
       <Footer />
+      <SWRegister />
+      <InstallPrompt />
     </NextIntlClientProvider>
   );
 }

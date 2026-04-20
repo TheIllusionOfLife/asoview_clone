@@ -108,9 +108,10 @@ module "wallet_kms" {
 }
 
 module "identity_platform" {
-  source        = "../../modules/identity-platform"
-  project_id    = var.project_id
-  support_email = var.support_email
+  source                 = "../../modules/identity-platform"
+  project_id             = var.project_id
+  support_email          = var.support_email
+  google_oauth_client_id = var.google_oauth_client_id
 }
 
 # Variables, outputs, and the edge (static IP + managed cert prerequisites)

@@ -6,7 +6,7 @@ spring-cloud-gcp = "8.0.2"
 grpc = "1.80.0"
 protobuf = "4.34.1"
 protobuf-plugin = "0.9.6"
-flyway = "12.3.0"
+flyway = "12.4.0"
 testcontainers = "2.0.4"
 firebase-admin = "9.8.0"
 spring-retry = "2.0.12"
@@ -15,10 +15,10 @@ checkstyle = "13.4.0"
 stripe-java = "32.0.0"
 bucket4j = "8.10.1"
 caffeine = "3.2.3"
-bouncycastle = "1.83"
+bouncycastle = "1.84"
 jjwt = "0.13.0"
-archunit = "1.4.1"
-google-genai = "1.47.0"
+archunit = "1.4.2"
+google-genai = "1.51.0"
 google-cloud-libraries-bom = "26.68.0"
 
 [libraries]
@@ -47,6 +47,7 @@ flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql
 
 # Database drivers
 postgresql = { module = "org.postgresql:postgresql" }
+jackson-module-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin" }
 
 # Firebase
 firebase-admin = { module = "com.google.firebase:firebase-admin", version.ref = "firebase-admin" }

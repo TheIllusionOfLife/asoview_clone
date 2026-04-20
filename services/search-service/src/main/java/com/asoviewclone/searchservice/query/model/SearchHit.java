@@ -6,4 +6,5 @@ public record SearchHit(
     String description,
     Long minPrice,
     String areaId,
-    String categoryId) {}
+    String categoryId,
+    Long popularityScore) {}
