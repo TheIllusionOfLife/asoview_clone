@@ -434,3 +434,70 @@ test.describe("navigation", () => {
     await page.waitForURL(/\/signin/, { timeout: 10_000 });
   });
 });
+
+// ─── PWA: manifest + service worker + offline fallback ──────────────
+
+test.describe("PWA", () => {
+  test("manifest.webmanifest served as application/manifest+json", async ({ request }) => {
+    const res = await request.get("/manifest.webmanifest");
+    expect(res.status()).toBe(200);
+    expect(res.headers()["content-type"] ?? "").toMatch(/application\/manifest\+json/);
+    const body = await res.json();
+    expect(body.name).toBe("AsoClone");
+    const icons = Array.isArray(body.icons) ? body.icons : [];
+    expect(icons.length).toBeGreaterThanOrEqual(2);
+    const sizes = icons.map((i: { sizes?: string }) => i.sizes ?? "");
+    expect(sizes).toContain("192x192");
+    expect(sizes).toContain("512x512");
+  });
+
+  test("sw.js served with a JS mime type", async ({ request }) => {
+    const res = await request.get("/sw.js");
+    expect(res.status()).toBe(200);
+    expect(res.headers()["content-type"] ?? "").toMatch(/(application|text)\/javascript/);
+  });
+
+  test("home page HTML advertises the manifest", async ({ page }) => {
+    await page.goto("/ja");
+    const manifestHref = await page.locator('link[rel="manifest"]').first().getAttribute("href");
+    expect(manifestHref).toBeTruthy();
+    expect(manifestHref).toMatch(/manifest\.webmanifest$/);
+  });
+
+  test("/ja/offline renders a Retry control", async ({ page }) => {
+    await page.goto("/ja/offline");
+    const retry = page.getByRole("button", { name: /再読み込み|Retry/ });
+    await expect(retry).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("install banner surfaces on second visit in Chromium", async ({ page, browserName }) => {
+    test.skip(browserName !== "chromium", "beforeinstallprompt is Chromium-only");
+    // First load primes the visit counter.
+    await page.goto("/ja");
+    await page.waitForLoadState("domcontentloaded");
+    await page.evaluate(() => {
+      try {
+        localStorage.setItem("pwa:visit-count", "1");
+        localStorage.removeItem("pwa:install-outcome");
+      } catch {
+        // ignore
+      }
+    });
+    // Second load: dispatch a synthetic beforeinstallprompt on page
+    // load before the app mounts; component should show the banner.
+    await page.addInitScript(() => {
+      setTimeout(() => {
+        const ev = new Event("beforeinstallprompt");
+        Object.assign(ev, {
+          prompt: async () => {},
+          userChoice: Promise.resolve({ outcome: "dismissed" }),
+          preventDefault: () => {},
+        });
+        window.dispatchEvent(ev);
+      }, 50);
+    });
+    await page.goto("/ja");
+    const banner = page.getByRole("region", { name: /Install AsoClone|AsoClone をインストール/ });
+    await expect(banner).toBeVisible({ timeout: 10_000 });
+  });
+});
