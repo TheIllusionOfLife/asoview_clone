@@ -1,5 +1,6 @@
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
+import { SWRegister } from "@/components/SWRegister";
 import { routing } from "@/i18n/routing";
 import { NextIntlClientProvider, hasLocale } from "next-intl";
 import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
@@ -43,6 +44,7 @@ export default async function LocaleLayout({ children, params }: Props) {
         {children}
       </main>
       <Footer />
+      <SWRegister />
     </NextIntlClientProvider>
   );
 }
