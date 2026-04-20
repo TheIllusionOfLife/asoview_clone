@@ -516,29 +516,30 @@ test.describe("PWA", () => {
 
   test("install banner surfaces on second visit in Chromium", async ({ page, browserName }) => {
     test.skip(browserName !== "chromium", "beforeinstallprompt is Chromium-only");
-    // First load primes the visit counter.
-    await page.goto("/ja");
-    await page.waitForLoadState("domcontentloaded");
-    await page.evaluate(() => {
+    // Prime localStorage BEFORE any React code runs so the visit-count
+    // read inside the component's mount effect already satisfies the
+    // ≥2 threshold. addInitScript runs before any page script.
+    await page.addInitScript(() => {
       try {
         localStorage.setItem("pwa:visit-count", "1");
         localStorage.removeItem("pwa:install-outcome");
       } catch {
-        // ignore
+        // ignore private-mode storage errors
       }
-    });
-    // Second load: dispatch a synthetic beforeinstallprompt on page
-    // load before the app mounts; component should show the banner.
-    await page.addInitScript(() => {
-      setTimeout(() => {
-        const ev = new Event("beforeinstallprompt");
-        Object.assign(ev, {
-          prompt: async () => {},
-          userChoice: Promise.resolve({ outcome: "dismissed" }),
-          preventDefault: () => {},
+      // Dispatch the synthetic event AFTER a microtask so the module's
+      // window-level listener has attached (module listener runs on
+      // first import, which happens at app script load).
+      window.addEventListener("load", () => {
+        queueMicrotask(() => {
+          const ev = new Event("beforeinstallprompt");
+          Object.assign(ev, {
+            prompt: async () => {},
+            userChoice: Promise.resolve({ outcome: "dismissed" }),
+            preventDefault: () => {},
+          });
+          window.dispatchEvent(ev);
         });
-        window.dispatchEvent(ev);
-      }, 50);
+      });
     });
     await page.goto("/ja");
     const banner = page.getByRole("region", { name: /Install AsoClone|AsoClone をインストール/ });

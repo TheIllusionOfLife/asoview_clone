@@ -124,7 +124,10 @@ export function InstallPrompt() {
       setMode("android");
       return;
     }
-    if (!hasDeferred && isIosSafari()) {
+    // Match the Android second-visit contract for iOS Safari too — a
+    // first-visit popover is noisy and the ADR / runbook document the
+    // same threshold for both platforms.
+    if (!hasDeferred && visits >= 2 && isIosSafari()) {
       setMode("ios");
     }
   }, [hasDeferred]);
