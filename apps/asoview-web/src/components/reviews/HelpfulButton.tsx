@@ -1,8 +1,8 @@
 "use client";
 
-import { voteHelpful } from "@/lib/api";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { voteHelpful } from "@/lib/api";
 
 /**
  * Optimistic helpful-vote toggle. Backend has no dedup: a second click

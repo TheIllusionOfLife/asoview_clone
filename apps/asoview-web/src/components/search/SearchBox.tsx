@@ -1,8 +1,8 @@
 "use client";
 
-import { type AutosuggestResponse, searchSuggest } from "@/lib/api";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
+import { type AutosuggestResponse, searchSuggest } from "@/lib/api";
 
 type Props = {
   value: string;

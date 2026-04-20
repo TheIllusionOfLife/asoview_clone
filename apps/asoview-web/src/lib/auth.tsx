@@ -1,16 +1,16 @@
 "use client";
 
 import {
-  GoogleAuthProvider,
-  type User,
   signOut as firebaseSignOut,
+  GoogleAuthProvider,
   onIdTokenChanged,
   signInWithEmailAndPassword,
   signInWithPopup,
+  type User,
 } from "firebase/auth";
 import {
-  type ReactNode,
   createContext,
+  type ReactNode,
   useCallback,
   useContext,
   useEffect,

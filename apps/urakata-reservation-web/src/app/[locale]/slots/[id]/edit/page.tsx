@@ -1,12 +1,10 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+// Slot data is passed via URL search params from the slot list page
+import { use, useEffect, useState } from "react";
 import { useRouter } from "@/i18n/navigation";
 import { ApiError, api } from "@/lib/api";
-import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
-
-// Slot data is passed via URL search params from the slot list page
-import { use } from "react";
 
 type Slot = {
   slotId: string;
@@ -21,7 +19,7 @@ export default function EditSlotPage({ params }: { params: Promise<{ id: string 
   const t = useTranslations("slots");
   const tc = useTranslations("common");
   const router = useRouter();
-  const [slot, setSlot] = useState<Slot | null>(null);
+  const [_slot, setSlot] = useState<Slot | null>(null);
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [capacity, setCapacity] = useState(0);

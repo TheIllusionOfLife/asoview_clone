@@ -6,10 +6,11 @@
  * to the `NextIntlClientProvider` (next-intl `Link`/`useTranslations`
  * throw without an intl context).
  */
+
+import { Fraunces, Noto_Sans_JP } from "next/font/google";
+import { getLocale } from "next-intl/server";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/lib/auth";
-import { getLocale } from "next-intl/server";
-import { Fraunces, Noto_Sans_JP } from "next/font/google";
 import "./globals.css";
 
 const fraunces = Fraunces({

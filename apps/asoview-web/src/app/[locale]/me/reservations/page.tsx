@@ -12,7 +12,9 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 
 export default async function MyReservationsPage({
   params,
-}: { params: Promise<{ locale: string }> }) {
+}: {
+  params: Promise<{ locale: string }>;
+}) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "reservations" });
   return (

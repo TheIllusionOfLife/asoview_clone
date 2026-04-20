@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
+  apiRequest,
   NetworkError,
   SignInRedirect,
   SlotTakenError,
-  apiRequest,
   setIdTokenGetter,
   timeoutForPath,
 } from "../api";

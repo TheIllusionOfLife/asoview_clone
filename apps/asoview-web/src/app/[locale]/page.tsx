@@ -1,9 +1,9 @@
+import { getTranslations } from "next-intl/server";
 import { AreaCard } from "@/components/AreaCard";
 import { ProductCard } from "@/components/ProductCard";
 import { SimilarProducts } from "@/components/recommendations/SimilarProducts";
 import { serverGet } from "@/lib/server-api";
 import type { AreaResponse, Page, ProductResponse } from "@/lib/types";
-import { getTranslations } from "next-intl/server";
 
 export const revalidate = 60;
 

@@ -13,8 +13,9 @@
  * `role="radio"` with `aria-checked`, keyboard activation via space/enter.
  */
 
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "@/i18n/navigation";
-import { ApiError, NetworkError, SignInRedirect, SlotTakenError, api } from "@/lib/api";
+import { ApiError, api, NetworkError, SignInRedirect, SlotTakenError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { clearIdempotencyKey, setOrderFingerprint } from "@/lib/idempotency";
 import { addDaysIso, todayIsoJst } from "@/lib/slot-date";
@@ -25,7 +26,6 @@ import type {
   ProductResponse,
 } from "@/lib/types";
 import { useCart } from "@/lib/useCart";
-import { useCallback, useEffect, useMemo, useState } from "react";
 
 const WINDOW_DAYS = 14;
 

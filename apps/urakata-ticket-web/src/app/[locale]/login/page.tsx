@@ -1,9 +1,9 @@
 "use client";
 
-import { useRouter } from "@/i18n/navigation";
-import { useAuth } from "@/lib/auth";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { useRouter } from "@/i18n/navigation";
+import { useAuth } from "@/lib/auth";
 
 export default function LoginPage() {
   const t = useTranslations("login");

@@ -1,9 +1,9 @@
 "use client";
 
-import { Link, usePathname, useRouter } from "@/i18n/navigation";
-import { AuthProvider, useAuth } from "@/lib/auth";
 import { useTranslations } from "next-intl";
 import { type ReactNode, useEffect, useState } from "react";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
+import { AuthProvider, useAuth } from "@/lib/auth";
 
 function Sidebar() {
   const t = useTranslations("app");
