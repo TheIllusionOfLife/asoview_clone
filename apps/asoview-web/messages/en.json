@@ -194,6 +194,24 @@
       "COMPLETED": "Completed"
     }
   },
+  "pwa": {
+    "install": {
+      "title": "Install AsoClone",
+      "body": "Add it to your home screen for one-tap access, just like a native app.",
+      "cta": "Install",
+      "dismiss": "Dismiss"
+    },
+    "iosInstall": {
+      "title": "Add to Home Screen",
+      "body": "Tap the Share button, then \"Add to Home Screen\" to use AsoClone like an app.",
+      "dismiss": "Got it"
+    },
+    "offline": {
+      "title": "You are offline",
+      "body": "We can't reach the network right now. Check your connection and try again.",
+      "retry": "Retry"
+    }
+  },
   "wallet": {
     "apple": {
       "add": "Add to Apple Wallet",
