@@ -83,7 +83,7 @@ export function Facets({ category, priceMin, priceMax, sort, onChange }: Props) 
           onChange={(e) => onChange({ category: e.target.value || null })}
           disabled={loadState !== "ready"}
           aria-busy={loadState === "loading"}
-          className="rounded border border-[var(--color-border)] px-2 py-1 disabled:opacity-60"
+          className="min-h-[44px] rounded border border-[var(--color-border)] px-2 py-1 disabled:opacity-60"
         >
           {loadState === "loading" && <option value="">{t("facets.loadingCategories")}</option>}
           {loadState === "error" && <option value="">{t("facets.categoriesLoadError")}</option>}
@@ -104,7 +104,7 @@ export function Facets({ category, priceMin, priceMax, sort, onChange }: Props) 
             onClick={() => {
               void fetchCategories();
             }}
-            className="mt-1 text-xs text-[var(--color-accent)] underline"
+            className="mt-1 min-h-[44px] px-2 text-xs text-[var(--color-accent)] underline"
           >
             {t("facets.retry")}
           </button>

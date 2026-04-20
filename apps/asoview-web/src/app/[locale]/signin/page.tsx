@@ -118,7 +118,7 @@ function SignInInner() {
         <button
           type="submit"
           disabled={emailPending || googlePending}
-          className="w-full rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="w-full min-h-[44px] rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {emailPending ? "Signing in…" : "Sign in with Email"}
         </button>

@@ -75,8 +75,12 @@ self.addEventListener("fetch", (event) => {
         if (cached) return cached;
         return fetch(request).then((response) => {
           if (response.ok) {
+            // Keep the SW alive until the cache write finishes. Without
+            // `waitUntil`, the SW can be terminated mid-write and the
+            // cache entry is lost; the next request re-fetches over
+            // the network and never populates the cache.
             const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+            event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)));
           }
           return response;
         });
