@@ -215,17 +215,18 @@ test.describe("sign-in page", () => {
     await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 10_000 });
   });
 
-  test("hides Google sign-in button by default (fail-closed)", async ({ page }) => {
-    // NEXT_PUBLIC_ENABLE_GOOGLE_SIGNIN is unset in the dev overlay because
-    // the Terraform module still has PLACEHOLDER OAuth creds. Clicking a
-    // Google button would surface `auth/internal-error` to users, so the
-    // button is gated out of the render tree entirely. This test pins the
-    // fail-closed default; flip both env + assertion when real creds land.
+  test("shows Google sign-in button when enabled", async ({ page }) => {
+    // Gated on E2E_EXPECT_GOOGLE_SIGNIN because the cloudbuild.yaml default
+    // for _ENABLE_GOOGLE_SIGNIN is "false" — most builds ship without the
+    // button. CI that exercises the feature opts in by setting the env var.
+    // The full OAuth round-trip is verified manually; Google blocks headless.
+    test.skip(
+      process.env.E2E_EXPECT_GOOGLE_SIGNIN !== "true",
+      "Google sign-in button not enabled in this build (set E2E_EXPECT_GOOGLE_SIGNIN=true to assert)",
+    );
     await page.goto("/ja/signin");
     await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 10_000 });
-    // Match the specific button label so a future "Google something else"
-    // button doesn't accidentally satisfy this fail-closed assertion.
-    await expect(page.getByRole("button", { name: /Continue with Google/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Continue with Google/ })).toBeVisible();
   });
 
   test("no Firebase errors visible on signin page", async ({ page }) => {

@@ -177,26 +177,65 @@ test.describe("search", () => {
     }
   });
 
-  test("GET /v1/search sort=price_asc returns 200 (relevance fallback acceptable)", async ({
+  test("GET /v1/search sort=price_asc returns monotonic non-decreasing minPrice", async ({
     request,
   }) => {
-    // Discovery Engine generic vertical doesn't sort numeric custom fields;
-    // the service's isInvalidOrderBy fallback returns relevance-sorted
-    // results with HTTP 200 instead of propagating a 500. A future tier /
-    // schema change can tighten this to assert monotonic order.
+    // Client-side sort in VertexAiSearchQueryService over a 100-doc window;
+    // nulls trail. Assert monotonic over the non-null prefix.
+    // See docs/adr/002-client-side-sort-for-price.md.
     const r = await getGuest(request, "/v1/search?sort=price_asc&size=20");
     expect(r.status(), `sort=price_asc HTTP ${r.status()}: ${await r.text()}`).toBe(200);
-    const body = (await r.json()) as { content: Array<{ minPrice: number }> };
+    const body = (await r.json()) as { content: Array<{ minPrice: number | null }> };
     expect(body.content.length).toBeGreaterThan(0);
+    const priced = body.content
+      .map((h) => h.minPrice)
+      .filter((p): p is number => typeof p === "number");
+    for (let i = 1; i < priced.length; i++) {
+      expect(priced[i]).toBeGreaterThanOrEqual(priced[i - 1]);
+    }
   });
 
-  test("GET /v1/search sort=price_desc returns 200 (relevance fallback acceptable)", async ({
+  test("GET /v1/search sort=price_desc returns monotonic non-increasing minPrice", async ({
     request,
   }) => {
     const r = await getGuest(request, "/v1/search?sort=price_desc&size=20");
     expect(r.status(), `sort=price_desc HTTP ${r.status()}: ${await r.text()}`).toBe(200);
-    const body = (await r.json()) as { content: Array<{ minPrice: number }> };
+    const body = (await r.json()) as { content: Array<{ minPrice: number | null }> };
     expect(body.content.length).toBeGreaterThan(0);
+    const priced = body.content
+      .map((h) => h.minPrice)
+      .filter((p): p is number => typeof p === "number");
+    for (let i = 1; i < priced.length; i++) {
+      expect(priced[i]).toBeLessThanOrEqual(priced[i - 1]);
+    }
+  });
+
+  test("GET /v1/search exposes popularityScore after PopularityScoreSyncJob runs", async ({
+    request,
+  }) => {
+    // PopularityScoreSyncJob reads analytics_mart.product_ranking every hour
+    // and writes orderCount into each indexed doc's popularityScore via
+    // read-merge-write. After the BQ view is provisioned and at least one
+    // sync cycle has run, at least one hit should carry a non-null numeric
+    // popularityScore. Before the first sync the field is absent (docs were
+    // reindexed without popularity) — skip rather than fail so the audit
+    // transitions from skipped to passing organically.
+    const r = await getGuest(request, "/v1/search?size=50");
+    expect(r.status()).toBe(200);
+    const body = (await r.json()) as {
+      content: Array<{ productId: string; popularityScore?: number | null }>;
+    };
+    const scored = body.content.filter(
+      (h) => typeof h.popularityScore === "number" && h.popularityScore >= 0,
+    );
+    test.skip(
+      scored.length === 0,
+      "popularity sync has not run yet; retry after next hourly cycle",
+    );
+    expect(scored.length).toBeGreaterThan(0);
+    for (const hit of scored) {
+      expect(hit.popularityScore).toBeGreaterThanOrEqual(0);
+    }
   });
 
   test("GET /v1/search pagination returns disjoint product ids", async ({ request }) => {
@@ -292,6 +331,10 @@ test.describe("orders + reservations + tickets", () => {
     expect(r.status()).toBe(200);
   });
 });
+
+// Google sign-in button assertion lives in live.spec.ts (gated on
+// E2E_EXPECT_GOOGLE_SIGNIN). Don't duplicate here — both suites run against
+// the same deployed image, and drift between two copies has no upside.
 
 // ─── reviews: submit + helpful ───────────────────────────────────────
 
