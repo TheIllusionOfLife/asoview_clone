@@ -215,17 +215,18 @@ test.describe("sign-in page", () => {
     await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 10_000 });
   });
 
-  test("hides Google sign-in button by default (fail-closed)", async ({ page }) => {
-    // NEXT_PUBLIC_ENABLE_GOOGLE_SIGNIN is unset in the dev overlay because
-    // the Terraform module still has PLACEHOLDER OAuth creds. Clicking a
-    // Google button would surface `auth/internal-error` to users, so the
-    // button is gated out of the render tree entirely. This test pins the
-    // fail-closed default; flip both env + assertion when real creds land.
+  test("shows Google sign-in button when enabled", async ({ page }) => {
+    // Gated on E2E_EXPECT_GOOGLE_SIGNIN because the cloudbuild.yaml default
+    // for _ENABLE_GOOGLE_SIGNIN is "false" — most builds ship without the
+    // button. CI that exercises the feature opts in by setting the env var.
+    // The full OAuth round-trip is verified manually; Google blocks headless.
+    test.skip(
+      process.env.E2E_EXPECT_GOOGLE_SIGNIN !== "true",
+      "Google sign-in button not enabled in this build (set E2E_EXPECT_GOOGLE_SIGNIN=true to assert)",
+    );
     await page.goto("/ja/signin");
     await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 10_000 });
-    // Match the specific button label so a future "Google something else"
-    // button doesn't accidentally satisfy this fail-closed assertion.
-    await expect(page.getByRole("button", { name: /Continue with Google/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Continue with Google/ })).toBeVisible();
   });
 
   test("no Firebase errors visible on signin page", async ({ page }) => {
@@ -431,5 +432,109 @@ test.describe("navigation", () => {
     await page.goto("/ja");
     await page.getByRole("link", { name: "ログイン" }).click();
     await page.waitForURL(/\/signin/, { timeout: 10_000 });
+  });
+});
+
+// ─── PWA: manifest + service worker + offline fallback ──────────────
+
+test.describe("PWA", () => {
+  test("manifest.webmanifest served as application/manifest+json", async ({ request }) => {
+    const res = await request.get("/manifest.webmanifest");
+    expect(res.status()).toBe(200);
+    expect(res.headers()["content-type"] ?? "").toMatch(/application\/manifest\+json/);
+    const body = await res.json();
+    expect(body.name).toBe("AsoClone");
+    const icons = Array.isArray(body.icons) ? body.icons : [];
+    expect(icons.length).toBeGreaterThanOrEqual(2);
+    const sizes = icons.map((i: { sizes?: string }) => i.sizes ?? "");
+    expect(sizes).toContain("192x192");
+    expect(sizes).toContain("512x512");
+  });
+
+  test("sw.js served with a JS mime type", async ({ request }) => {
+    const res = await request.get("/sw.js");
+    expect(res.status()).toBe(200);
+    expect(res.headers()["content-type"] ?? "").toMatch(/(application|text)\/javascript/);
+  });
+
+  test("home page HTML advertises the manifest", async ({ page }) => {
+    await page.goto("/ja");
+    const manifestHref = await page.locator('link[rel="manifest"]').first().getAttribute("href");
+    expect(manifestHref).toBeTruthy();
+    expect(manifestHref).toMatch(/manifest\.webmanifest$/);
+  });
+
+  test("/ja/offline renders a Retry control", async ({ page }) => {
+    await page.goto("/ja/offline");
+    const retry = page.getByRole("button", { name: /再読み込み|Retry/ });
+    await expect(retry).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("offline navigation falls back to the locale offline page", async ({
+    page,
+    browserName,
+    context,
+  }) => {
+    test.skip(browserName !== "chromium", "service worker offline test uses CDP only on Chromium");
+    // First load: register SW + warm cache.
+    await page.goto("/ja", { waitUntil: "networkidle" });
+    // Wait for the SW to reach `activated` AND control the page. A bare
+    // `navigator.serviceWorker.ready` Promise is always truthy, so we
+    // must await it and then inspect `registration.active.state`.
+    await page.waitForFunction(
+      async () => {
+        const reg = await navigator.serviceWorker.ready;
+        return reg.active !== null && reg.active.state === "activated";
+      },
+      null,
+      { timeout: 15_000 },
+    );
+    await context.setOffline(true);
+    try {
+      const response = await page.goto("/ja/areas/does-not-exist", {
+        waitUntil: "domcontentloaded",
+      });
+      // Chromium returns a synthetic response for the SW-served fallback;
+      // status may be 200 (OK from cache) or 0 (opaque). Assert the page
+      // content instead of the raw status.
+      expect(response).toBeTruthy();
+      await expect(page.getByRole("button", { name: /再読み込み|Retry/ })).toBeVisible({
+        timeout: 10_000,
+      });
+    } finally {
+      await context.setOffline(false);
+    }
+  });
+
+  test("install banner surfaces on second visit in Chromium", async ({ page, browserName }) => {
+    test.skip(browserName !== "chromium", "beforeinstallprompt is Chromium-only");
+    // Prime localStorage BEFORE any React code runs so the visit-count
+    // read inside the component's mount effect already satisfies the
+    // ≥2 threshold. addInitScript runs before any page script.
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem("pwa:visit-count", "1");
+        localStorage.removeItem("pwa:install-outcome");
+      } catch {
+        // ignore private-mode storage errors
+      }
+      // Dispatch the synthetic event AFTER a microtask so the module's
+      // window-level listener has attached (module listener runs on
+      // first import, which happens at app script load).
+      window.addEventListener("load", () => {
+        queueMicrotask(() => {
+          const ev = new Event("beforeinstallprompt");
+          Object.assign(ev, {
+            prompt: async () => {},
+            userChoice: Promise.resolve({ outcome: "dismissed" }),
+            preventDefault: () => {},
+          });
+          window.dispatchEvent(ev);
+        });
+      });
+    });
+    await page.goto("/ja");
+    const banner = page.getByRole("region", { name: /Install AsoClone|AsoClone をインストール/ });
+    await expect(banner).toBeVisible({ timeout: 10_000 });
   });
 });

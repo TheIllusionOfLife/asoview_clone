@@ -3,21 +3,17 @@
 // The asoview-web frontend (PR 3d) signs users in with Google OAuth via the
 // Firebase JS SDK. Spring Cloud Gateway and commerce-core verify the ID
 // tokens via the Firebase Admin SDK. This module enables Identity Platform
-// on the project and creates the OAuth client used by the web app.
+// on the project and registers the Google provider.
 //
-// The actual OAuth client secret is fetched out-of-band from the GCP
-// console and stored in Secret Manager — Terraform cannot create OAuth
-// brand consent screens without manual approval, so this module just
-// declares the dependency.
-
-variable "project_id" {
-  type = string
-}
-
-variable "support_email" {
-  type        = string
-  description = "OAuth consent screen support email"
-}
+// The OAuth client_secret is intentionally NOT managed by Terraform. Reading
+// it into a resource attribute materializes the plaintext secret into
+// Terraform state on every plan/apply — and the state backend today is
+// local/unencrypted. The resource is created with a dummy value and
+// lifecycle.ignore_changes keeps Terraform from overwriting whatever the
+// operator sets via Console. First-time bring-up: `terraform apply` creates
+// the enabled provider with the dummy, then the operator pastes the real
+// secret via GCP Console → Identity Platform → Google provider → Edit.
+// See docs/operations/google-oauth-setup.md.
 
 resource "google_project_service" "identity_toolkit" {
   project            = var.project_id
@@ -45,17 +41,16 @@ resource "google_identity_platform_default_supported_idp_config" "google" {
   project       = var.project_id
   enabled       = true
   idp_id        = "google.com"
-  client_id     = "PLACEHOLDER_OAUTH_CLIENT_ID"
-  client_secret = "PLACEHOLDER_OAUTH_CLIENT_SECRET"
-
-  depends_on = [google_identity_platform_config.default]
+  client_id     = var.google_oauth_client_id
+  client_secret = "MANAGED_OUTSIDE_TERRAFORM"
 
   lifecycle {
-    // The real client_id/client_secret are managed by hand in the GCP
-    // console (OAuth consent screens cannot be Terraform-managed end to
-    // end). Ignore drift on these so plan stays clean.
-    ignore_changes = [client_id, client_secret]
+    // Client secret is set in GCP Console post-apply and never owned by
+    // Terraform. Plans never propose updates; state holds the literal dummy.
+    ignore_changes = [client_secret]
   }
+
+  depends_on = [google_identity_platform_config.default]
 }
 
 output "identity_platform_enabled" {
