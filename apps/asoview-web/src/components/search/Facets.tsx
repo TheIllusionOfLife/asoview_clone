@@ -118,7 +118,7 @@ export function Facets({ category, priceMin, priceMax, sort, onChange }: Props) 
           inputMode="numeric"
           value={priceMin}
           onChange={(e) => onChange({ priceMin: sanitizeYen(e.target.value) || null })}
-          className="rounded border border-[var(--color-border)] px-2 py-1"
+          className="min-h-[44px] rounded border border-[var(--color-border)] px-2 py-1"
         />
       </label>
 
@@ -129,7 +129,7 @@ export function Facets({ category, priceMin, priceMax, sort, onChange }: Props) 
           inputMode="numeric"
           value={priceMax}
           onChange={(e) => onChange({ priceMax: sanitizeYen(e.target.value) || null })}
-          className="rounded border border-[var(--color-border)] px-2 py-1"
+          className="min-h-[44px] rounded border border-[var(--color-border)] px-2 py-1"
         />
       </label>
 
@@ -138,7 +138,7 @@ export function Facets({ category, priceMin, priceMax, sort, onChange }: Props) 
         <select
           value={sort}
           onChange={(e) => onChange({ sort: e.target.value })}
-          className="rounded border border-[var(--color-border)] px-2 py-1"
+          className="min-h-[44px] rounded border border-[var(--color-border)] px-2 py-1"
         >
           <option value="relevance">{t("sort.relevance")}</option>
           <option value="price_asc">{t("sort.priceAsc")}</option>

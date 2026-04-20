@@ -234,9 +234,10 @@ export function ReservationForm({ venueId }: { venueId: string }) {
           <input
             type="text"
             required
+            autoComplete="name"
             value={guestName}
             onChange={(e) => setGuestName(e.target.value)}
-            className="mt-1 block w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
+            className="mt-1 block min-h-[44px] w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
           />
         </label>
         <label className="block text-sm">
@@ -244,9 +245,11 @@ export function ReservationForm({ venueId }: { venueId: string }) {
           <input
             type="email"
             required
+            inputMode="email"
+            autoComplete="email"
             value={guestEmail}
             onChange={(e) => setGuestEmail(e.target.value)}
-            className="mt-1 block w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
+            className="mt-1 block min-h-[44px] w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm"
           />
         </label>
         <label className="block text-sm">

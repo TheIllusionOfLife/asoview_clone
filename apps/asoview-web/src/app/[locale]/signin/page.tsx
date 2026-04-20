@@ -92,12 +92,13 @@ function SignInInner() {
         <input
           id="signin-email"
           type="email"
+          inputMode="email"
           placeholder="Email"
           autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className="w-full rounded-lg border border-gray-600 bg-transparent px-4 py-2"
+          className="w-full min-h-[44px] rounded-lg border border-gray-600 bg-transparent px-4 py-2"
           data-testid="email-input"
         />
         <label htmlFor="signin-password" className="sr-only">
@@ -111,7 +112,7 @@ function SignInInner() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          className="w-full rounded-lg border border-gray-600 bg-transparent px-4 py-2"
+          className="w-full min-h-[44px] rounded-lg border border-gray-600 bg-transparent px-4 py-2"
           data-testid="password-input"
         />
         <button
