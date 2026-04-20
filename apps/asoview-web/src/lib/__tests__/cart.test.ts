@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
-  type CartLine,
-  GUEST_CART_KEY,
   addLine,
+  type CartLine,
   cartKey,
   clearCart,
   emptyCart,
+  GUEST_CART_KEY,
   invalidateSnapshotCache,
   mergeGuestIntoUser,
   readCart,

@@ -1,14 +1,14 @@
 "use client";
 
 import {
-  type User,
   signOut as firebaseSignOut,
   onIdTokenChanged,
   signInWithEmailAndPassword,
+  type User,
 } from "firebase/auth";
 import {
-  type ReactNode,
   createContext,
+  type ReactNode,
   useCallback,
   useContext,
   useEffect,

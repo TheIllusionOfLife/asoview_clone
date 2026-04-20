@@ -7,23 +7,22 @@
  * without losing the rest of the cart.
  */
 
-import { Link } from "@/i18n/navigation";
-import { useRouter } from "@/i18n/navigation";
+import { useLocale, useTranslations } from "next-intl";
+import { useCallback, useEffect, useState } from "react";
+import { Link, useRouter } from "@/i18n/navigation";
 import {
   ApiError,
+  api,
+  getPointsBalance,
   NetworkError,
   SignInRedirect,
   SlotTakenError,
-  api,
-  getPointsBalance,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { parseMinorUnits } from "@/lib/cart";
 import { clearIdempotencyKey, setOrderFingerprint } from "@/lib/idempotency";
 import type { CreateOrderRequest, OrderResponse } from "@/lib/types";
 import { useCart } from "@/lib/useCart";
-import { useLocale, useTranslations } from "next-intl";
-import { useCallback, useEffect, useState } from "react";
 
 function formatJpy(amount: number | string, locale: string): string {
   // Display-only formatter. Japanese retail is integer yen, so Math.trunc

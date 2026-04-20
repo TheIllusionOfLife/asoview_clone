@@ -1,9 +1,8 @@
+import { notFound } from "next/navigation";
 import { ProductCard } from "@/components/ProductCard";
-import { Link } from "@/i18n/navigation";
-import { redirect } from "@/i18n/navigation";
+import { Link, redirect } from "@/i18n/navigation";
 import { serverGet } from "@/lib/server-api";
 import type { AreaResponse, Page, ProductResponse } from "@/lib/types";
-import { notFound } from "next/navigation";
 
 export const revalidate = 60;
 

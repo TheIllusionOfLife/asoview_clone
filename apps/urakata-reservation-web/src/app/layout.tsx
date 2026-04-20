@@ -4,11 +4,7 @@ export const metadata = {
   title: "UraKata Reservation",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ja">
       <body>{children}</body>

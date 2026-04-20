@@ -1,8 +1,8 @@
 "use client";
 
-import { apiRequest } from "@/lib/api";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { apiRequest } from "@/lib/api";
 
 type CategoryOption = { id: string; name: string };
 
