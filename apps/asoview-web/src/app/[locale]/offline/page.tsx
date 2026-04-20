@@ -1,4 +1,5 @@
 import { setRequestLocale } from "next-intl/server";
+import { RetryButtonClient } from "./RetryButtonClient";
 
 export const dynamic = "force-static";
 
@@ -30,21 +31,7 @@ export default async function OfflinePage({ params }: Props) {
       <p className="mb-8 text-base leading-relaxed text-[color:var(--color-foreground,#1a2238)]">
         {message}
       </p>
-      <RetryButton label={retry} />
+      <RetryButtonClient label={retry} />
     </section>
-  );
-}
-
-function RetryButton({ label }: { label: string }) {
-  // Server component rendering a tiny inline-script-free client island.
-  return (
-    <form action="/" method="get">
-      <button
-        type="submit"
-        className="min-h-[44px] min-w-[120px] rounded-[var(--radius-md)] bg-[var(--color-primary)] px-6 py-3 text-sm font-semibold text-white shadow-[var(--shadow-md)] transition hover:bg-[var(--color-primary-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
-      >
-        {label}
-      </button>
-    </form>
   );
 }
