@@ -1,22 +1,25 @@
 "use client";
 
-import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
-import { FavoriteToggle } from "@/components/favorites/FavoriteToggle";
-import { Link, useRouter } from "@/i18n/navigation";
-import { ApiError, listFavorites, NetworkError, SignInRedirect } from "@/lib/api";
+import { useLocale, useTranslations } from "next-intl";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { ProductCard } from "@/components/ProductCard";
+import { useRouter } from "@/i18n/navigation";
+import { ApiError, apiRequest, listFavorites, NetworkError, SignInRedirect } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { isFavorited, subscribeFavorites } from "@/lib/favorites-cache";
+import type { ProductResponse } from "@/lib/types";
 
 export function FavoritesClient() {
   const t = useTranslations("favorites");
+  const locale = useLocale();
   const router = useRouter();
   const { ready, user } = useAuth();
-  const [ids, setIds] = useState<string[] | null>(null);
+  const [products, setProducts] = useState<ProductResponse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!ready) return;
-    setIds(null);
+    setProducts(null);
     setError(null);
     if (!user) {
       router.push("/signin?next=/me/favorites");
@@ -26,11 +29,29 @@ export function FavoritesClient() {
     const ctrl = new AbortController();
     (async () => {
       try {
-        const list = await listFavorites({
+        const ids = await listFavorites({
           signal: ctrl.signal,
           currentPath: "/me/favorites",
         });
-        if (!cancelled) setIds(list);
+        if (cancelled) return;
+        // Hydrate each ID into a full product. Per-card fetch failures
+        // are silently dropped — a partial grid reads better than mixed
+        // error tiles on a favorites page.
+        const settled = await Promise.allSettled(
+          ids.map((id) =>
+            apiRequest<ProductResponse>(
+              `/v1/products/${encodeURIComponent(id)}?lang=${encodeURIComponent(locale)}`,
+              { signal: ctrl.signal, method: "GET" },
+            ),
+          ),
+        );
+        if (cancelled) return;
+        const hydrated: ProductResponse[] = [];
+        for (let i = 0; i < settled.length; i++) {
+          const r = settled[i];
+          if (r.status === "fulfilled") hydrated.push(r.value);
+        }
+        setProducts(hydrated);
       } catch (e) {
         if (cancelled) return;
         if (e instanceof SignInRedirect) {
@@ -44,7 +65,16 @@ export function FavoritesClient() {
       cancelled = true;
       ctrl.abort();
     };
-  }, [ready, user, router, t]);
+  }, [ready, user, router, t, locale]);
+
+  // Re-render when the favorites cache changes (e.g. user clicks the heart
+  // on a ProductCard). We can't mutate `products` directly inside the
+  // toggle, so this subscription drives the derived visible set instead.
+  useSyncExternalStore(
+    subscribeFavorites,
+    () => "",
+    () => "",
+  );
 
   if (error) {
     return (
@@ -53,34 +83,18 @@ export function FavoritesClient() {
       </p>
     );
   }
-  if (!ready || ids === null) {
+  if (!ready || products === null) {
     return <p className="mt-6 text-sm text-[var(--color-ink-muted)]">{t("loading")}</p>;
   }
-  if (ids.length === 0) {
+  const visible = products.filter((p) => isFavorited(p.id));
+  if (visible.length === 0) {
     return <p className="mt-6 text-sm text-[var(--color-ink-muted)]">{t("empty")}</p>;
   }
   return (
-    <ul className="mt-6 space-y-3">
-      {ids.map((pid) => (
-        <li
-          key={pid}
-          className="flex items-center justify-between rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
-        >
-          <Link
-            href={`/products/${pid}`}
-            className="font-mono text-xs text-[var(--color-ink-muted)] hover:text-[var(--color-primary)]"
-          >
-            {pid}
-          </Link>
-          <FavoriteToggle
-            productId={pid}
-            initialFavorited
-            onChange={(next) => {
-              if (!next) setIds((cur) => (cur ? cur.filter((x) => x !== pid) : cur));
-            }}
-          />
-        </li>
+    <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      {visible.map((p) => (
+        <ProductCard key={p.id} product={p} />
       ))}
-    </ul>
+    </div>
   );
 }
