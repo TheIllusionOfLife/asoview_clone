@@ -105,6 +105,20 @@ export function getFavoritesStatus(): "idle" | "loading" | "ready" | "error" {
   return state.kind;
 }
 
+/**
+ * Seed the cache from an already-fetched id list. Lets pages that need
+ * auth-aware error handling (SignInRedirect / ApiError) call
+ * `listFavorites()` directly — which propagates auth errors — and then
+ * publish the result to the shared cache so sibling toggles stay in sync.
+ * Bumps `epoch` so any concurrent `ensureFavoritesLoaded()` in-flight drops
+ * its eventual result rather than overwriting this seed.
+ */
+export function seedFavoritesCache(ids: string[]): void {
+  epoch += 1;
+  state = { kind: "ready", ids: new Set(ids) };
+  notify();
+}
+
 export function markFavorited(productId: string): void {
   if (state.kind !== "ready") return;
   if (state.ids.has(productId)) return;

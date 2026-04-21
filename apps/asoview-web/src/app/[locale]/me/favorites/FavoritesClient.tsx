@@ -4,12 +4,11 @@ import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { ProductCard } from "@/components/ProductCard";
 import { useRouter } from "@/i18n/navigation";
-import { ApiError, apiRequest, NetworkError, SignInRedirect } from "@/lib/api";
+import { ApiError, apiRequest, listFavorites, NetworkError, SignInRedirect } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import {
-  ensureFavoritesLoaded,
   getFavoritesSnapshot,
-  getFavoritesStatus,
+  seedFavoritesCache,
   subscribeFavorites,
 } from "@/lib/favorites-cache";
 import type { ProductResponse } from "@/lib/types";
@@ -22,11 +21,10 @@ export function FavoritesClient() {
   const [products, setProducts] = useState<ProductResponse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Subscribe to the shared favorites cache so un-favoriting a card via its
-  // heart toggle re-renders the grid. `getFavoritesSnapshot` returns the
-  // Set-by-reference which changes on every mutation; a stable empty
-  // sentinel is returned while the cache is idle/loading so initial mounts
-  // do not flap.
+  // Subscribe to the shared cache so un-favoriting a card via its heart
+  // toggle re-renders the grid. `getFavoritesSnapshot` returns the live
+  // Set (reference changes on every mutation) or a stable empty sentinel
+  // while the cache is idle/loading, so initial mounts do not flap.
   const favoriteIds = useSyncExternalStore(
     subscribeFavorites,
     getFavoritesSnapshot,
@@ -45,18 +43,18 @@ export function FavoritesClient() {
     const ctrl = new AbortController();
     (async () => {
       try {
-        // Single authority: the favorites cache. Call ensureFavoritesLoaded
-        // instead of listFavorites() directly so the cache transitions to
-        // "ready" — otherwise isFavorited() (used to filter the grid) would
-        // return false for every id and the page would show the empty
-        // state despite the fetch succeeding.
-        await ensureFavoritesLoaded();
+        // Fetch IDs directly (not via ensureFavoritesLoaded) — the cache
+        // wrapper swallows SignInRedirect + ApiError inside a catch {} and
+        // collapses them into state="error", which would hide a 401 from
+        // this page's auth-aware error handling. Seed the shared cache
+        // manually on success so sibling FavoriteToggle heart-states stay
+        // in sync with this page.
+        const ids = await listFavorites({
+          signal: ctrl.signal,
+          currentPath: "/me/favorites",
+        });
         if (cancelled) return;
-        if (getFavoritesStatus() === "error") {
-          setError(t("loadError"));
-          return;
-        }
-        const ids = Array.from(getFavoritesSnapshot());
+        seedFavoritesCache(ids);
         if (ids.length === 0) {
           setProducts([]);
           return;
@@ -70,6 +68,15 @@ export function FavoritesClient() {
           ),
         );
         if (cancelled) return;
+        // If ANY product fetch returned a 401, the user's token expired
+        // between the favorites-list fetch and the product-detail fetches.
+        // Redirect to sign-in rather than silently showing a short grid.
+        for (const r of settled) {
+          if (r.status === "rejected" && r.reason instanceof SignInRedirect) {
+            router.push(`/signin?next=${encodeURIComponent(r.reason.next)}`);
+            return;
+          }
+        }
         const hydrated: ProductResponse[] = [];
         for (const r of settled) {
           if (r.status === "fulfilled") {
