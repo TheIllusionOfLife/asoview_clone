@@ -56,12 +56,10 @@ export function buildCsp(env: NodeJS.ProcessEnv = process.env): string {
     "'self'",
     "'unsafe-inline'",
     "https://js.stripe.com",
-    // Firebase Auth's Google OAuth flow loads https://apis.google.com/js/api.js
-    // at runtime and then opens an iframe transport served from
-    // https://accounts.google.com. Both must be in script-src (Chrome falls
-    // back from script-src-elem to script-src when -elem is unset).
+    // Firebase Auth's Google sign-in popup loads https://apis.google.com/js/api.js
+    // as a <script> at runtime. The OAuth iframe it then opens lives at
+    // https://accounts.google.com and is governed by frame-src, not script-src.
     "https://apis.google.com",
-    "https://accounts.google.com",
     ...(env.NODE_ENV === "production" ? [] : ["'unsafe-eval'"]),
   ].join(" ");
   return [

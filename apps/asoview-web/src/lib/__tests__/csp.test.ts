@@ -35,16 +35,31 @@ describe("buildCsp", () => {
     expect(csp).toContain("worker-src 'self'");
   });
 
-  it("allowlists Google APIs in script-src so Firebase Google OAuth can load", () => {
+  it("allowlists apis.google.com in script-src so Firebase Google OAuth can load gapi", () => {
     const csp = buildCsp({ ...baseEnv, NODE_ENV: "production" });
     const scriptSrc = csp.split(";").find((d) => d.trim().startsWith("script-src")) ?? "";
-    expect(scriptSrc).toContain("https://apis.google.com");
-    expect(scriptSrc).toContain("https://accounts.google.com");
+    const tokens = scriptSrc.trim().split(/\s+/);
+    expect(tokens).toContain("https://apis.google.com");
+  });
+
+  it("does NOT put accounts.google.com in script-src (iframe is governed by frame-src)", () => {
+    const csp = buildCsp({ ...baseEnv, NODE_ENV: "production" });
+    const scriptSrc = csp.split(";").find((d) => d.trim().startsWith("script-src")) ?? "";
+    const tokens = scriptSrc.trim().split(/\s+/);
+    expect(tokens).not.toContain("https://accounts.google.com");
   });
 
   it("allowlists accounts.google.com in frame-src for the Google OAuth iframe", () => {
     const csp = buildCsp({ ...baseEnv, NODE_ENV: "production" });
     const frameSrc = csp.split(";").find((d) => d.trim().startsWith("frame-src")) ?? "";
-    expect(frameSrc).toContain("https://accounts.google.com");
+    const tokens = frameSrc.trim().split(/\s+/);
+    expect(tokens).toContain("https://accounts.google.com");
+  });
+
+  it("allowlists apis.google.com in connect-src for gapi XHR/fetch", () => {
+    const csp = buildCsp({ ...baseEnv, NODE_ENV: "production" });
+    const connectSrc = csp.split(";").find((d) => d.trim().startsWith("connect-src")) ?? "";
+    const tokens = connectSrc.trim().split(/\s+/);
+    expect(tokens).toContain("https://apis.google.com");
   });
 });
