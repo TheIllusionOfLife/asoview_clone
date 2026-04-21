@@ -36,12 +36,18 @@ export function buildCsp(env: NodeJS.ProcessEnv = process.env): string {
     "'self'",
     apiBase,
     "https://api.stripe.com",
+    "https://apis.google.com",
     "https://identitytoolkit.googleapis.com",
     "https://securetoken.googleapis.com",
   ];
   if (emulator) connect.push(emulator);
   if (authDomainOrigin) connect.push(authDomainOrigin);
-  const frame = ["'self'", "https://js.stripe.com", "https://hooks.stripe.com"];
+  const frame = [
+    "'self'",
+    "https://js.stripe.com",
+    "https://hooks.stripe.com",
+    "https://accounts.google.com",
+  ];
   if (authDomainOrigin) frame.push(authDomainOrigin);
   // React dev needs runtime code-string compilation for stack-trace
   // reconstruction; production never does. Token gated on NODE_ENV so the
@@ -50,6 +56,12 @@ export function buildCsp(env: NodeJS.ProcessEnv = process.env): string {
     "'self'",
     "'unsafe-inline'",
     "https://js.stripe.com",
+    // Firebase Auth's Google OAuth flow loads https://apis.google.com/js/api.js
+    // at runtime and then opens an iframe transport served from
+    // https://accounts.google.com. Both must be in script-src (Chrome falls
+    // back from script-src-elem to script-src when -elem is unset).
+    "https://apis.google.com",
+    "https://accounts.google.com",
     ...(env.NODE_ENV === "production" ? [] : ["'unsafe-eval'"]),
   ].join(" ");
   return [
