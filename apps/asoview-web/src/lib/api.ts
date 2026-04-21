@@ -13,7 +13,7 @@
  * dependency so this module stays SSR-safe and unit-testable.
  */
 
-import { type IdempotencyFingerprint, getOrCreateIdempotencyKey } from "./idempotency";
+import { getOrCreateIdempotencyKey, type IdempotencyFingerprint } from "./idempotency";
 import { sanitizeNext } from "./redirect";
 
 // ---------- Typed errors ----------

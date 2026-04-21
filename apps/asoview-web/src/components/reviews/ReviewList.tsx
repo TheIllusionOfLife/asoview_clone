@@ -1,8 +1,8 @@
 "use client";
 
-import { type ReviewResponse, listReviews } from "@/lib/api";
 import { useFormatter, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { listReviews, type ReviewResponse } from "@/lib/api";
 import { HelpfulButton } from "./HelpfulButton";
 
 const PAGE_SIZE = 10;

@@ -1,5 +1,5 @@
 import { Stack, useRouter, useSegments } from "expo-router";
-import { type User, onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, type User } from "firebase/auth";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { firebaseAuth } from "../src/lib/firebase";

@@ -5,7 +5,7 @@ resources:
   - ../../base
 images:
   - name: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/reservation-service
-    newTag: "92ffcdd"
+    newTag: "151197f"
 patches:
   # Strategic merge patch: overrides MAIL_SMTP_AUTH + MAIL_SMTP_STARTTLS from the
   # secure defaults in base to "false" because MailHog (our dev SMTP sink) is

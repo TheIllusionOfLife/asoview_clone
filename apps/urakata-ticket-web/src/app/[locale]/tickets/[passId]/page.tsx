@@ -1,12 +1,12 @@
 "use client";
 
-import { Link, useRouter } from "@/i18n/navigation";
-import { ApiError, type TicketPass, listMyTickets } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
-import { useLocale, useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useState } from "react";
+import { Link, useRouter } from "@/i18n/navigation";
+import { ApiError, listMyTickets, type TicketPass } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 export default function TicketDetailPage() {
   const t = useTranslations("tickets");

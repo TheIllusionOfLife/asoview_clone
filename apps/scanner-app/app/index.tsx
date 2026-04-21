@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { signOut } from "firebase/auth";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Button, StyleSheet, Text, TextInput, View } from "react-native";
-import { type RedeemResult, isValidQrFormat, redeem } from "../src/lib/api";
+import { isValidQrFormat, type RedeemResult, redeem } from "../src/lib/api";
 import { getDeviceId } from "../src/lib/device";
 import { firebaseAuth } from "../src/lib/firebase";
 

@@ -5,4 +5,4 @@ resources:
   - ../../base
 images:
   - name: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/web
-    newTag: "92ffcdd"
+    newTag: "151197f"

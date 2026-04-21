@@ -1,6 +1,6 @@
+import { useLocale } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import type { ProductResponse } from "@/lib/types";
-import { useLocale } from "next-intl";
 import { FavoriteToggle } from "./favorites/FavoriteToggle";
 
 function formatJpy(amount: number | undefined, locale: string): string {

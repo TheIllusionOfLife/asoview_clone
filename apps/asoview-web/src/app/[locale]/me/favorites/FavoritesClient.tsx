@@ -1,12 +1,11 @@
 "use client";
 
-import { FavoriteToggle } from "@/components/favorites/FavoriteToggle";
-import { Link } from "@/i18n/navigation";
-import { useRouter } from "@/i18n/navigation";
-import { ApiError, NetworkError, SignInRedirect, listFavorites } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { FavoriteToggle } from "@/components/favorites/FavoriteToggle";
+import { Link, useRouter } from "@/i18n/navigation";
+import { ApiError, listFavorites, NetworkError, SignInRedirect } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 export function FavoritesClient() {
   const t = useTranslations("favorites");
