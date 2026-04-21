@@ -63,7 +63,7 @@ export function FavoritesClient() {
           ids.map((id) =>
             apiRequest<ProductResponse>(
               `/v1/products/${encodeURIComponent(id)}?lang=${encodeURIComponent(locale)}`,
-              { signal: ctrl.signal, method: "GET" },
+              { signal: ctrl.signal, method: "GET", currentPath: "/me/favorites" },
             ),
           ),
         );
