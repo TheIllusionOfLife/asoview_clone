@@ -1,9 +1,9 @@
 "use client";
 
-import { Link } from "@/i18n/navigation";
-import { type ProductSearchResponse, searchProducts } from "@/lib/api";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { Link } from "@/i18n/navigation";
+import { type ProductSearchResponse, searchProducts } from "@/lib/api";
 
 interface Props {
   q: string;

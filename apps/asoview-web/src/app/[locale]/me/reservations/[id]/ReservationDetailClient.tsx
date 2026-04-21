@@ -1,18 +1,18 @@
 "use client";
 
+import { useFormatter, useTranslations } from "next-intl";
+import { useEffect, useRef, useState } from "react";
 import { Link, useRouter } from "@/i18n/navigation";
 import {
   ApiError,
+  cancelReservation,
+  getReservation,
   NetworkError,
   type ReservationResponse,
   type ReservationStatusType,
   SignInRedirect,
-  cancelReservation,
-  getReservation,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { useFormatter, useTranslations } from "next-intl";
-import { useEffect, useRef, useState } from "react";
 
 const STATUS_TONE: Record<ReservationStatusType, string> = {
   PENDING_APPROVAL: "bg-yellow-100 text-yellow-800",

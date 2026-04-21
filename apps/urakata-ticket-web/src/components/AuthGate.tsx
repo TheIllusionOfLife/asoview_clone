@@ -1,9 +1,9 @@
 "use client";
 
-import { usePathname, useRouter } from "@/i18n/navigation";
-import { AuthProvider, useAuth } from "@/lib/auth";
 import { useTranslations } from "next-intl";
 import { type ReactNode, useEffect } from "react";
+import { usePathname, useRouter } from "@/i18n/navigation";
+import { AuthProvider, useAuth } from "@/lib/auth";
 
 function AuthContent({ children }: { children: ReactNode }) {
   const { user, ready } = useAuth();

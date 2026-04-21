@@ -1,11 +1,11 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect } from "react";
 import { Facets } from "@/components/search/Facets";
 import { SearchBox } from "@/components/search/SearchBox";
 import { SearchResults } from "@/components/search/SearchResults";
 import { usePathname, useRouter } from "@/i18n/navigation";
-import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect } from "react";
 
 type Props = {
   initialQ: string;

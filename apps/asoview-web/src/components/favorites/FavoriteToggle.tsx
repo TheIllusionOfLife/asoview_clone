@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { addFavorite, removeFavorite } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import {
@@ -9,8 +11,6 @@ import {
   markUnfavorited,
   subscribeFavorites,
 } from "@/lib/favorites-cache";
-import { useTranslations } from "next-intl";
-import { useEffect, useState, useSyncExternalStore } from "react";
 
 /**
  * Heart toggle. Reads its initial state from the singleton favorites

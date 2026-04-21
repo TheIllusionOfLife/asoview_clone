@@ -1,8 +1,8 @@
 "use client";
 
-import { ReservationForm } from "@/components/ReservationForm";
-import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { ReservationForm } from "@/components/ReservationForm";
 
 export function ReserveClient() {
   const t = useTranslations("reservationForm");

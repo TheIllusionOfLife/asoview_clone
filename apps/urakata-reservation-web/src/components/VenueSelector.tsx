@@ -1,8 +1,8 @@
 "use client";
 
-import { api } from "@/lib/api";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
 
 type Props = {
   value: string;

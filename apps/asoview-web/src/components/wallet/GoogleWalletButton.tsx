@@ -1,9 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "@/i18n/navigation";
 import { ApiError, NetworkError, SignInRedirect } from "@/lib/api";
 import { getGoogleWalletUrl } from "@/lib/wallet";
-import { useState } from "react";
 
 type Phase = "before" | "active" | "expired";
 

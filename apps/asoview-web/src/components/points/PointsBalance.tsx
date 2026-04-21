@@ -1,8 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { getPointsBalance } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { useEffect, useState } from "react";
 
 /**
  * Header pill showing the current points balance. Renders nothing when
