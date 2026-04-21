@@ -87,6 +87,24 @@ export function isFavorited(productId: string): boolean {
   return state.ids.has(productId);
 }
 
+// Stable reference for the "not ready" case so useSyncExternalStore does
+// not re-render on every notify() while the cache is still idle/loading.
+const EMPTY_IDS: ReadonlySet<string> = new Set<string>();
+
+/**
+ * Snapshot for `useSyncExternalStore`. Returns the live `ids` Set when the
+ * cache is `ready` (reference changes on every mutation because
+ * `markFavorited`/`markUnfavorited` rebuild the Set before calling
+ * `notify()`), and a stable empty sentinel otherwise.
+ */
+export function getFavoritesSnapshot(): ReadonlySet<string> {
+  return state.kind === "ready" ? state.ids : EMPTY_IDS;
+}
+
+export function getFavoritesStatus(): "idle" | "loading" | "ready" | "error" {
+  return state.kind;
+}
+
 export function markFavorited(productId: string): void {
   if (state.kind !== "ready") return;
   if (state.ids.has(productId)) return;
