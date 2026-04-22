@@ -30,3 +30,11 @@ patches:
         value:
           name: SPANNER_DATABASE
           value: asoview
+      # Opt-in demo seeders. Consumed by DevReservationSlotSeeder to
+      # populate reservation_slots on pod startup so the demo video's
+      # /me/reservations shot renders with real rows. Dev overlay only.
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: DEMO_SEED_ENABLED
+          value: "true"
