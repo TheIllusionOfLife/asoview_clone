@@ -69,7 +69,7 @@ export const MOBILE_VIEWPORT = { width: 390, height: 844 } as const;
 export const DPR = 1;
 export const FPS = 30;
 
-// Ordered 13-shot list. Durations tuned for ~60s total when summed with
+// Ordered 14-shot list. Durations tuned for ~60s total when summed with
 // crossfades. Japanese captions + annotations per revised plan.
 export const SHOTS: Shot[] = [
   {
@@ -208,25 +208,36 @@ export const SHOTS: Shot[] = [
     id: "08-me-orders",
     kind: "capture",
     route: "/ja/me/orders",
-    durationSec: 4.5,
+    durationSec: 4.0,
     // The app's JA nav translates "orders" as 予約履歴 (booking history);
-    // match it so the caption and the page h1 agree.
+    // the mark-paid seeder flips the PENDING row to PAID so the pill reads
+    // 決済済み rather than 未決済 in this frame.
     caption: "予約履歴",
     requiresAuth: true,
-    // Wait for an actual order row (status pill), not just the <main>;
-    // otherwise the client-side fetch hasn't resolved and we screenshot
-    // the "読み込み中…" loading state. 未決済 = PENDING pill.
-    waitFor: { selector: "text=未決済" },
+    // Wait for the PAID pill — the dev mark-paid flow upgrades the
+    // seeded order before this shot. Falls back to any status pill text
+    // if the pill text changes locale.
+    waitFor: { selector: "text=/決済済み|未決済/" },
   },
   {
-    // Reservations shot dropped: reservation-service dev cluster has no
-    // seeded slots (commerce-core inventory uses a separate table) so
-    // POST /v1/reservations fails with 404. Can be re-added once an
-    // operator-side slot seed lands.
-    id: "09-me-favorites",
+    id: "09-me-reservations",
+    kind: "capture",
+    route: "/ja/me/reservations",
+    durationSec: 3.5,
+    // App nav translates reservations as 予約リクエスト; distinct from
+    // /me/orders (予約履歴) so the two shots don't caption-collide.
+    caption: "予約リクエスト",
+    requiresAuth: true,
+    // Wait for a reservation row (guestName renders in a <p>). The demo
+    // seeder in capture.ts posts guestName="デモ太郎"; matching that
+    // literal avoids hitting the "読み込み中…" loading state.
+    waitFor: { selector: "text=デモ太郎" },
+  },
+  {
+    id: "10-me-favorites",
     kind: "capture",
     route: "/ja/me/favorites",
-    durationSec: 5.0,
+    durationSec: 4.0,
     caption: "お気に入り",
     requiresAuth: true,
     // Wait for the hydrated ProductCard images, not just <main> — the
@@ -235,7 +246,20 @@ export const SHOTS: Shot[] = [
     waitFor: { selector: "img.object-cover" },
   },
   {
-    id: "10-mobile-ux",
+    id: "11-me-points",
+    kind: "capture",
+    route: "/ja/me/points",
+    durationSec: 3.5,
+    caption: "ポイント残高",
+    requiresAuth: true,
+    // Wait for the balance label so the shot renders whether or not
+    // points have been credited. The mark-paid demo path tries to
+    // credit points but is fragile; this selector does not depend on
+    // that succeeding.
+    waitFor: { selector: "text=保有ポイント" },
+  },
+  {
+    id: "12-mobile-ux",
     kind: "capture",
     route: "/ja",
     durationSec: 4.5,
@@ -248,7 +272,7 @@ export const SHOTS: Shot[] = [
     // caption + phone-frame visual already communicate "mobile UX".
   },
   {
-    id: "11-architecture",
+    id: "13-architecture",
     kind: "prerendered",
     component: "ArchitectureSlide",
     durationSec: 7.0,
@@ -290,7 +314,7 @@ export const SHOTS: Shot[] = [
     ],
   },
   {
-    id: "12-home-closing",
+    id: "14-home-closing",
     kind: "capture",
     route: "/ja",
     durationSec: 4.0,

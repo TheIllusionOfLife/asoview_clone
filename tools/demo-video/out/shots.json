@@ -141,26 +141,40 @@
     {
       "id": "08-me-orders",
       "image": "08-me-orders.png",
-      "durationSec": 4.5,
+      "durationSec": 4,
       "caption": "予約履歴",
       "annotations": []
     },
     {
-      "id": "09-me-favorites",
-      "image": "09-me-favorites.png",
-      "durationSec": 5,
+      "id": "09-me-reservations",
+      "image": "09-me-reservations.png",
+      "durationSec": 3.5,
+      "caption": "予約リクエスト",
+      "annotations": []
+    },
+    {
+      "id": "10-me-favorites",
+      "image": "10-me-favorites.png",
+      "durationSec": 4,
       "caption": "お気に入り",
       "annotations": []
     },
     {
-      "id": "10-mobile-ux",
-      "image": "10-mobile-ux.png",
+      "id": "11-me-points",
+      "image": "11-me-points.png",
+      "durationSec": 3.5,
+      "caption": "ポイント残高",
+      "annotations": []
+    },
+    {
+      "id": "12-mobile-ux",
+      "image": "12-mobile-ux.png",
       "durationSec": 4.5,
       "caption": "モバイル対応",
       "annotations": []
     },
     {
-      "id": "11-architecture",
+      "id": "13-architecture",
       "image": "",
       "component": "ArchitectureSlide",
       "durationSec": 7,
@@ -194,8 +208,8 @@
       ]
     },
     {
-      "id": "12-home-closing",
-      "image": "12-home-closing.png",
+      "id": "14-home-closing",
+      "image": "14-home-closing.png",
       "durationSec": 4,
       "caption": "AsoClone",
       "annotations": [

@@ -188,12 +188,17 @@ function deterministicUuid(key: string): string {
 }
 
 /** POST /v1/orders with one line. Returns PENDING — no Stripe drive.
- *  Idempotency key is derived from {uid, productVariantId, slotId}, so
- *  repeated capture runs dedupe on the server side instead of accumulating
- *  PENDING orders in Spanner forever. */
+ *  Idempotency key is derived from {uid, date, productVariantId, slotId}.
+ *  Date is UTC day-resolution so multiple captures within one day dedupe
+ *  on the server, but a fresh day produces a fresh orderId. Fresh orderId
+ *  matters because the dev mark-paid endpoint races against PaymentService's
+ *  partial-unique-index on (order_id, status IN ('CREATED','PROCESSING'));
+ *  a stale PROCESSING payment from a prior day would otherwise block
+ *  today's confirm flow with a 409. */
 async function seedOrder(idToken: string, uid: string, pick: SlotPick): Promise<string> {
+  const today = new Date().toISOString().slice(0, 10);
   const idempotencyKey = deterministicUuid(
-    `demo-video:${uid}:${pick.variantId}:${pick.slotId}`,
+    `demo-video:${uid}:${today}:${pick.variantId}:${pick.slotId}`,
   );
   const res = await fetch(`${BASE_URL}/api/v1/orders`, {
     method: "POST",
@@ -216,6 +221,79 @@ async function seedOrder(idToken: string, uid: string, pick: SlotPick): Promise<
   const id = body.orderId ?? body.id;
   if (!id) throw new Error(`Order seed: unexpected response ${JSON.stringify(body)}`);
   return id;
+}
+
+/** POST /v1/reservations against a slot from reservation-service's dev
+ *  seeder. Returns the reservationId or null on failure (we warn rather
+ *  than throw so the capture run still produces a video if the seeder
+ *  hasn't populated the target venue yet). */
+async function seedReservation(
+  idToken: string,
+  uid: string,
+  venueId: string,
+): Promise<string | null> {
+  const today = new Date().toISOString().slice(0, 10);
+  const listRes = await fetch(
+    `${BASE_URL}/api/v1/reservation-slots?venueId=${encodeURIComponent(venueId)}&date=${today}`,
+    { headers: { Authorization: `Bearer ${idToken}` } },
+  );
+  if (!listRes.ok) {
+    console.warn(`  reservation slots: ${listRes.status} — skipping seed`);
+    return null;
+  }
+  const slots = (await listRes.json()) as Array<{
+    slotId?: string;
+    remainingCapacity?: number;
+  }>;
+  // remaining >= 1 is enough: a single demo reservation doesn't race any
+  // other capture traffic. The seeder provisions capacity 8 per slot.
+  const slot = slots.find((s) => s.slotId && (s.remainingCapacity ?? 0) >= 1);
+  if (!slot?.slotId) {
+    console.warn(`  reservation slots: no open slot on ${today} for venue ${venueId}`);
+    return null;
+  }
+  const idempotencyKey = deterministicUuid(
+    `demo-video:reservation:${uid}:${slot.slotId}`,
+  );
+  const res = await fetch(`${BASE_URL}/api/v1/reservations`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({
+      slotId: slot.slotId,
+      idempotencyKey,
+      guestName: "デモ太郎",
+      guestEmail: TEST_EMAIL,
+      guestCount: 2,
+    }),
+  });
+  if (!res.ok) {
+    console.warn(`  reservation seed: ${res.status} ${await res.text()}`);
+    return null;
+  }
+  const body = (await res.json()) as { reservationId?: string };
+  return body.reservationId ?? null;
+}
+
+/** POST /v1/dev/orders/{orderId}/mark-paid (dev-only, see
+ *  DevPaymentConfirmController). Drives the order through the production
+ *  confirm path so PointEarnListener credits the user's ledger. */
+async function confirmOrderForDemo(idToken: string, orderId: string): Promise<void> {
+  const res = await fetch(
+    `${BASE_URL}/api/v1/dev/orders/${encodeURIComponent(orderId)}/mark-paid`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${idToken}` },
+    },
+  );
+  if (!res.ok) {
+    console.warn(`  confirm order: ${res.status} ${await res.text()}`);
+    return;
+  }
+  const body = (await res.json()) as { orderStatus?: string; detail?: string };
+  console.log(`  order ${orderId} → ${body.orderStatus ?? "?"} (${body.detail ?? "?"})`);
 }
 
 /** Best-effort post-seed GET to confirm the resource is listed. Warns on
@@ -373,8 +451,6 @@ async function main() {
 
   // Pick two slot-backed products: #1 for the order, #2 for the cart line.
   // Distinct products per surface so each /me/* page shows a different item.
-  // (Reservation seeding was planned here too but the reservation-service
-  // dev cluster has no seeded slots — dropped until that lands.)
   const picks = await pickSlotBackedProducts(idToken, 2);
   const [orderPick, cartPick] = picks;
 
@@ -384,6 +460,19 @@ async function main() {
 
   const orderId = await seedOrder(idToken, uid, orderPick);
   console.log(`  order seeded: ${orderId}`);
+
+  // Confirm the order via the dev-only mark-paid endpoint. Drives the same
+  // production confirm path a Stripe webhook would, which credits points
+  // through the existing PointEarnListener on OrderPaidEvent. Without this
+  // the order stays PENDING forever and /me/points shows balance=0.
+  await confirmOrderForDemo(idToken, orderId);
+
+  // Seed a reservation request against reservation-service's dev seeder.
+  // Uses the same venueId as orderPick so the seeder (which provisions
+  // slots per product for the first 3 products) is guaranteed to have
+  // populated something at that venue.
+  const reservationId = await seedReservation(idToken, uid, orderPick.product.venueId);
+  if (reservationId) console.log(`  reservation seeded: ${reservationId}`);
 
   // Post-seed assertion gates — warn (not fail) on transient listing miss.
   await assertListed(
@@ -399,6 +488,21 @@ async function main() {
     "/api/v1/me/favorites",
     (body) => Array.isArray(body) && body.includes(orderPick.product.id),
     "favorites",
+  );
+  await assertListed(
+    idToken,
+    "/api/v1/me/reservations",
+    (body) => Array.isArray(body) && body.length > 0,
+    "reservations",
+  );
+  await assertListed(
+    idToken,
+    "/api/v1/me/points",
+    (body) => {
+      const b = (body as { balance?: number } | null)?.balance;
+      return typeof b === "number" && b > 0;
+    },
+    "points",
   );
 
   const browser = await chromium.launch();
