@@ -27,44 +27,101 @@ function mustEnv(name: string): string {
   return v;
 }
 
-async function pickProduct(
+type ProductSummary = {
+  id: string;
+  venueId: string;
+  title: string;
+  areaName?: string;
+  variants: Array<{ id: string; priceAmount: string }>;
+};
+
+type SlotPick = {
+  product: ProductSummary;
+  variantId: string;
+  slotId: string;
+  slotStartAt: string;
+  slotEndAt: string;
+  unitPrice: string;
+};
+
+/** Fetch up to N products with at least one slot in the next 14 days. */
+async function pickSlotBackedProducts(
   idToken: string,
-): Promise<{ id: string; venueId: string }> {
-  const listRes = await fetch(`${BASE_URL}/api/v1/products?size=20`);
+  count: number,
+): Promise<SlotPick[]> {
+  const listRes = await fetch(`${BASE_URL}/api/v1/products?size=50`);
   if (!listRes.ok) throw new Error(`Failed to list products: ${listRes.status}`);
   const json = (await listRes.json()) as {
-    content?: Array<{ id?: string; venueId?: string }>;
+    content?: Array<{
+      id?: string;
+      venueId?: string;
+      title?: string;
+      areaName?: string;
+      variants?: Array<{ id?: string; priceAmount?: string | number }>;
+    }>;
   };
-  const candidates = (json.content ?? []).filter(
-    (p): p is { id: string; venueId: string } => !!p.id && !!p.venueId,
-  );
-  if (candidates.length === 0) {
-    throw new Error("No products with venueId available for screenshots");
+  const candidates: ProductSummary[] = (json.content ?? []).flatMap((p) => {
+    if (!p.id || !p.venueId) return [];
+    const variants = (p.variants ?? []).flatMap((v) =>
+      v.id && v.priceAmount != null
+        ? [{ id: v.id, priceAmount: String(v.priceAmount) }]
+        : [],
+    );
+    if (variants.length === 0) return [];
+    return [{ id: p.id, venueId: p.venueId, title: p.title ?? p.id, areaName: p.areaName, variants }];
+  });
+  if (candidates.length < count) {
+    throw new Error(`Need ${count} products with variants; found ${candidates.length}`);
   }
-  // Probe ahead 14 days via the product-availability endpoint (the
-  // reservation-slots one is unpopulated on dev). The empty-form
-  // "failed to fetch slots" shot is the worst possible demo frame, so fail
-  // hard here if no slots are visible anywhere.
+  const today = new Date();
+  const to = new Date();
+  to.setUTCDate(today.getUTCDate() + 14);
+  const from = today.toISOString().slice(0, 10);
+  const toIso = to.toISOString().slice(0, 10);
+  const picks: SlotPick[] = [];
   for (const product of candidates) {
-    const today = new Date();
-    const to = new Date();
-    to.setUTCDate(today.getUTCDate() + 14);
+    if (picks.length >= count) break;
     const res = await fetch(
-      `${BASE_URL}/api/v1/products/${encodeURIComponent(product.id)}/availability?from=${today
-        .toISOString()
-        .slice(0, 10)}&to=${to.toISOString().slice(0, 10)}`,
+      `${BASE_URL}/api/v1/products/${encodeURIComponent(product.id)}/availability?from=${from}&to=${toIso}`,
       { headers: { Authorization: `Bearer ${idToken}` } },
     );
     if (!res.ok) continue;
-    const entries = (await res.json()) as Array<{ slots?: Array<{ remainingCapacity?: number }> }>;
-    const hasSlot = entries.some((e) => (e.slots ?? []).some((s) => (s.remainingCapacity ?? 0) > 0));
-    if (hasSlot) {
-      console.log(`  picked ${product.id} (venue ${product.venueId})`);
-      return product;
+    const entries = (await res.json()) as Array<{
+      slots?: Array<{
+        id?: string;
+        productVariantId?: string;
+        startAt?: string;
+        endAt?: string;
+        remainingCapacity?: number;
+      }>;
+    }>;
+    // Need remainingCapacity >= 2 so the same slot could theoretically be
+    // reserved twice — matches the plan's "avoid inventory contention".
+    for (const e of entries) {
+      const slot = (e.slots ?? []).find((s) => (s.remainingCapacity ?? 0) >= 2 && s.id);
+      if (!slot?.id || !slot.startAt || !slot.endAt) continue;
+      const variantId = slot.productVariantId ?? product.variants[0].id;
+      const variant = product.variants.find((v) => v.id === variantId) ?? product.variants[0];
+      picks.push({
+        product,
+        variantId: variant.id,
+        slotId: slot.id,
+        slotStartAt: slot.startAt,
+        slotEndAt: slot.endAt,
+        unitPrice: variant.priceAmount,
+      });
+      break;
     }
   }
-  console.warn("No product with slots in the next 14 days — falling back to first product");
-  return candidates[0];
+  if (picks.length < count) {
+    throw new Error(`Only ${picks.length}/${count} products had a slot with capacity ≥ 2`);
+  }
+  for (const pick of picks) {
+    console.log(
+      `  picked ${pick.product.id} (slot ${pick.slotId} @ ${pick.slotStartAt})`,
+    );
+  }
+  return picks;
 }
 
 async function signInViaUI(page: Page): Promise<void> {
@@ -75,7 +132,7 @@ async function signInViaUI(page: Page): Promise<void> {
   await page.waitForURL((u) => !u.toString().includes("signin"), { timeout: 20_000 });
 }
 
-async function getIdToken(): Promise<string> {
+async function signInFirebase(): Promise<{ idToken: string; localId: string }> {
   const res = await fetch(
     `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`,
     {
@@ -89,9 +146,9 @@ async function getIdToken(): Promise<string> {
     },
   );
   if (!res.ok) throw new Error(`Firebase auth failed: ${res.status} ${await res.text()}`);
-  const data = (await res.json()) as { idToken?: string };
-  if (!data.idToken) throw new Error("No idToken in Firebase response");
-  return data.idToken;
+  const data = (await res.json()) as { idToken?: string; localId?: string };
+  if (!data.idToken || !data.localId) throw new Error("No idToken/localId in Firebase response");
+  return { idToken: data.idToken, localId: data.localId };
 }
 
 async function seedFavorite(idToken: string, productId: string): Promise<void> {
@@ -108,6 +165,102 @@ async function provisionUser(idToken: string): Promise<void> {
   await fetch(`${BASE_URL}/api/v1/me`, {
     headers: { Authorization: `Bearer ${idToken}` },
   });
+}
+
+function uuid(): string {
+  return crypto.randomUUID();
+}
+
+/** POST /v1/orders with one line. Returns PENDING — no Stripe drive. */
+async function seedOrder(idToken: string, pick: SlotPick): Promise<string> {
+  const idempotencyKey = uuid();
+  const res = await fetch(`${BASE_URL}/api/v1/orders`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+      "Idempotency-Key": idempotencyKey,
+    },
+    body: JSON.stringify({
+      idempotencyKey,
+      items: [
+        { productVariantId: pick.variantId, slotId: pick.slotId, quantity: 1 },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`Order seed failed: ${res.status} ${await res.text()}`);
+  }
+  const body = (await res.json()) as { orderId?: string; id?: string };
+  const id = body.orderId ?? body.id;
+  if (!id) throw new Error(`Order seed: unexpected response ${JSON.stringify(body)}`);
+  return id;
+}
+
+async function seedReservation(idToken: string, pick: SlotPick): Promise<string> {
+  const idempotencyKey = uuid();
+  const res = await fetch(`${BASE_URL}/api/v1/reservations`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({
+      slotId: pick.slotId,
+      idempotencyKey,
+      guestName: "デモ太郎",
+      guestEmail: TEST_EMAIL,
+      guestCount: 2,
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`Reservation seed failed: ${res.status} ${await res.text()}`);
+  }
+  const body = (await res.json()) as { reservationId?: string; id?: string };
+  const id = body.reservationId ?? body.id;
+  if (!id) throw new Error(`Reservation seed: unexpected response ${JSON.stringify(body)}`);
+  return id;
+}
+
+/** Best-effort post-seed GET to confirm the resource is listed. Warns on
+ *  miss rather than throwing so a transient listing delay doesn't abort
+ *  the capture run. */
+async function assertListed(
+  idToken: string,
+  path: string,
+  matcher: (body: unknown) => boolean,
+  label: string,
+): Promise<void> {
+  try {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+    if (!res.ok) {
+      console.warn(`  ${label}: GET ${path} returned ${res.status}`);
+      return;
+    }
+    const body = (await res.json()) as unknown;
+    if (!matcher(body)) {
+      console.warn(`  ${label}: seeded record not visible in ${path}`);
+    }
+  } catch (e) {
+    console.warn(`  ${label}: post-seed check threw`, e);
+  }
+}
+
+/** Cart is localStorage-backed. Injected into the authenticated context
+ *  before signInViaUI so the /ja/cart shot has lines on first render. */
+function buildCartLine(pick: SlotPick): Record<string, unknown> {
+  return {
+    productId: pick.product.id,
+    productVariantId: pick.variantId,
+    slotId: pick.slotId,
+    slotStartAt: pick.slotStartAt,
+    slotEndAt: pick.slotEndAt,
+    quantity: 1,
+    unitPrice: pick.unitPrice,
+    productSnapshot: { name: pick.product.title, area: pick.product.areaName ?? null },
+  };
 }
 
 async function captureShot(
@@ -194,6 +347,18 @@ async function newDesktopContext(browser: Awaited<ReturnType<typeof chromium.lau
   });
 }
 
+function hasContent(
+  body: unknown,
+  pred: (row: unknown) => boolean,
+): boolean {
+  if (Array.isArray(body)) return body.some(pred);
+  if (body && typeof body === "object") {
+    const arr = (body as { content?: unknown[] }).content;
+    if (Array.isArray(arr)) return arr.some(pred);
+  }
+  return false;
+}
+
 async function newMobileContext(browser: Awaited<ReturnType<typeof chromium.launch>>) {
   return browser.newContext({
     ...devices["iPhone 14"],
@@ -207,24 +372,79 @@ async function main() {
 
   console.log(`Base URL: ${BASE_URL}`);
   console.log("Signing in + seeding data…");
-  const idToken = await getIdToken();
+  const { idToken, localId: uid } = await signInFirebase();
   await provisionUser(idToken);
-  const product = await pickProduct(idToken);
-  await seedFavorite(idToken, product.id);
-  console.log(`Seeded favorite for product ${product.id} (venue ${product.venueId})`);
+
+  // Pick two slot-backed products: #1 for the order, #2 for the reservation.
+  // Using separate slots avoids inventory contention flagged by Codex.
+  const picks = await pickSlotBackedProducts(idToken, 2);
+  const [orderPick, reservationPick] = picks;
+
+  // Seed two favorites so the /me/favorites grid shows a multi-card row.
+  await seedFavorite(idToken, orderPick.product.id);
+  await seedFavorite(idToken, reservationPick.product.id);
+
+  const orderId = await seedOrder(idToken, orderPick);
+  console.log(`  order seeded: ${orderId}`);
+  const reservationId = await seedReservation(idToken, reservationPick);
+  console.log(`  reservation seeded: ${reservationId}`);
+
+  // Post-seed assertion gates — warn (not fail) on transient listing miss.
+  await assertListed(
+    idToken,
+    "/api/v1/me/orders",
+    (body) =>
+      hasContent(body, (row) => (row as { orderId?: string; id?: string }).orderId === orderId ||
+        (row as { id?: string }).id === orderId),
+    "orders",
+  );
+  await assertListed(
+    idToken,
+    "/api/v1/me/reservations",
+    (body) => Array.isArray(body) &&
+      body.some((r) =>
+        (r as { reservationId?: string; id?: string }).reservationId === reservationId ||
+        (r as { id?: string }).id === reservationId,
+      ),
+    "reservations",
+  );
+  await assertListed(
+    idToken,
+    "/api/v1/me/favorites",
+    (body) => Array.isArray(body) && body.includes(orderPick.product.id),
+    "favorites",
+  );
 
   const browser = await chromium.launch();
   const authContext = await newDesktopContext(browser);
   const anonContext = await newDesktopContext(browser);
   const mobileContext = await newMobileContext(browser);
-  // Prime the mobile context so <InstallPrompt> considers this a second
-  // visit — the banner only renders when visit-count >= 2. Best-effort:
-  // the shot does not depend on the banner firing.
+
+  // Seed the cart into the auth + mobile contexts BEFORE any page opens,
+  // so /ja/cart renders with lines on first navigation.
+  const cartLine = buildCartLine(reservationPick);
+  const cartKey = `asoview:cart:${uid}`;
+  const cartValue = JSON.stringify({ lines: [cartLine] });
+  for (const ctx of [authContext, mobileContext]) {
+    await ctx.addInitScript(
+      ({ key, value }) => {
+        try {
+          localStorage.setItem(key, value);
+        } catch {
+          // Storage may be inaccessible pre-navigation; swallow.
+        }
+      },
+      { key: cartKey, value: cartValue },
+    );
+  }
+
+  // Mobile-only: prime visit count so <InstallPrompt> has a chance to
+  // render. Best-effort; the shot does not depend on the banner firing.
   await mobileContext.addInitScript(() => {
     try {
       localStorage.setItem("pwa:visit-count", "2");
     } catch {
-      // Storage access may be blocked pre-navigation; ignore.
+      // Ignored.
     }
   });
 
@@ -266,7 +486,7 @@ async function main() {
 
       const ctx = shot.context ?? (shot.requiresAuth === false ? "anon" : "auth");
       const page = pagesByContext[ctx];
-      const route = shot.route.replace("__PRODUCT_DETAIL__", `/ja/products/${product.id}`);
+      const route = shot.route.replace("__PRODUCT_DETAIL__", `/ja/products/${orderPick.product.id}`);
       const entry = await captureShot(page, shot, route, viewportByContext[ctx]);
       manifest.shots.push(entry);
     }
