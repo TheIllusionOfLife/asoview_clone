@@ -139,22 +139,43 @@ export const ArchitectureSlide = () => {
         h={220}
         color={GOOGLE_RED}
         title="GKE (asoview-clone-dev)"
-        subtitle="Namespaces: consumer-web / edge / core-services / ops-services"
+        subtitle="8 namespaces — consumer / operator / core / edge / ads / data / ops / observability"
       >
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 8 }}>
-          <div style={{ background: "#fce8e6", padding: 8, borderRadius: 6, fontSize: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6, marginTop: 6 }}>
+          <div style={{ background: "#fce8e6", padding: 6, borderRadius: 6, fontSize: 11 }}>
             <div style={{ fontWeight: 700, color: "#c5221f" }}>consumer-web</div>
-            <div>asoview-web (Next.js PWA)</div>
+            <div>asoview-web</div>
+            <div>urakata-ticket-web</div>
           </div>
-          <div style={{ background: "#fce8e6", padding: 8, borderRadius: 6, fontSize: 12 }}>
+          <div style={{ background: "#fce8e6", padding: 6, borderRadius: 6, fontSize: 11 }}>
+            <div style={{ fontWeight: 700, color: "#c5221f" }}>operator-web</div>
+            <div>urakata-reservation</div>
+          </div>
+          <div style={{ background: "#fce8e6", padding: 6, borderRadius: 6, fontSize: 11 }}>
             <div style={{ fontWeight: 700, color: "#c5221f" }}>edge</div>
             <div>Gateway (WebFlux)</div>
           </div>
-          <div style={{ background: "#fce8e6", padding: 8, borderRadius: 6, fontSize: 12 }}>
+          <div style={{ background: "#fce8e6", padding: 6, borderRadius: 6, fontSize: 11 }}>
             <div style={{ fontWeight: 700, color: "#c5221f" }}>core-services</div>
             <div>commerce-core</div>
             <div>ticketing-svc</div>
             <div>reservation-svc</div>
+          </div>
+          <div style={{ background: "#fce8e6", padding: 6, borderRadius: 6, fontSize: 11 }}>
+            <div style={{ fontWeight: 700, color: "#c5221f" }}>ads-services</div>
+            <div>ads-service</div>
+          </div>
+          <div style={{ background: "#fce8e6", padding: 6, borderRadius: 6, fontSize: 11 }}>
+            <div style={{ fontWeight: 700, color: "#c5221f" }}>data-jobs</div>
+            <div>analytics-ingest</div>
+          </div>
+          <div style={{ background: "#fce8e6", padding: 6, borderRadius: 6, fontSize: 11 }}>
+            <div style={{ fontWeight: 700, color: "#c5221f" }}>ops-services</div>
+            <div>search-service</div>
+          </div>
+          <div style={{ background: "#fce8e6", padding: 6, borderRadius: 6, fontSize: 11 }}>
+            <div style={{ fontWeight: 700, color: "#c5221f" }}>observability</div>
+            <div>OpenTelemetry</div>
           </div>
         </div>
       </Box>

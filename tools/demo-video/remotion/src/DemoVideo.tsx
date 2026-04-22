@@ -33,6 +33,8 @@ export const DemoVideo = ({ manifest, crossfadeFrames }: Props) => {
             durationInFrames={durationInFrames}
             crossfadeFrames={crossfadeFrames}
             isFirst={idx === 0}
+            frameWidth={manifest.viewport.width}
+            frameHeight={manifest.viewport.height}
           />
         </Sequence>
       ))}
@@ -45,9 +47,18 @@ type ShotProps = {
   durationInFrames: number;
   crossfadeFrames: number;
   isFirst: boolean;
+  frameWidth: number;
+  frameHeight: number;
 };
 
-const Shot = ({ shot, durationInFrames, crossfadeFrames, isFirst }: ShotProps) => {
+const Shot = ({
+  shot,
+  durationInFrames,
+  crossfadeFrames,
+  isFirst,
+  frameWidth,
+  frameHeight,
+}: ShotProps) => {
   const frame = useCurrentFrame();
   // Crossfade in over the first `crossfadeFrames`; stay opaque until the end,
   // then fade out over the trailing `crossfadeFrames` (which overlap the next
@@ -92,6 +103,8 @@ const Shot = ({ shot, durationInFrames, crossfadeFrames, isFirst }: ShotProps) =
             key={`${shot.id}-annotation-${i}`}
             annotation={annotation}
             progress={annotationProgress}
+            frameWidth={frameWidth}
+            frameHeight={frameHeight}
           />
         ))}
       <Caption text={shot.caption} />

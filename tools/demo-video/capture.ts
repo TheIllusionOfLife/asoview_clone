@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { type BrowserContext, chromium, devices, type Page } from "@playwright/test";
@@ -88,7 +89,11 @@ async function pickSlotBackedProducts(
     if (!res.ok) continue;
     // API returns a flat array of { slotId, productVariantId, date,
     // startTime, endTime, remaining } — NOT a {slots: [...]} grouping.
-    const entries = (await res.json()) as Array<{
+    // Guard against a response shape drift (error object, HTML, etc.) so
+    // the downstream .find() call never throws on .find of non-array.
+    const raw = (await res.json()) as unknown;
+    if (!Array.isArray(raw)) continue;
+    const entries = raw as Array<{
       slotId?: string;
       productVariantId?: string;
       date?: string;
@@ -174,9 +179,22 @@ function uuid(): string {
   return crypto.randomUUID();
 }
 
-/** POST /v1/orders with one line. Returns PENDING — no Stripe drive. */
-async function seedOrder(idToken: string, pick: SlotPick): Promise<string> {
-  const idempotencyKey = uuid();
+/** Deterministic UUID-shaped key derived from the input. Backend validates
+ *  Idempotency-Key as a UUID, so a plain "demo-video:uid:..." string is
+ *  rejected — we hash then format as a v5-like UUID. */
+function deterministicUuid(key: string): string {
+  const h = createHash("sha256").update(key).digest("hex").slice(0, 32);
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`;
+}
+
+/** POST /v1/orders with one line. Returns PENDING — no Stripe drive.
+ *  Idempotency key is derived from {uid, productVariantId, slotId}, so
+ *  repeated capture runs dedupe on the server side instead of accumulating
+ *  PENDING orders in Spanner forever. */
+async function seedOrder(idToken: string, uid: string, pick: SlotPick): Promise<string> {
+  const idempotencyKey = deterministicUuid(
+    `demo-video:${uid}:${pick.variantId}:${pick.slotId}`,
+  );
   const res = await fetch(`${BASE_URL}/api/v1/orders`, {
     method: "POST",
     headers: {
@@ -364,7 +382,7 @@ async function main() {
   await seedFavorite(idToken, orderPick.product.id);
   await seedFavorite(idToken, cartPick.product.id);
 
-  const orderId = await seedOrder(idToken, orderPick);
+  const orderId = await seedOrder(idToken, uid, orderPick);
   console.log(`  order seeded: ${orderId}`);
 
   // Post-seed assertion gates — warn (not fail) on transient listing miss.

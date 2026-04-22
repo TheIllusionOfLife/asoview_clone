@@ -16,9 +16,14 @@ const LABEL_FONT = 15;
 // is cheaper than under-sizing and truncating mid-word.
 const CHAR_WIDTH = 15;
 
-type Props = { annotation: Annotation; progress: number };
+type Props = {
+  annotation: Annotation;
+  progress: number;
+  frameWidth: number;
+  frameHeight: number;
+};
 
-export const Callout = ({ annotation, progress }: Props) => {
+export const Callout = ({ annotation, progress, frameWidth, frameHeight }: Props) => {
   const tone = COLORS[annotation.tone ?? "info"];
   const { x, y, width, height, label, pointFrom } = annotation;
 
@@ -47,6 +52,8 @@ export const Callout = ({ annotation, progress }: Props) => {
     height,
     labelWidth: estimatedLabelWidth,
     labelHeight: estimatedLabelHeight,
+    frameWidth,
+    frameHeight,
   });
 
   const labelStyle: CSSProperties = {
@@ -76,7 +83,7 @@ export const Callout = ({ annotation, progress }: Props) => {
 };
 
 // Place the label on the side indicated by pointFrom, but flip to the opposite
-// side if it would leave the 1280×800 frame. Edge-safety matters more than
+// side if it would leave the composition frame. Edge-safety matters more than
 // direction — a label outside the frame is invisible.
 function resolveLabelPosition({
   pointFrom,
@@ -86,6 +93,8 @@ function resolveLabelPosition({
   height,
   labelWidth,
   labelHeight,
+  frameWidth,
+  frameHeight,
 }: {
   pointFrom: Annotation["pointFrom"];
   x: number;
@@ -94,9 +103,11 @@ function resolveLabelPosition({
   height: number;
   labelWidth: number;
   labelHeight: number;
+  frameWidth: number;
+  frameHeight: number;
 }): { left: number; top: number } {
-  const frameW = 1280;
-  const frameH = 800;
+  const frameW = frameWidth;
+  const frameH = frameHeight;
   const candidates: Record<Annotation["pointFrom"], { left: number; top: number }> = {
     top: {
       left: clamp(x + width / 2 - labelWidth / 2, 8, frameW - labelWidth - 8),
@@ -117,7 +128,9 @@ function resolveLabelPosition({
   };
 
   const preferred = candidates[pointFrom];
-  if (fits(preferred, labelWidth, labelHeight)) return preferred;
+  const inside = (p: { left: number; top: number }) =>
+    p.left >= 0 && p.top >= 0 && p.left + labelWidth <= frameW && p.top + labelHeight <= frameH;
+  if (inside(preferred)) return preferred;
 
   const flipMap: Record<Annotation["pointFrom"], Annotation["pointFrom"]> = {
     top: "bottom",
@@ -126,21 +139,13 @@ function resolveLabelPosition({
     right: "left",
   };
   const flipped = candidates[flipMap[pointFrom]];
-  if (fits(flipped, labelWidth, labelHeight)) return flipped;
+  if (inside(flipped)) return flipped;
 
   // Last resort: clamp inside the frame.
   return {
     left: clamp(preferred.left, 8, frameW - labelWidth - 8),
     top: clamp(preferred.top, 8, frameH - labelHeight - 8),
   };
-}
-
-function fits(
-  p: { left: number; top: number },
-  labelWidth: number,
-  labelHeight: number,
-): boolean {
-  return p.left >= 0 && p.top >= 0 && p.left + labelWidth <= 1280 && p.top + labelHeight <= 800;
 }
 
 function clamp(v: number, min: number, max: number): number {

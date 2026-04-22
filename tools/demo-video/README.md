@@ -31,6 +31,18 @@ bun run render    # writes out/demo.mp4
 - `remotion/src/Callout.tsx` — element-anchored callout with label. Label
   position is flipped if the `pointFrom` side would leave the frame.
 
+## Side effects on the live dev site
+
+Running `bun run capture` writes to the shared dev cluster as the test user:
+
+- `PUT /v1/me/favorites/{productId}` × 2 — idempotent, no cleanup needed.
+- `POST /v1/orders` with `Idempotency-Key = demo-video:{uid}:{variantId}:{slotId}`.
+  The deterministic key dedupes on the server: repeated runs against the
+  same user/product/slot reuse the existing PENDING order instead of
+  creating a new row every run. No manual cleanup required.
+- `localStorage["asoview:cart:{uid}"]` is written to the Playwright
+  browser context, not the server. Not a side effect on dev.
+
 ## Tuning
 
 - Durations are per-shot in `shots.ts` (sum ≈ 60s today).
