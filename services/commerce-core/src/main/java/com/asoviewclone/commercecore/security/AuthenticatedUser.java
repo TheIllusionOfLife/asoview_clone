@@ -2,12 +2,27 @@ package com.asoviewclone.commercecore.security;
 
 import com.asoviewclone.commercecore.identity.model.TenantRole;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import org.springframework.security.core.AuthenticatedPrincipal;
 
 public record AuthenticatedUser(
     String firebaseUid, String email, UUID userId, Map<UUID, TenantRole> tenantRoles)
     implements AuthenticatedPrincipal {
+
+  /**
+   * Compact constructor: reject null required fields and take an immutable snapshot of {@code
+   * tenantRoles}. A null {@code userId} would have caused {@link #getName()} to NPE (or silently
+   * return the string {@code "null"} at some call sites), which would resurrect the audit-column
+   * corruption this record's {@link AuthenticatedPrincipal} implementation fixed.
+   */
+  public AuthenticatedUser {
+    Objects.requireNonNull(firebaseUid, "firebaseUid");
+    Objects.requireNonNull(email, "email");
+    Objects.requireNonNull(userId, "userId");
+    Objects.requireNonNull(tenantRoles, "tenantRoles");
+    tenantRoles = Map.copyOf(tenantRoles);
+  }
 
   /**
    * Spring Security's {@code UsernamePasswordAuthenticationToken.getName()} delegates to {@code
