@@ -5,4 +5,4 @@ resources:
   - ../../base
 images:
   - name: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/ads-service
-    newTag: "1bf70d2"
+    newTag: "c8138f8"
