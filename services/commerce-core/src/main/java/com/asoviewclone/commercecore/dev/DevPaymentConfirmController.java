@@ -4,6 +4,7 @@ import com.asoviewclone.commercecore.orders.model.Order;
 import com.asoviewclone.commercecore.orders.model.OrderStatus;
 import com.asoviewclone.commercecore.orders.repository.OrderRepository;
 import com.asoviewclone.commercecore.payments.model.Payment;
+import com.asoviewclone.commercecore.payments.model.PaymentStatus;
 import com.asoviewclone.commercecore.payments.repository.PaymentRepository;
 import com.asoviewclone.commercecore.payments.service.PaymentService;
 import com.asoviewclone.commercecore.security.AuthenticatedUser;
@@ -69,12 +70,14 @@ public class DevPaymentConfirmController {
 
     Order order;
     try {
+      // OrderRepository.findById throws NotFoundException on missing rows
+      // (never returns null), so there is no separate null-check branch.
       order = orderRepository.findById(orderId);
     } catch (NotFoundException e) {
       // Non-enumeration: same 404 for "missing" and "not yours".
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "order not found");
     }
-    if (order == null || !order.userId().equals(user.userId().toString())) {
+    if (!order.userId().equals(user.userId().toString())) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "order not found");
     }
 
@@ -82,18 +85,26 @@ public class DevPaymentConfirmController {
       return response(orderId, "PAID", "already_paid");
     }
 
-    // Idempotent: findByOrderId returns the existing active payment (if any).
-    // Otherwise create one via the stub gateway; the AFTER_COMMIT listener
-    // transitions the order PENDING → PAYMENT_PENDING synchronously after the
-    // createPaymentIntent call returns, because @TransactionalEventListener
-    // runs in the committer's thread after commit.
+    // Find the latest non-failed payment for the order, if any. A plain
+    // findByOrderId() would throw IncorrectResultSizeDataAccessException
+    // when FAILED rows accumulate alongside an active row — a realistic
+    // state after a retry.
     Payment payment =
-        paymentRepository
-            .findByOrderId(orderId)
+        paymentRepository.findAllByOrderIdOrderByAuditCreatedAtDesc(orderId).stream()
+            .filter(p -> p.getStatus() != PaymentStatus.FAILED)
+            .findFirst()
             .orElseGet(
                 () ->
                     paymentService.createPaymentIntent(
                         orderId, user.userId().toString(), "demo-mark-paid:" + orderId));
+
+    // The AFTER_COMMIT listener that moves PENDING -> PAYMENT_PENDING is
+    // @Retryable; after retries exhaust, the listener exception is swallowed
+    // and the order stays PENDING. confirmPayment requires PAYMENT_PENDING,
+    // so a defensive CAS here ensures we never immediately race the listener.
+    // Returns false if the order is already past PENDING (listener fired) —
+    // that is the happy path and not an error.
+    orderRepository.updateStatusIf(orderId, OrderStatus.PENDING, OrderStatus.PAYMENT_PENDING);
 
     log.info(
         "DevPaymentConfirmController: confirming payment {} for order {} (user {})",

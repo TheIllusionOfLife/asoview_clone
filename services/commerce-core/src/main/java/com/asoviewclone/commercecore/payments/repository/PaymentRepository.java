@@ -19,6 +19,15 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
   Optional<Payment> findByOrderId(String orderId);
 
   /**
+   * All payments for an order, newest first. FAILED + CANCELLED rows can accumulate alongside an
+   * active row, so callers that need "the active payment, if any" must filter the result rather
+   * than relying on {@link #findByOrderId} (which throws {@code
+   * IncorrectResultSizeDataAccessException} on &gt;1 row). The {@code createdAt} timestamp lives on
+   * the {@code @Embedded AuditFields audit}, so the sort references the embedded path.
+   */
+  List<Payment> findAllByOrderIdOrderByAuditCreatedAtDesc(String orderId);
+
+  /**
    * Looks up a payment by the provider-issued identifier stored in {@code provider_payment_id}
    * (e.g., a Stripe {@code pi_...}). A partial unique index (V6) guarantees at most one row per
    * non-null provider id.
