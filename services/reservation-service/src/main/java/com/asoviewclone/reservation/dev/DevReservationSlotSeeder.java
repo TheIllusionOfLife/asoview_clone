@@ -51,18 +51,14 @@ public class DevReservationSlotSeeder implements CommandLineRunner {
 
   private final ReservationSlotRepository repository;
   private final String commerceCoreBaseUrl;
-  private final ObjectMapper objectMapper;
+  private final ObjectMapper objectMapper = new ObjectMapper();
 
   public DevReservationSlotSeeder(
       ReservationSlotRepository repository,
-      // Spring-managed mapper — inherits any app-wide @JsonNaming / @JsonIgnoreProperties
-      // policies and keeps ObjectMapper instances consolidated.
-      ObjectMapper objectMapper,
       @Value(
               "${demo.seed.commerce-core-base-url:http://commerce-core.core-services.svc.cluster.local:8080}")
           String commerceCoreBaseUrl) {
     this.repository = repository;
-    this.objectMapper = objectMapper;
     this.commerceCoreBaseUrl = commerceCoreBaseUrl;
   }
 
