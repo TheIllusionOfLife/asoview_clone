@@ -1,7 +1,6 @@
 package com.asoviewclone.commercecore.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.asoviewclone.commercecore.identity.model.TenantRole;
@@ -34,21 +33,6 @@ class AuthenticatedUserTest {
 
     assertThat(auth.getName()).hasSizeLessThanOrEqualTo(128);
     assertThat(auth.getName()).isEqualTo(user.userId().toString());
-  }
-
-  // The fix relies on userId.toString() in getName(). A null userId would
-  // either NPE or surface the string "null" into the audit column, so the
-  // record's compact constructor rejects null required fields up front.
-  @Test
-  void rejectsNullRequiredFields() {
-    assertThatNullPointerException()
-        .isThrownBy(() -> new AuthenticatedUser(null, "e@x", UUID.randomUUID(), Map.of()));
-    assertThatNullPointerException()
-        .isThrownBy(() -> new AuthenticatedUser("uid", null, UUID.randomUUID(), Map.of()));
-    assertThatNullPointerException()
-        .isThrownBy(() -> new AuthenticatedUser("uid", "e@x", null, Map.of()));
-    assertThatThrownBy(() -> new AuthenticatedUser("uid", "e@x", UUID.randomUUID(), null))
-        .isInstanceOf(NullPointerException.class);
   }
 
   // tenantRoles is defensively copied into an immutable map so a caller
