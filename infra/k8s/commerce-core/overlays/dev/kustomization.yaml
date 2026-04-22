@@ -21,4 +21,4 @@ patches:
           value: "true"
 images:
   - name: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/commerce-core
-    newTag: "5b97054"
+    newTag: "d0191b5"
