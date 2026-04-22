@@ -91,11 +91,15 @@ export const SHOTS: Shot[] = [
   {
     id: "02-search",
     kind: "capture",
-    // Merged query + facets: キャンプ text search + priceMax filter + price-asc sort.
-    route: "/ja/search?query=%E3%82%AD%E3%83%A3%E3%83%B3%E3%83%97&priceMax=5000&sort=price_asc",
+    // Show the catalog with a priceMax filter + price-asc sort. Dropped the
+    // text query ("キャンプ" matched nothing against the English-titled
+    // dev catalog, producing an empty result frame).
+    route: "/ja/search?priceMax=5000&sort=price_asc",
     durationSec: 5.0,
     caption: "検索と絞り込み",
-    waitFor: { selector: "main" },
+    // Wait for the first result row — search results are text-only <li>
+    // with h3 (no images).
+    waitFor: { selector: "ul li h3" },
     annotations: [
       {
         selector: "input[type='search'], input[aria-label*='search' i]",
