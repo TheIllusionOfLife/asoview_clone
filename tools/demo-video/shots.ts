@@ -214,10 +214,10 @@ export const SHOTS: Shot[] = [
     // 決済済み rather than 未決済 in this frame.
     caption: "予約履歴",
     requiresAuth: true,
-    // Wait for the PAID pill — the dev mark-paid flow upgrades the
-    // seeded order before this shot. Falls back to any status pill text
-    // if the pill text changes locale.
-    waitFor: { selector: "text=/決済済み|未決済/" },
+    // Wait for a status pill — MyOrdersClient maps PAID -> "予約済み"
+    // and PENDING -> "未決済", so matching either ensures the shot
+    // captures whether or not the dev mark-paid flow completed.
+    waitFor: { selector: "text=/予約済み|未決済/" },
   },
   {
     id: "09-me-reservations",
@@ -228,10 +228,11 @@ export const SHOTS: Shot[] = [
     // /me/orders (予約履歴) so the two shots don't caption-collide.
     caption: "予約リクエスト",
     requiresAuth: true,
-    // Wait for a reservation row (guestName renders in a <p>). The demo
-    // seeder in capture.ts posts guestName="デモ太郎"; matching that
-    // literal avoids hitting the "読み込み中…" loading state.
-    waitFor: { selector: "text=デモ太郎" },
+    // Wait for either the seeded row (guestName="デモ太郎") OR the
+    // empty-state text. Both indicate the async list fetch resolved,
+    // so the shot won't catch the "読み込み中…" loading state nor time
+    // out when the seeder hasn't populated this user yet.
+    waitFor: { selector: "text=/デモ太郎|予約リクエストはまだありません/" },
   },
   {
     id: "10-me-favorites",

@@ -241,7 +241,12 @@ async function seedReservation(
     console.warn(`  reservation slots: ${listRes.status} — skipping seed`);
     return null;
   }
-  const slots = (await listRes.json()) as Array<{
+  const raw = (await listRes.json()) as unknown;
+  if (!Array.isArray(raw)) {
+    console.warn(`  reservation slots: unexpected response shape — skipping seed`);
+    return null;
+  }
+  const slots = raw as Array<{
     slotId?: string;
     remainingCapacity?: number;
   }>;
@@ -260,6 +265,7 @@ async function seedReservation(
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${idToken}`,
+      "Idempotency-Key": idempotencyKey,
     },
     body: JSON.stringify({
       slotId: slot.slotId,
