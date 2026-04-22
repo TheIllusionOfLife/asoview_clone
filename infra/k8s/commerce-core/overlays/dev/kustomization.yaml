@@ -8,6 +8,19 @@ patches:
     target:
       kind: ServiceAccount
       name: commerce-core
+  # Opt-in demo seeders. Consumed by DevPaymentConfirmController to expose a
+  # dev-only POST /v1/dev/orders/{id}/mark-paid endpoint. Dev overlay only.
+  # NOTE: The Cloud Build auto-bumper has clobbered this patch in the past
+  # (commit bc76ea4 on 2026-04-22). If it disappears again, restore it here.
+  - target:
+      kind: Deployment
+      name: commerce-core
+    patch: |
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: DEMO_SEED_ENABLED
+          value: "true"
 images:
   - name: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/commerce-core
     newTag: "3de79aa"
