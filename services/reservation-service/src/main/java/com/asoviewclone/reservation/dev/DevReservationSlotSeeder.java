@@ -55,14 +55,18 @@ public class DevReservationSlotSeeder implements CommandLineRunner {
   private final String commerceCoreBaseUrl;
   private final HttpClient http =
       HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
-  private final ObjectMapper objectMapper = new ObjectMapper();
+  private final ObjectMapper objectMapper;
 
   public DevReservationSlotSeeder(
       ReservationSlotRepository repository,
+      // Spring-managed mapper — inherits any app-wide @JsonNaming / @JsonIgnoreProperties
+      // policies and keeps ObjectMapper instances consolidated.
+      ObjectMapper objectMapper,
       @Value(
               "${demo.seed.commerce-core-base-url:http://commerce-core.core-services.svc.cluster.local:8080}")
           String commerceCoreBaseUrl) {
     this.repository = repository;
+    this.objectMapper = objectMapper;
     this.commerceCoreBaseUrl = commerceCoreBaseUrl;
   }
 
@@ -74,15 +78,38 @@ public class DevReservationSlotSeeder implements CommandLineRunner {
         log.warn("DevReservationSlotSeeder: no products returned — skipping");
         return;
       }
+      // Pin the calendar window once so a midnight-boundary run cannot shift
+      // `today` mid-loop and produce a jagged 14-day window.
+      LocalDate today = LocalDate.now();
       int created = 0;
       int skipped = 0;
+      int droppedInvalid = 0;
       for (Product product : products) {
+        if (isNullOrBlank(product.id)
+            || isNullOrBlank(product.tenantId)
+            || isNullOrBlank(product.venueId)) {
+          // commerce-core should never return a partial product on the dev
+          // seed path, but guard against an NPE that the outer catch would
+          // otherwise swallow silently.
+          droppedInvalid++;
+          log.warn(
+              "DevReservationSlotSeeder: skipping product with null/blank id/tenant/venue: id={} tenantId={} venueId={}",
+              product.id,
+              product.tenantId,
+              product.venueId);
+          continue;
+        }
         for (int dayOffset = 0; dayOffset < DAYS_AHEAD; dayOffset++) {
-          String date = LocalDate.now().plusDays(dayOffset).toString();
+          String date = today.plusDays(dayOffset).toString();
+          // Scope the dedup query to THIS product+tenant. The repository method
+          // accepts only (venueId, date, tenantId), so scope-to-tenant here,
+          // then filter by product_id in-memory. Two seeded products sharing
+          // a venueId would otherwise see each other's slots and skip-out.
           List<ReservationSlot> existing =
-              repository.findByVenueAndDate(product.venueId, date, null);
+              repository.findByVenueAndDate(product.venueId, date, product.tenantId);
           Set<String> existingStartTimes =
               existing.stream()
+                  .filter(s -> product.id.equals(s.productId()))
                   .map(ReservationSlot::startTime)
                   .collect(java.util.stream.Collectors.toUnmodifiableSet());
           for (int i = 0; i < START_TIMES.size(); i++) {
@@ -104,30 +131,56 @@ public class DevReservationSlotSeeder implements CommandLineRunner {
         }
       }
       log.info(
-          "DevReservationSlotSeeder: seeded {} new slot(s) across {} product(s); {} already existed",
+          "DevReservationSlotSeeder: seeded {} new slot(s) across {} product(s); {} already existed; {} invalid products skipped",
           created,
-          products.size(),
-          skipped);
+          products.size() - droppedInvalid,
+          skipped,
+          droppedInvalid);
     } catch (Exception e) {
       // Fail-open: a seeder crash must never block app startup. Log loudly so ops can spot it.
       log.error("DevReservationSlotSeeder: seeding failed — continuing startup", e);
     }
   }
 
+  private static boolean isNullOrBlank(String s) {
+    return s == null || s.isBlank();
+  }
+
   private List<Product> fetchProducts(int limit) throws Exception {
+    // Retry with backoff: commerce-core may still be starting up when this
+    // seeder runs. Fail-open is the outer behavior, but a single shot is too
+    // thin — 3 tries with 1s/2s/4s backoff makes first-boot ordering reliable.
     HttpRequest req =
         HttpRequest.newBuilder()
             .uri(URI.create(commerceCoreBaseUrl + "/v1/products?size=" + limit))
             .timeout(Duration.ofSeconds(10))
             .GET()
             .build();
-    HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
-    if (res.statusCode() / 100 != 2) {
-      throw new IllegalStateException(
-          "commerce-core /v1/products returned " + res.statusCode() + ": " + res.body());
+    Exception lastError = null;
+    long backoffMs = 1000L;
+    for (int attempt = 1; attempt <= 3; attempt++) {
+      try {
+        HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
+        if (res.statusCode() / 100 != 2) {
+          throw new IllegalStateException(
+              "commerce-core /v1/products returned " + res.statusCode() + ": " + res.body());
+        }
+        ProductPage page = objectMapper.readValue(res.body(), ProductPage.class);
+        return page.content == null ? List.of() : page.content;
+      } catch (Exception e) {
+        lastError = e;
+        if (attempt < 3) {
+          log.warn(
+              "DevReservationSlotSeeder: fetchProducts attempt {} failed ({}); retrying in {}ms",
+              attempt,
+              e.getMessage(),
+              backoffMs);
+          Thread.sleep(backoffMs);
+          backoffMs *= 2;
+        }
+      }
     }
-    ProductPage page = objectMapper.readValue(res.body(), ProductPage.class);
-    return page.content == null ? List.of() : page.content;
+    throw new IllegalStateException("fetchProducts failed after 3 attempts", lastError);
   }
 
   // DTOs sized to the subset we care about; Jackson ignores everything else.
