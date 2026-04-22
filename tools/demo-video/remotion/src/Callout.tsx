@@ -10,7 +10,11 @@ const LABEL_GAP = 12;
 const LABEL_PADDING_X = 10;
 const LABEL_PADDING_Y = 6;
 const LABEL_FONT = 15;
-const CHAR_WIDTH = 7.2;
+// CJK glyphs are ~1.5-2x wider than Latin at the same font-size; use a wide
+// estimate so Japanese labels do not clip in their pill. A per-character
+// CJK-vs-Latin detector would be more accurate, but over-sizing empty pixels
+// is cheaper than under-sizing and truncating mid-word.
+const CHAR_WIDTH = 15;
 
 type Props = { annotation: Annotation; progress: number };
 

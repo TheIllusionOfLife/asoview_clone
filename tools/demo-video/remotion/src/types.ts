@@ -10,7 +10,10 @@ export type Annotation = {
 
 export type ShotManifestEntry = {
   id: string;
+  /** Data URL (base64 PNG) for capture shots, empty string for prerendered. */
   image: string;
+  /** Name of the Remotion component to mount when `image` is empty. */
+  component?: string;
   durationSec: number;
   caption: string;
   annotations: Annotation[];
