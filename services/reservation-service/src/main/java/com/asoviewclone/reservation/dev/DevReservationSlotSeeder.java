@@ -56,7 +56,7 @@ public class DevReservationSlotSeeder implements CommandLineRunner {
   public DevReservationSlotSeeder(
       ReservationSlotRepository repository,
       @Value(
-              "${demo.seed.commerce-core-base-url:http://commerce-core.core-services.svc.cluster.local:8080}")
+              "${demo.seed.commerce-core-base-url:http://commerce-core.core-services.svc.cluster.local:8081}")
           String commerceCoreBaseUrl) {
     this.repository = repository;
     this.commerceCoreBaseUrl = commerceCoreBaseUrl;
