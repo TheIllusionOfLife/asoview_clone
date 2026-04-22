@@ -1,0 +1,27 @@
+{
+  "name": "asoview-demo-video",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "capture": "tsx capture.ts",
+    "render": "cd remotion && bunx remotion render src/index.tsx DemoVideo ../out/demo.mp4",
+    "preview": "cd remotion && bunx remotion studio src/index.tsx",
+    "build": "bun run capture && bun run render"
+  },
+  "dependencies": {
+    "@playwright/test": "1.55.1",
+    "@remotion/bundler": "4.0.395",
+    "@remotion/cli": "4.0.395",
+    "@remotion/renderer": "4.0.395",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "remotion": "4.0.395"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.9.0"
+  }
+}
