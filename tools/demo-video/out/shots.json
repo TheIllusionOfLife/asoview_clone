@@ -9,12 +9,11 @@
     {
       "id": "01-home-hero",
       "image": "01-home-hero.png",
-      "durationSec": 4,
-      "caption": "AsoClone — discover local experiences",
+      "durationSec": 4.5,
+      "caption": "AsoClone — 地域の体験を見つけよう",
       "annotations": [
         {
-          "selector": "h1",
-          "label": "Hero headline",
+          "label": "トップ",
           "pointFrom": "bottom",
           "tone": "highlight",
           "x": 304,
@@ -23,8 +22,7 @@
           "height": 60
         },
         {
-          "selector": "[aria-labelledby='areas-heading']",
-          "label": "Browse by region",
+          "label": "エリアから探す",
           "pointFrom": "top",
           "x": 80,
           "y": 277,
@@ -34,34 +32,23 @@
       ]
     },
     {
-      "id": "02-search-text",
-      "image": "02-search-text.png",
-      "durationSec": 3.5,
-      "caption": "Full-text search",
+      "id": "02-search",
+      "image": "02-search.png",
+      "durationSec": 5,
+      "caption": "検索と絞り込み",
       "annotations": [
         {
-          "selector": "input[type='search'], input[aria-label*='search' i]",
-          "label": "Search bar",
+          "label": "検索バー",
           "pointFrom": "bottom",
           "tone": "highlight",
           "x": 80,
           "y": 97,
           "width": 1120,
           "height": 50
-        }
-      ]
-    },
-    {
-      "id": "03-search-facets",
-      "image": "03-search-facets.png",
-      "durationSec": 4,
-      "caption": "Filter by price & sort",
-      "annotations": [
+        },
         {
-          "selector": "select, input[inputmode='numeric']",
-          "label": "Facet controls",
+          "label": "絞り込み",
           "pointFrom": "top",
-          "tone": "highlight",
           "x": 97,
           "y": 212,
           "width": 263,
@@ -70,49 +57,29 @@
       ]
     },
     {
-      "id": "04-area-landing",
-      "image": "04-area-landing.png",
+      "id": "03-area-landing",
+      "image": "03-area-landing.png",
       "durationSec": 3.5,
-      "caption": "Regional landing pages",
-      "annotations": []
-    },
-    {
-      "id": "05-product-detail",
-      "image": "05-product-detail.png",
-      "durationSec": 6,
-      "caption": "Live slot availability",
+      "caption": "エリアから探す",
       "annotations": [
         {
-          "selector": "h1",
-          "label": "Activity",
+          "label": "北海道の体験",
           "pointFrom": "bottom",
-          "tone": "info",
-          "x": 144,
-          "y": 581,
-          "width": 242,
+          "x": 368,
+          "y": 184,
+          "width": 544,
           "height": 36
-        },
-        {
-          "selector": "[role='radiogroup']",
-          "label": "Pick a date + time",
-          "pointFrom": "left",
-          "tone": "highlight",
-          "x": 757,
-          "y": 272,
-          "width": 358,
-          "height": 528
         }
       ]
     },
     {
-      "id": "06-signin",
-      "image": "06-signin.png",
+      "id": "04-signin",
+      "image": "04-signin.png",
       "durationSec": 3,
-      "caption": "Sign in with email or Google",
+      "caption": "メール/Googleでログイン",
       "annotations": [
         {
-          "selector": "button:has-text('Google'), button:has-text('グーグル')",
-          "label": "Google OAuth",
+          "label": "Googleでログイン",
           "pointFrom": "right",
           "tone": "highlight",
           "x": 472,
@@ -123,16 +90,23 @@
       ]
     },
     {
-      "id": "07-product-favorited",
-      "image": "07-product-favorited.png",
-      "durationSec": 4,
-      "caption": "Favorites sync across sessions",
+      "id": "05-product-detail",
+      "image": "05-product-detail.png",
+      "durationSec": 6,
+      "caption": "予約とお気に入り",
       "annotations": [
         {
-          "selector": "button[aria-label*='avorite' i], button[aria-label*='お気に入り']",
-          "label": "Favorite toggle",
-          "pointFrom": "bottom",
+          "label": "日時を選択",
+          "pointFrom": "left",
           "tone": "highlight",
+          "x": 757,
+          "y": 272,
+          "width": 358,
+          "height": 528
+        },
+        {
+          "label": "お気に入り",
+          "pointFrom": "bottom",
           "x": 672,
           "y": 581,
           "width": 32,
@@ -141,14 +115,13 @@
       ]
     },
     {
-      "id": "08-product-reviews",
-      "image": "08-product-reviews.png",
-      "durationSec": 4.5,
-      "caption": "Reviews from past guests",
+      "id": "06-product-reviews",
+      "image": "06-product-reviews.png",
+      "durationSec": 4,
+      "caption": "レビューと評価",
       "annotations": [
         {
-          "selector": "h2:has-text('レビュー')",
-          "label": "Reviews + ratings",
+          "label": "レビュー",
           "pointFrom": "right",
           "tone": "highlight",
           "x": 144,
@@ -159,48 +132,74 @@
       ]
     },
     {
-      "id": "09-me-reservations",
-      "image": "09-me-reservations.png",
-      "durationSec": 3.5,
-      "caption": "Your reservations",
-      "annotations": []
-    },
-    {
-      "id": "10-me-favorites",
-      "image": "10-me-favorites.png",
-      "durationSec": 4,
-      "caption": "Your favorites",
-      "annotations": []
-    },
-    {
-      "id": "11-me-orders",
-      "image": "11-me-orders.png",
-      "durationSec": 3.5,
-      "caption": "Order history",
-      "annotations": []
-    },
-    {
-      "id": "12-me-points",
-      "image": "12-me-points.png",
-      "durationSec": 3.5,
-      "caption": "Points wallet",
-      "annotations": []
-    },
-    {
-      "id": "13-cart",
-      "image": "13-cart.png",
+      "id": "07-cart",
+      "image": "07-cart.png",
       "durationSec": 4.5,
-      "caption": "Cart with totals",
+      "caption": "カート・合計金額",
       "annotations": []
     },
     {
-      "id": "14-home-closing",
-      "image": "14-home-closing.png",
-      "durationSec": 4,
-      "caption": "Installable PWA · built on GCP",
+      "id": "08-me-orders",
+      "image": "08-me-orders.png",
+      "durationSec": 4.5,
+      "caption": "予約履歴",
+      "annotations": []
+    },
+    {
+      "id": "09-me-favorites",
+      "image": "09-me-favorites.png",
+      "durationSec": 5,
+      "caption": "お気に入り",
+      "annotations": []
+    },
+    {
+      "id": "10-mobile-ux",
+      "image": "10-mobile-ux.png",
+      "durationSec": 4.5,
+      "caption": "モバイル対応",
+      "annotations": []
+    },
+    {
+      "id": "11-architecture",
+      "image": "",
+      "component": "ArchitectureSlide",
+      "durationSec": 7,
+      "caption": "Google Cloud で構築",
       "annotations": [
         {
-          "selector": "h1",
+          "label": "モジュラーモノリス",
+          "x": 340,
+          "y": 170,
+          "width": 600,
+          "height": 40,
+          "pointFrom": "top",
+          "tone": "highlight"
+        },
+        {
+          "label": "強整合インベントリ",
+          "x": 760,
+          "y": 520,
+          "width": 180,
+          "height": 80,
+          "pointFrom": "bottom"
+        },
+        {
+          "label": "50商品を全文検索",
+          "x": 310,
+          "y": 520,
+          "width": 220,
+          "height": 80,
+          "pointFrom": "bottom"
+        }
+      ]
+    },
+    {
+      "id": "12-home-closing",
+      "image": "12-home-closing.png",
+      "durationSec": 4,
+      "caption": "AsoClone",
+      "annotations": [
+        {
           "label": "AsoClone",
           "pointFrom": "bottom",
           "tone": "highlight",

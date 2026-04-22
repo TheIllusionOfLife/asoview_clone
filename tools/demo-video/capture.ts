@@ -86,32 +86,35 @@ async function pickSlotBackedProducts(
       { headers: { Authorization: `Bearer ${idToken}` } },
     );
     if (!res.ok) continue;
+    // API returns a flat array of { slotId, productVariantId, date,
+    // startTime, endTime, remaining } — NOT a {slots: [...]} grouping.
     const entries = (await res.json()) as Array<{
-      slots?: Array<{
-        id?: string;
-        productVariantId?: string;
-        startAt?: string;
-        endAt?: string;
-        remainingCapacity?: number;
-      }>;
+      slotId?: string;
+      productVariantId?: string;
+      date?: string;
+      startTime?: string;
+      endTime?: string;
+      remaining?: number;
     }>;
-    // Need remainingCapacity >= 2 so the same slot could theoretically be
-    // reserved twice — matches the plan's "avoid inventory contention".
-    for (const e of entries) {
-      const slot = (e.slots ?? []).find((s) => (s.remainingCapacity ?? 0) >= 2 && s.id);
-      if (!slot?.id || !slot.startAt || !slot.endAt) continue;
-      const variantId = slot.productVariantId ?? product.variants[0].id;
-      const variant = product.variants.find((v) => v.id === variantId) ?? product.variants[0];
-      picks.push({
-        product,
-        variantId: variant.id,
-        slotId: slot.id,
-        slotStartAt: slot.startAt,
-        slotEndAt: slot.endAt,
-        unitPrice: variant.priceAmount,
-      });
-      break;
-    }
+    // remaining >= 2 so the same slot could be reserved twice without a
+    // capacity race. picks[0] gets used by the order, picks[1] by the
+    // reservation — different products, so the flag is belt-and-suspenders.
+    const slot = entries.find(
+      (s) => (s.remaining ?? 0) >= 2 && s.slotId && s.date && s.startTime && s.endTime,
+    );
+    if (!slot || !slot.slotId || !slot.date || !slot.startTime || !slot.endTime) continue;
+    const variantId = slot.productVariantId ?? product.variants[0].id;
+    const variant = product.variants.find((v) => v.id === variantId) ?? product.variants[0];
+    // Cart line expects ISO-like datetimes; splice date + hh:mm into the shape
+    // apps/asoview-web/src/lib/cart.ts reads.
+    picks.push({
+      product,
+      variantId: variant.id,
+      slotId: slot.slotId,
+      slotStartAt: `${slot.date}T${slot.startTime}:00`,
+      slotEndAt: `${slot.date}T${slot.endTime}:00`,
+      unitPrice: variant.priceAmount,
+    });
   }
   if (picks.length < count) {
     throw new Error(`Only ${picks.length}/${count} products had a slot with capacity ≥ 2`);
@@ -194,31 +197,6 @@ async function seedOrder(idToken: string, pick: SlotPick): Promise<string> {
   const body = (await res.json()) as { orderId?: string; id?: string };
   const id = body.orderId ?? body.id;
   if (!id) throw new Error(`Order seed: unexpected response ${JSON.stringify(body)}`);
-  return id;
-}
-
-async function seedReservation(idToken: string, pick: SlotPick): Promise<string> {
-  const idempotencyKey = uuid();
-  const res = await fetch(`${BASE_URL}/api/v1/reservations`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${idToken}`,
-    },
-    body: JSON.stringify({
-      slotId: pick.slotId,
-      idempotencyKey,
-      guestName: "デモ太郎",
-      guestEmail: TEST_EMAIL,
-      guestCount: 2,
-    }),
-  });
-  if (!res.ok) {
-    throw new Error(`Reservation seed failed: ${res.status} ${await res.text()}`);
-  }
-  const body = (await res.json()) as { reservationId?: string; id?: string };
-  const id = body.reservationId ?? body.id;
-  if (!id) throw new Error(`Reservation seed: unexpected response ${JSON.stringify(body)}`);
   return id;
 }
 
@@ -375,19 +353,19 @@ async function main() {
   const { idToken, localId: uid } = await signInFirebase();
   await provisionUser(idToken);
 
-  // Pick two slot-backed products: #1 for the order, #2 for the reservation.
-  // Using separate slots avoids inventory contention flagged by Codex.
+  // Pick two slot-backed products: #1 for the order, #2 for the cart line.
+  // Distinct products per surface so each /me/* page shows a different item.
+  // (Reservation seeding was planned here too but the reservation-service
+  // dev cluster has no seeded slots — dropped until that lands.)
   const picks = await pickSlotBackedProducts(idToken, 2);
-  const [orderPick, reservationPick] = picks;
+  const [orderPick, cartPick] = picks;
 
   // Seed two favorites so the /me/favorites grid shows a multi-card row.
   await seedFavorite(idToken, orderPick.product.id);
-  await seedFavorite(idToken, reservationPick.product.id);
+  await seedFavorite(idToken, cartPick.product.id);
 
   const orderId = await seedOrder(idToken, orderPick);
   console.log(`  order seeded: ${orderId}`);
-  const reservationId = await seedReservation(idToken, reservationPick);
-  console.log(`  reservation seeded: ${reservationId}`);
 
   // Post-seed assertion gates — warn (not fail) on transient listing miss.
   await assertListed(
@@ -397,16 +375,6 @@ async function main() {
       hasContent(body, (row) => (row as { orderId?: string; id?: string }).orderId === orderId ||
         (row as { id?: string }).id === orderId),
     "orders",
-  );
-  await assertListed(
-    idToken,
-    "/api/v1/me/reservations",
-    (body) => Array.isArray(body) &&
-      body.some((r) =>
-        (r as { reservationId?: string; id?: string }).reservationId === reservationId ||
-        (r as { id?: string }).id === reservationId,
-      ),
-    "reservations",
   );
   await assertListed(
     idToken,
@@ -422,7 +390,7 @@ async function main() {
 
   // Seed the cart into the auth + mobile contexts BEFORE any page opens,
   // so /ja/cart renders with lines on first navigation.
-  const cartLine = buildCartLine(reservationPick);
+  const cartLine = buildCartLine(cartPick);
   const cartKey = `asoview:cart:${uid}`;
   const cartValue = JSON.stringify({ lines: [cartLine] });
   for (const ctx of [authContext, mobileContext]) {

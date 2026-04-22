@@ -195,69 +195,98 @@ export const SHOTS: Shot[] = [
     durationSec: 4.5,
     caption: "カート・合計金額",
     requiresAuth: true,
-    waitFor: { selector: "main" },
+    // Wait for the checkout button (only renders when cart has at
+    // least one line) so the screenshot never catches a pre-hydration
+    // empty state.
+    waitFor: { selector: "text=購入手続きへ" },
   },
   {
     id: "08-me-orders",
     kind: "capture",
     route: "/ja/me/orders",
     durationSec: 4.5,
-    caption: "注文履歴",
-    requiresAuth: true,
-    waitFor: { selector: "main" },
-  },
-  {
-    id: "09-me-reservations",
-    kind: "capture",
-    route: "/ja/me/reservations",
-    durationSec: 4.5,
+    // The app's JA nav translates "orders" as 予約履歴 (booking history);
+    // match it so the caption and the page h1 agree.
     caption: "予約履歴",
     requiresAuth: true,
-    waitFor: { selector: "main" },
+    // Wait for an actual order row (status pill), not just the <main>;
+    // otherwise the client-side fetch hasn't resolved and we screenshot
+    // the "読み込み中…" loading state. 未決済 = PENDING pill.
+    waitFor: { selector: "text=未決済" },
   },
   {
-    id: "10-me-favorites",
+    // Reservations shot dropped: reservation-service dev cluster has no
+    // seeded slots (commerce-core inventory uses a separate table) so
+    // POST /v1/reservations fails with 404. Can be re-added once an
+    // operator-side slot seed lands.
+    id: "09-me-favorites",
     kind: "capture",
     route: "/ja/me/favorites",
-    durationSec: 4.5,
+    durationSec: 5.0,
     caption: "お気に入り",
     requiresAuth: true,
-    waitFor: { selector: "main" },
+    // Wait for the hydrated ProductCard images, not just <main> — the
+    // bare <main> renders instantly but the cards arrive after two
+    // async fetches (favorites list, then product details).
+    waitFor: { selector: "img.object-cover" },
   },
   {
-    id: "11-mobile-ux",
+    id: "10-mobile-ux",
     kind: "capture",
     route: "/ja",
     durationSec: 4.5,
     caption: "モバイル対応",
     context: "mobile",
     waitFor: { selector: "h1" },
-    annotations: [
-      {
-        selector: "h1",
-        label: "スマホ最適化",
-        pointFrom: "bottom",
-        tone: "highlight",
-      },
-    ],
+    // No annotations: mobile captures at 390x844 but render inside a
+    // phone-frame mockup (scaled + centered in the 1280x800 canvas), so
+    // captured element bboxes no longer map to on-screen coordinates. The
+    // caption + phone-frame visual already communicate "mobile UX".
   },
   {
-    id: "12-architecture",
+    id: "11-architecture",
     kind: "prerendered",
     component: "ArchitectureSlide",
     durationSec: 7.0,
     caption: "Google Cloud で構築",
+    // Annotations point at the FLOWS not the boxes — the boxes already have
+    // labels, so another label on top of them would be redundant. Each
+    // annotation explains *why* that edge exists.
     // Coordinates reference ArchitectureSlide's fixed layout (see
     // remotion/src/ArchitectureSlide.tsx). Edit there + here together.
     annotations: [
-      { label: "GKE", x: 340, y: 170, width: 600, height: 220, pointFrom: "top", tone: "highlight" },
-      { label: "Spanner", x: 760, y: 520, width: 180, height: 80, pointFrom: "top" },
-      { label: "Firebase Auth", x: 80, y: 520, width: 200, height: 80, pointFrom: "top" },
-      { label: "Vertex AI Search", x: 310, y: 520, width: 220, height: 80, pointFrom: "top" },
+      // Central GKE cluster highlight box (no overlap with labels inside)
+      {
+        label: "モジュラーモノリス",
+        x: 340,
+        y: 170,
+        width: 600,
+        height: 40,
+        pointFrom: "top",
+        tone: "highlight",
+      },
+      // Spanner = strong-consistency data store
+      {
+        label: "強整合インベントリ",
+        x: 760,
+        y: 520,
+        width: 180,
+        height: 80,
+        pointFrom: "bottom",
+      },
+      // Vertex AI Search = product search
+      {
+        label: "50商品を全文検索",
+        x: 310,
+        y: 520,
+        width: 220,
+        height: 80,
+        pointFrom: "bottom",
+      },
     ],
   },
   {
-    id: "13-home-closing",
+    id: "12-home-closing",
     kind: "capture",
     route: "/ja",
     durationSec: 4.0,
