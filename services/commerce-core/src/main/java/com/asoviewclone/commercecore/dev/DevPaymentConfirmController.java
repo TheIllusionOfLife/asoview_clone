@@ -95,8 +95,15 @@ public class DevPaymentConfirmController {
     // 'PROCESSING')); the loser translates to a ConflictException. We catch
     // that and re-query for the in-flight row — if our first query missed a
     // row due to a serialization timing issue, the second one will see it.
+    java.util.List<Payment> allForOrder =
+        paymentRepository.findAllForOrderOrderByCreatedAtDesc(orderId);
+    log.info(
+        "DevPaymentConfirmController: order {} has {} payment row(s): {}",
+        orderId,
+        allForOrder.size(),
+        allForOrder.stream().map(p -> p.getPaymentId() + "=" + p.getStatus()).toList());
     Payment payment =
-        paymentRepository.findAllForOrderOrderByCreatedAtDesc(orderId).stream()
+        allForOrder.stream()
             .filter(p -> p.getStatus() != PaymentStatus.FAILED)
             .findFirst()
             .orElse(null);
