@@ -1,14 +1,15 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { chromium, type BrowserContext, type Page } from "@playwright/test";
+import { type BrowserContext, chromium, devices, type Page } from "@playwright/test";
 import {
   DPR,
   FPS,
+  MOBILE_VIEWPORT,
   SHOTS,
-  VIEWPORT,
   type Shot,
   type ShotManifest,
   type ShotManifestEntry,
+  VIEWPORT,
 } from "./shots.js";
 
 const BASE_URL = process.env.DEMO_BASE_URL ?? "https://asoview-clone-dev.duckdns.org";
@@ -40,29 +41,29 @@ async function pickProduct(
   if (candidates.length === 0) {
     throw new Error("No products with venueId available for screenshots");
   }
-  // Probe ahead 14 days for any venue that returns at least one slot. Slot
-  // seeding in the dev catalog is sparse, and an empty reservation form
-  // ("failed to fetch slots") is the worst possible demo frame.
-  const tomorrow = new Date();
-  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  // Probe ahead 14 days via the product-availability endpoint (the
+  // reservation-slots one is unpopulated on dev). The empty-form
+  // "failed to fetch slots" shot is the worst possible demo frame, so fail
+  // hard here if no slots are visible anywhere.
   for (const product of candidates) {
-    for (let day = 0; day < 14; day++) {
-      const d = new Date(tomorrow);
-      d.setUTCDate(tomorrow.getUTCDate() + day);
-      const date = d.toISOString().slice(0, 10);
-      const slotRes = await fetch(
-        `${BASE_URL}/api/v1/reservation-slots?venueId=${product.venueId}&date=${date}`,
-        { headers: { Authorization: `Bearer ${idToken}` } },
-      );
-      if (!slotRes.ok) continue;
-      const slots = (await slotRes.json()) as Array<{ remainingCapacity?: number }>;
-      if (Array.isArray(slots) && slots.some((s) => (s.remainingCapacity ?? 0) > 0)) {
-        console.log(`  picked ${product.id} (venue ${product.venueId}, slots on ${date})`);
-        return product;
-      }
+    const today = new Date();
+    const to = new Date();
+    to.setUTCDate(today.getUTCDate() + 14);
+    const res = await fetch(
+      `${BASE_URL}/api/v1/products/${encodeURIComponent(product.id)}/availability?from=${today
+        .toISOString()
+        .slice(0, 10)}&to=${to.toISOString().slice(0, 10)}`,
+      { headers: { Authorization: `Bearer ${idToken}` } },
+    );
+    if (!res.ok) continue;
+    const entries = (await res.json()) as Array<{ slots?: Array<{ remainingCapacity?: number }> }>;
+    const hasSlot = entries.some((e) => (e.slots ?? []).some((s) => (s.remainingCapacity ?? 0) > 0));
+    if (hasSlot) {
+      console.log(`  picked ${product.id} (venue ${product.venueId})`);
+      return product;
     }
   }
-  console.warn("No venue with slots in the next 14 days — falling back to first product");
+  console.warn("No product with slots in the next 14 days — falling back to first product");
   return candidates[0];
 }
 
@@ -113,7 +114,11 @@ async function captureShot(
   page: Page,
   shot: Shot,
   resolvedRoute: string,
+  viewport: { width: number; height: number },
 ): Promise<ShotManifestEntry> {
+  if (shot.kind !== "capture") {
+    throw new Error(`captureShot called on non-capture shot ${shot.id}`);
+  }
   const url = `${BASE_URL}${resolvedRoute}`;
   console.log(`  → ${shot.id} :: ${url}`);
   await page.goto(url, { waitUntil: "domcontentloaded" });
@@ -123,9 +128,6 @@ async function captureShot(
       .first()
       .waitFor({ state: "visible", timeout: shot.waitFor.timeoutMs ?? 15_000 });
   }
-  // Settle: wait for fonts + any in-view image decode. Images above the fold are
-  // what readers notice in a static frame; scroll back to top so annotations
-  // anchor to the composition user saw on initial paint.
   await page.evaluate(() => document.fonts.ready);
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForTimeout(600);
@@ -137,7 +139,7 @@ async function captureShot(
     path: join(SHOTS_DIR, filename),
     fullPage: false,
     animations: "disabled",
-    clip: { x: 0, y: 0, width: VIEWPORT.width, height: VIEWPORT.height },
+    clip: { x: 0, y: 0, width: viewport.width, height: viewport.height },
   });
 
   const annotations: ShotManifestEntry["annotations"] = [];
@@ -147,9 +149,14 @@ async function captureShot(
       await locator.waitFor({ state: "visible", timeout: 3_000 });
       const box = await locator.boundingBox();
       if (!box) continue;
-      const clamped = clampBox(box);
+      const clamped = clampBox(box, viewport);
       if (!clamped) continue;
-      annotations.push({ ...a, ...clamped });
+      annotations.push({
+        label: a.label,
+        pointFrom: a.pointFrom,
+        tone: a.tone,
+        ...clamped,
+      });
     } catch {
       console.warn(`    annotation skipped: ${a.selector} not visible`);
     }
@@ -166,22 +173,30 @@ async function captureShot(
 
 function clampBox(
   box: { x: number; y: number; width: number; height: number },
+  viewport: { width: number; height: number },
 ): { x: number; y: number; width: number; height: number } | null {
   const x = Math.max(0, Math.round(box.x));
   const y = Math.max(0, Math.round(box.y));
-  const right = Math.min(VIEWPORT.width, Math.round(box.x + box.width));
-  const bottom = Math.min(VIEWPORT.height, Math.round(box.y + box.height));
+  const right = Math.min(viewport.width, Math.round(box.x + box.width));
+  const bottom = Math.min(viewport.height, Math.round(box.y + box.height));
   const width = right - x;
   const height = bottom - y;
   if (width <= 0 || height <= 0) return null;
   return { x, y, width, height };
 }
 
-async function newContext(): Promise<BrowserContext> {
-  const browser = await chromium.launch();
+async function newDesktopContext(browser: Awaited<ReturnType<typeof chromium.launch>>) {
   return browser.newContext({
     viewport: VIEWPORT,
     deviceScaleFactor: DPR,
+    locale: "ja-JP",
+    timezoneId: "Asia/Tokyo",
+  });
+}
+
+async function newMobileContext(browser: Awaited<ReturnType<typeof chromium.launch>>) {
+  return browser.newContext({
+    ...devices["iPhone 14"],
     locale: "ja-JP",
     timezoneId: "Asia/Tokyo",
   });
@@ -198,31 +213,72 @@ async function main() {
   await seedFavorite(idToken, product.id);
   console.log(`Seeded favorite for product ${product.id} (venue ${product.venueId})`);
 
-  const authContext = await newContext();
-  const anonContext = await newContext();
+  const browser = await chromium.launch();
+  const authContext = await newDesktopContext(browser);
+  const anonContext = await newDesktopContext(browser);
+  const mobileContext = await newMobileContext(browser);
+  // Prime the mobile context so <InstallPrompt> considers this a second
+  // visit — the banner only renders when visit-count >= 2. Best-effort:
+  // the shot does not depend on the banner firing.
+  await mobileContext.addInitScript(() => {
+    try {
+      localStorage.setItem("pwa:visit-count", "2");
+    } catch {
+      // Storage access may be blocked pre-navigation; ignore.
+    }
+  });
+
   try {
     const authPage = await authContext.newPage();
     await signInViaUI(authPage);
     const anonPage = await anonContext.newPage();
+    const mobilePage = await mobileContext.newPage();
+    await signInViaUI(mobilePage);
+
+    const pagesByContext: Record<"auth" | "anon" | "mobile", Page> = {
+      auth: authPage,
+      anon: anonPage,
+      mobile: mobilePage,
+    };
+    const viewportByContext: Record<"auth" | "anon" | "mobile", { width: number; height: number }> = {
+      auth: VIEWPORT,
+      anon: VIEWPORT,
+      mobile: MOBILE_VIEWPORT,
+    };
 
     const manifest: ShotManifest = { viewport: VIEWPORT, dpr: DPR, fps: FPS, shots: [] };
     for (const shot of SHOTS) {
-      const page = shot.requiresAuth === false ? anonPage : authPage;
-      const route = shot.route
-        .replace("__PRODUCT_DETAIL__", `/ja/products/${product.id}`)
-        .replace("__RESERVE__", `/ja/reserve?venueId=${product.venueId}`);
-      const entry = await captureShot(page, shot, route);
+      if (shot.kind === "prerendered") {
+        // Pass-through: the Remotion renderer will mount the named
+        // component in place of an <Img>. Hand-authored annotations are
+        // already in the shot definition; forward them as-is.
+        console.log(`  → ${shot.id} :: [prerendered ${shot.component}]`);
+        manifest.shots.push({
+          id: shot.id,
+          image: "",
+          component: shot.component,
+          durationSec: shot.durationSec,
+          caption: shot.caption,
+          annotations: shot.annotations ?? [],
+        });
+        continue;
+      }
+
+      const ctx = shot.context ?? (shot.requiresAuth === false ? "anon" : "auth");
+      const page = pagesByContext[ctx];
+      const route = shot.route.replace("__PRODUCT_DETAIL__", `/ja/products/${product.id}`);
+      const entry = await captureShot(page, shot, route, viewportByContext[ctx]);
       manifest.shots.push(entry);
     }
 
     await writeFile(join(OUT_DIR, "shots.json"), JSON.stringify(manifest, null, 2));
 
-    // Also write a base64-inlined manifest that Remotion's bundler can import
-    // directly, sidestepping staticFile() + public-dir resolution quirks.
+    // base64-inlined manifest: Remotion bundler imports this directly.
     const inlined = {
       ...manifest,
       shots: await Promise.all(
         manifest.shots.map(async (s) => {
+          if (!s.image) return s; // prerendered shot, no image file
           const bytes = await readFile(join(SHOTS_DIR, s.image));
           return { ...s, image: `data:image/png;base64,${bytes.toString("base64")}` };
         }),
@@ -233,6 +289,8 @@ async function main() {
   } finally {
     await authContext.close();
     await anonContext.close();
+    await mobileContext.close();
+    await browser.close();
   }
 }
 
