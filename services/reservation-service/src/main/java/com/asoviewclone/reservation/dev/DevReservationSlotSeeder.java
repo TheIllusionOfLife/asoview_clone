@@ -1,6 +1,5 @@
 package com.asoviewclone.reservation.dev;
 
-import com.asoviewclone.reservation.model.ReservationSlot;
 import com.asoviewclone.reservation.repository.ReservationSlotRepository;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -12,7 +11,6 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,9 +28,9 @@ import org.springframework.stereotype.Component;
  *
  * <p>Strategy: on startup, fetch the first few products from commerce-core's public product list,
  * then for each product generate 14 days of three 2-hour slots (10:00–12:00, 13:00–15:00,
- * 16:00–18:00, capacity 8). Idempotent via a read-before-write skip keyed on {@code (venue_id,
- * slot_date, start_time)} — the repository's {@code create()} inserts a fresh {@code slot_id} every
- * time, so we must dedupe ourselves.
+ * 16:00–18:00, capacity 8). Atomic check-and-insert via {@link
+ * ReservationSlotRepository#createIfAbsent} — Spanner read-write transaction semantics make the
+ * seeder safe under concurrent replica startup without requiring a new UNIQUE INDEX DDL.
  *
  * <p>CLAUDE.md self-call rule is moot here — the seeder does not publish any
  * {@code @TransactionalEventListener(AFTER_COMMIT)} events.
@@ -53,8 +51,6 @@ public class DevReservationSlotSeeder implements CommandLineRunner {
 
   private final ReservationSlotRepository repository;
   private final String commerceCoreBaseUrl;
-  private final HttpClient http =
-      HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
   private final ObjectMapper objectMapper;
 
   public DevReservationSlotSeeder(
@@ -101,32 +97,29 @@ public class DevReservationSlotSeeder implements CommandLineRunner {
         }
         for (int dayOffset = 0; dayOffset < DAYS_AHEAD; dayOffset++) {
           String date = today.plusDays(dayOffset).toString();
-          // Scope the dedup query to THIS product+tenant. The repository method
-          // accepts only (venueId, date, tenantId), so scope-to-tenant here,
-          // then filter by product_id in-memory. Two seeded products sharing
-          // a venueId would otherwise see each other's slots and skip-out.
-          List<ReservationSlot> existing =
-              repository.findByVenueAndDate(product.venueId, date, product.tenantId);
-          Set<String> existingStartTimes =
-              existing.stream()
-                  .filter(s -> product.id.equals(s.productId()))
-                  .map(ReservationSlot::startTime)
-                  .collect(java.util.stream.Collectors.toUnmodifiableSet());
           for (int i = 0; i < START_TIMES.size(); i++) {
-            String start = START_TIMES.get(i);
-            if (existingStartTimes.contains(start)) {
+            // Atomic check-and-insert: createIfAbsent runs inside a Spanner
+            // read-write transaction, so concurrent pods racing through
+            // startup cannot both insert duplicate rows — one of the
+            // transactions ABORTS and retries, observing the now-inserted
+            // row on the retry. Matches the CLAUDE.md INSERT-FIRST
+            // idempotency rule without requiring a new DDL.
+            boolean inserted =
+                repository
+                    .createIfAbsent(
+                        product.tenantId,
+                        product.venueId,
+                        product.id,
+                        date,
+                        START_TIMES.get(i),
+                        END_TIMES.get(i),
+                        CAPACITY)
+                    .isPresent();
+            if (inserted) {
+              created++;
+            } else {
               skipped++;
-              continue;
             }
-            repository.create(
-                product.tenantId,
-                product.venueId,
-                product.id,
-                date,
-                start,
-                END_TIMES.get(i),
-                CAPACITY);
-            created++;
           }
         }
       }
@@ -136,6 +129,11 @@ public class DevReservationSlotSeeder implements CommandLineRunner {
           products.size() - droppedInvalid,
           skipped,
           droppedInvalid);
+    } catch (InterruptedException ie) {
+      // Re-raise the interrupt so JVM shutdown is not delayed by a sleep
+      // still in flight deeper in the stack.
+      Thread.currentThread().interrupt();
+      log.warn("DevReservationSlotSeeder: seeding interrupted — continuing startup");
     } catch (Exception e) {
       // Fail-open: a seeder crash must never block app startup. Log loudly so ops can spot it.
       log.error("DevReservationSlotSeeder: seeding failed — continuing startup", e);
@@ -147,40 +145,54 @@ public class DevReservationSlotSeeder implements CommandLineRunner {
   }
 
   private List<Product> fetchProducts(int limit) throws Exception {
-    // Retry with backoff: commerce-core may still be starting up when this
-    // seeder runs. Fail-open is the outer behavior, but a single shot is too
-    // thin — 3 tries with 1s/2s/4s backoff makes first-boot ordering reliable.
-    HttpRequest req =
-        HttpRequest.newBuilder()
-            .uri(URI.create(commerceCoreBaseUrl + "/v1/products?size=" + limit))
-            .timeout(Duration.ofSeconds(10))
-            .GET()
-            .build();
-    Exception lastError = null;
-    long backoffMs = 1000L;
-    for (int attempt = 1; attempt <= 3; attempt++) {
-      try {
-        HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
-        if (res.statusCode() / 100 != 2) {
-          throw new IllegalStateException(
-              "commerce-core /v1/products returned " + res.statusCode() + ": " + res.body());
-        }
-        ProductPage page = objectMapper.readValue(res.body(), ProductPage.class);
-        return page.content == null ? List.of() : page.content;
-      } catch (Exception e) {
-        lastError = e;
-        if (attempt < 3) {
-          log.warn(
-              "DevReservationSlotSeeder: fetchProducts attempt {} failed ({}); retrying in {}ms",
-              attempt,
-              e.getMessage(),
-              backoffMs);
-          Thread.sleep(backoffMs);
-          backoffMs *= 2;
+    // HttpClient is AutoCloseable in Java 21 and owns a selector thread + a
+    // connection pool. Instantiate locally in try-with-resources so the
+    // seeder (which only runs once at startup) does not leave idle threads
+    // parked for the app's whole lifetime.
+    try (HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build()) {
+      HttpRequest req =
+          HttpRequest.newBuilder()
+              .uri(URI.create(commerceCoreBaseUrl + "/v1/products?size=" + limit))
+              .timeout(Duration.ofSeconds(10))
+              .GET()
+              .build();
+      Exception lastError = null;
+      long backoffMs = 1000L;
+      for (int attempt = 1; attempt <= 3; attempt++) {
+        try {
+          HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
+          if (res.statusCode() / 100 != 2) {
+            throw new IllegalStateException(
+                "commerce-core /v1/products returned " + res.statusCode() + ": " + res.body());
+          }
+          ProductPage page = objectMapper.readValue(res.body(), ProductPage.class);
+          return page.content == null ? List.of() : page.content;
+        } catch (InterruptedException ie) {
+          // Preserve interrupt status so SIGTERM during startup doesn't
+          // block shutdown. Abort retrying.
+          Thread.currentThread().interrupt();
+          log.warn("DevReservationSlotSeeder: interrupted mid-HTTP; aborting retries");
+          throw ie;
+        } catch (Exception e) {
+          lastError = e;
+          if (attempt < 3) {
+            log.warn(
+                "DevReservationSlotSeeder: fetchProducts attempt {} failed ({}); retrying in {}ms",
+                attempt,
+                e.getMessage(),
+                backoffMs);
+            try {
+              Thread.sleep(backoffMs);
+            } catch (InterruptedException ie) {
+              Thread.currentThread().interrupt();
+              throw ie;
+            }
+            backoffMs *= 2;
+          }
         }
       }
+      throw new IllegalStateException("fetchProducts failed after 3 attempts", lastError);
     }
-    throw new IllegalStateException("fetchProducts failed after 3 attempts", lastError);
   }
 
   // DTOs sized to the subset we care about; Jackson ignores everything else.

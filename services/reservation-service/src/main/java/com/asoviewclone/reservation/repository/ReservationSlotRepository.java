@@ -25,6 +25,94 @@ public class ReservationSlotRepository {
     this.databaseClient = databaseClient;
   }
 
+  /**
+   * Insert a slot only if no row already exists for the {@code (tenant_id, venue_id, product_id,
+   * slot_date, start_time)} tuple. The check and the write run inside a single Spanner read-write
+   * transaction; if two concurrent transactions read empty and both try to insert, Spanner's
+   * serializable isolation ABORTS one and the client retries it — on retry the now-visible row is
+   * detected and the method returns {@code Optional.empty()}. Matches the INSERT-FIRST idempotency
+   * rule from CLAUDE.md without requiring a new UNIQUE INDEX DDL.
+   *
+   * @return the freshly-inserted slot, or {@link Optional#empty()} if a duplicate was observed.
+   */
+  public Optional<ReservationSlot> createIfAbsent(
+      String tenantId,
+      String venueId,
+      String productId,
+      String slotDate,
+      String startTime,
+      String endTime,
+      long capacity) {
+    String slotId = UUID.randomUUID().toString();
+    Instant now = Instant.now();
+    Boolean inserted =
+        databaseClient
+            .readWriteTransaction()
+            .run(
+                tx -> {
+                  Statement existsStmt =
+                      Statement.newBuilder(
+                              "SELECT slot_id FROM reservation_slots"
+                                  + " WHERE tenant_id = @tenantId"
+                                  + " AND venue_id = @venueId"
+                                  + " AND product_id = @productId"
+                                  + " AND slot_date = @slotDate"
+                                  + " AND start_time = @startTime"
+                                  + " LIMIT 1")
+                          .bind("tenantId")
+                          .to(tenantId)
+                          .bind("venueId")
+                          .to(venueId)
+                          .bind("productId")
+                          .to(productId)
+                          .bind("slotDate")
+                          .to(slotDate)
+                          .bind("startTime")
+                          .to(startTime)
+                          .build();
+                  try (ResultSet rs = tx.executeQuery(existsStmt)) {
+                    if (rs.next()) {
+                      return Boolean.FALSE;
+                    }
+                  }
+                  tx.buffer(
+                      Mutation.newInsertBuilder("reservation_slots")
+                          .set("slot_id")
+                          .to(slotId)
+                          .set("tenant_id")
+                          .to(tenantId)
+                          .set("venue_id")
+                          .to(venueId)
+                          .set("product_id")
+                          .to(productId)
+                          .set("slot_date")
+                          .to(slotDate)
+                          .set("start_time")
+                          .to(startTime)
+                          .set("end_time")
+                          .to(endTime)
+                          .set("capacity")
+                          .to(capacity)
+                          .set("approved_count")
+                          .to(0L)
+                          .set("waitlist_count")
+                          .to(0L)
+                          .set("created_at")
+                          .to(com.google.cloud.spanner.Value.COMMIT_TIMESTAMP)
+                          .set("updated_at")
+                          .to(com.google.cloud.spanner.Value.COMMIT_TIMESTAMP)
+                          .build());
+                  return Boolean.TRUE;
+                });
+    if (inserted == null || !inserted) {
+      return Optional.empty();
+    }
+    return Optional.of(
+        new ReservationSlot(
+            slotId, tenantId, venueId, productId, slotDate, startTime, endTime, capacity, 0, 0, now,
+            now));
+  }
+
   public ReservationSlot create(
       String tenantId,
       String venueId,
