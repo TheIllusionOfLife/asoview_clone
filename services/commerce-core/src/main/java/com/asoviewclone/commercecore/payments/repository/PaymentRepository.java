@@ -24,8 +24,8 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
    * than relying on {@link #findByOrderId} (which throws {@code
    * IncorrectResultSizeDataAccessException} on &gt;1 row). Explicit JPQL rather than a derived
    * method name because the Spring Data parser did not reliably traverse the embedded {@code
-   * AuditFields audit -> createdAt} path in this codebase (dev queries silently returned empty
-   * even when rows existed), which broke the dev mark-paid endpoint.
+   * AuditFields audit -> createdAt} path in this codebase (dev queries silently returned empty even
+   * when rows existed), which broke the dev mark-paid endpoint.
    */
   @Query("SELECT p FROM Payment p WHERE p.orderId = :orderId ORDER BY p.audit.createdAt DESC")
   List<Payment> findAllForOrderOrderByCreatedAtDesc(@Param("orderId") String orderId);
