@@ -22,10 +22,13 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
    * All payments for an order, newest first. FAILED + CANCELLED rows can accumulate alongside an
    * active row, so callers that need "the active payment, if any" must filter the result rather
    * than relying on {@link #findByOrderId} (which throws {@code
-   * IncorrectResultSizeDataAccessException} on &gt;1 row). The {@code createdAt} timestamp lives on
-   * the {@code @Embedded AuditFields audit}, so the sort references the embedded path.
+   * IncorrectResultSizeDataAccessException} on &gt;1 row). Explicit JPQL rather than a derived
+   * method name because the Spring Data parser did not reliably traverse the embedded {@code
+   * AuditFields audit -> createdAt} path in this codebase (dev queries silently returned empty
+   * even when rows existed), which broke the dev mark-paid endpoint.
    */
-  List<Payment> findAllByOrderIdOrderByAuditCreatedAtDesc(String orderId);
+  @Query("SELECT p FROM Payment p WHERE p.orderId = :orderId ORDER BY p.audit.createdAt DESC")
+  List<Payment> findAllForOrderOrderByCreatedAtDesc(@Param("orderId") String orderId);
 
   /**
    * Looks up a payment by the provider-issued identifier stored in {@code provider_payment_id}

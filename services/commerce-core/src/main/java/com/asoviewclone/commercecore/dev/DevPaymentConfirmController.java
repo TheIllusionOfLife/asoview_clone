@@ -89,14 +89,31 @@ public class DevPaymentConfirmController {
     // findByOrderId() would throw IncorrectResultSizeDataAccessException
     // when FAILED rows accumulate alongside an active row — a realistic
     // state after a retry.
+    //
+    // If nothing usable exists, call createPaymentIntent. That call races
+    // the DB's partial-unique-index on (order_id, status IN ('CREATED',
+    // 'PROCESSING')); the loser translates to a ConflictException. We catch
+    // that and re-query for the in-flight row — if our first query missed a
+    // row due to a serialization timing issue, the second one will see it.
     Payment payment =
-        paymentRepository.findAllByOrderIdOrderByAuditCreatedAtDesc(orderId).stream()
+        paymentRepository.findAllForOrderOrderByCreatedAtDesc(orderId).stream()
             .filter(p -> p.getStatus() != PaymentStatus.FAILED)
             .findFirst()
-            .orElseGet(
-                () ->
-                    paymentService.createPaymentIntent(
-                        orderId, user.userId().toString(), "demo-mark-paid:" + orderId));
+            .orElse(null);
+    if (payment == null) {
+      try {
+        payment =
+            paymentService.createPaymentIntent(
+                orderId, user.userId().toString(), "demo-mark-paid:" + orderId);
+      } catch (com.asoviewclone.common.error.ConflictException e) {
+        // A concurrent/stale in-flight payment exists. Re-query and use it.
+        payment =
+            paymentRepository.findAllForOrderOrderByCreatedAtDesc(orderId).stream()
+                .filter(p -> p.getStatus() != PaymentStatus.FAILED)
+                .findFirst()
+                .orElseThrow(() -> e);
+      }
+    }
 
     // The AFTER_COMMIT listener that moves PENDING -> PAYMENT_PENDING is
     // @Retryable; after retries exhaust, the listener exception is swallowed
