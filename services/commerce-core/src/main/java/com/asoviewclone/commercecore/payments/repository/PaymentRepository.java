@@ -19,15 +19,18 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
   Optional<Payment> findByOrderId(String orderId);
 
   /**
-   * All payments for an order, newest first. FAILED + CANCELLED rows can accumulate alongside an
-   * active row, so callers that need "the active payment, if any" must filter the result rather
-   * than relying on {@link #findByOrderId} (which throws {@code
-   * IncorrectResultSizeDataAccessException} on &gt;1 row). Explicit JPQL rather than a derived
-   * method name because the Spring Data parser did not reliably traverse the embedded {@code
-   * AuditFields audit -> createdAt} path in this codebase (dev queries silently returned empty even
-   * when rows existed), which broke the dev mark-paid endpoint.
+   * All payments for an order, newest first. Native SQL deliberately: both the Spring Data derived
+   * method name and the equivalent JPQL ({@code ORDER BY p.audit.createdAt DESC}) silently returned
+   * an empty list on dev when a PROCESSING row demonstrably existed, which broke the dev mark-paid
+   * endpoint. Native SQL hits the real {@code payments.created_at} column directly.
+   *
+   * <p>FAILED + CANCELLED rows can accumulate alongside an active row, so callers that need "the
+   * active payment, if any" must filter the result rather than relying on {@link #findByOrderId}
+   * (which throws {@code IncorrectResultSizeDataAccessException} on &gt;1 row).
    */
-  @Query("SELECT p FROM Payment p WHERE p.orderId = :orderId ORDER BY p.audit.createdAt DESC")
+  @Query(
+      value = "SELECT * FROM payments WHERE order_id = :orderId ORDER BY created_at DESC",
+      nativeQuery = true)
   List<Payment> findAllForOrderOrderByCreatedAtDesc(@Param("orderId") String orderId);
 
   /**
