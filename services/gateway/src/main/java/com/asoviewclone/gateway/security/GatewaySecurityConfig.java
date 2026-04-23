@@ -21,9 +21,31 @@ public class GatewaySecurityConfig {
   @Bean
   public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
     return http.csrf(ServerHttpSecurity.CsrfSpec::disable)
+        // CORS is handled by Spring Cloud Gateway's CorsWebFilter (fed by
+        // spring.cloud.gateway.server.webflux.globalcors). We deliberately
+        // do NOT call `.cors(...)` on the SecurityWebFilterChain: Gateway
+        // does not register a CorsConfigurationSource bean, so the call
+        // would be a no-op in the best case and produce duplicate
+        // Access-Control-* headers (which browsers treat as a failed
+        // preflight) if anything ever adds a source bean. The OPTIONS
+        // permitAll below is enough to let the preflight reach the
+        // framework's CORS filter.
         .authorizeExchange(
             exchanges ->
                 exchanges
+                    // Preflights carry no Authorization header; let the
+                    // gateway's CORS filter answer them. Without this,
+                    // Spring Security 401s every OPTIONS preflight and
+                    // browsers drop the response with no
+                    // Access-Control-Allow-Origin header. Scoped to the
+                    // API path shapes (both /v1/** and /api/v1/**, since
+                    // the deployed ingress forwards /api/v1/** and the
+                    // gateway's CORS filter runs before StripPrefix) so
+                    // unauthenticated OPTIONS probes against actuator or
+                    // other internal paths still fall through to the
+                    // authenticated chain.
+                    .pathMatchers(HttpMethod.OPTIONS, "/v1/**", "/api/v1/**")
+                    .permitAll()
                     .pathMatchers("/healthz", "/actuator/**")
                     .permitAll()
                     // Admin endpoints under /v1/search/admin/** must NOT be public.
@@ -31,7 +53,7 @@ public class GatewaySecurityConfig {
                     // /v1/search/** permitAll below. (PR #21 Codex finding: the
                     // reindex endpoint was reachable by any caller through the
                     // gateway with no role check.)
-                    .pathMatchers("/v1/search/admin/**")
+                    .pathMatchers("/v1/search/admin/**", "/api/v1/search/admin/**")
                     .denyAll()
                     .pathMatchers(
                         HttpMethod.GET,
