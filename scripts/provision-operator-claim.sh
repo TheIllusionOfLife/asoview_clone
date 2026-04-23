@@ -37,12 +37,22 @@ require OPERATOR_TENANT_ID
 # calls.
 TOKEN="$(gcloud auth print-access-token)"
 
+lookup_body="$(jq -nc --arg email "$OPERATOR_USER_EMAIL" '{email: [$email]}')"
 lookup_response="$(curl -sS -X POST \
   "https://identitytoolkit.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/accounts:lookup" \
   -H "Authorization: Bearer ${TOKEN}" \
   -H "x-goog-user-project: ${FIREBASE_PROJECT_ID}" \
   -H "Content-Type: application/json" \
-  -d "{\"email\":[\"${OPERATOR_USER_EMAIL}\"]}")"
+  -d "$lookup_body")"
+
+# Distinguish API-level failure (permission denied, API disabled, bad token)
+# from a genuine "user truly not found" before dereferencing users[0].
+if echo "$lookup_response" | jq -e '.error' >/dev/null 2>&1; then
+  err_msg="$(echo "$lookup_response" | jq -r '.error.message // "unknown error"')"
+  echo "ERROR: Identity Toolkit accounts:lookup failed: ${err_msg}" >&2
+  echo "       full response: ${lookup_response}" >&2
+  exit 1
+fi
 
 uid="$(echo "$lookup_response" | jq -r '.users[0].localId // empty')"
 if [[ -z "$uid" ]]; then
@@ -69,12 +79,19 @@ merged_claims="$(jq -nc \
 
 echo "Merged claims:  ${merged_claims}"
 
+# Build via jq (not shell interpolation) so UIDs containing quotes or
+# backslashes can't corrupt the payload, and customAttributes is a clean
+# JSON-encoded string (no trailing newline from echo | jq -Rs).
+update_body="$(jq -nc \
+  --arg uid "$uid" \
+  --arg attrs "$merged_claims" \
+  '{localId: $uid, customAttributes: $attrs}')"
 update_response="$(curl -sS -X POST \
   "https://identitytoolkit.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/accounts:update" \
   -H "Authorization: Bearer ${TOKEN}" \
   -H "x-goog-user-project: ${FIREBASE_PROJECT_ID}" \
   -H "Content-Type: application/json" \
-  -d "{\"localId\":\"${uid}\",\"customAttributes\":$(echo "$merged_claims" | jq -Rs .)}")"
+  -d "$update_body")"
 
 if echo "$update_response" | jq -e '.error' >/dev/null 2>&1; then
   err_msg="$(echo "$update_response" | jq -r '.error.message // "unknown error"')"
