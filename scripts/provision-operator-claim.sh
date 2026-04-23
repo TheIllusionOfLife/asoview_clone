@@ -28,20 +28,19 @@ require() {
 require OPERATOR_USER_EMAIL
 require OPERATOR_TENANT_ID
 
+# Identity Toolkit admin endpoints authenticate via user OAuth (gcloud
+# access token). Do NOT pass ?key=<API_KEY>: when the API key and the user
+# OAuth token are both bound to the same Firebase project, Google's Identity
+# Toolkit check "API Key and the authentication credential are from different
+# projects" fires anyway. Instead, set x-goog-user-project so ADC/user creds
+# have a quota project, which is the supported auth shape for these admin
+# calls.
 TOKEN="$(gcloud auth print-access-token)"
-API_KEY="$(gcloud secrets versions access latest \
-  --project="$FIREBASE_PROJECT_ID" \
-  --secret=firebase-web-config-apikey 2>/dev/null || echo "")"
-
-if [[ -z "$API_KEY" ]]; then
-  echo "ERROR: couldn't read firebase-web-config-apikey from Secret Manager." >&2
-  echo "       Run scripts/bootstrap-dev-secrets.sh first." >&2
-  exit 1
-fi
 
 lookup_response="$(curl -sS -X POST \
-  "https://identitytoolkit.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/accounts:lookup?key=${API_KEY}" \
+  "https://identitytoolkit.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/accounts:lookup" \
   -H "Authorization: Bearer ${TOKEN}" \
+  -H "x-goog-user-project: ${FIREBASE_PROJECT_ID}" \
   -H "Content-Type: application/json" \
   -d "{\"email\":[\"${OPERATOR_USER_EMAIL}\"]}")"
 
@@ -71,8 +70,9 @@ merged_claims="$(jq -nc \
 echo "Merged claims:  ${merged_claims}"
 
 update_response="$(curl -sS -X POST \
-  "https://identitytoolkit.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/accounts:update?key=${API_KEY}" \
+  "https://identitytoolkit.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/accounts:update" \
   -H "Authorization: Bearer ${TOKEN}" \
+  -H "x-goog-user-project: ${FIREBASE_PROJECT_ID}" \
   -H "Content-Type: application/json" \
   -d "{\"localId\":\"${uid}\",\"customAttributes\":$(echo "$merged_claims" | jq -Rs .)}")"
 
