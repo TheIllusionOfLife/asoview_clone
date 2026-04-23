@@ -92,9 +92,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user],
   );
 
-  useEffect(() => {
-    setIdTokenGetter(getIdToken);
-  }, [getIdToken]);
+  // Wire the API client's idTokenGetter synchronously during render rather
+  // than in a useEffect. React runs effects depth-first (child -> parent),
+  // so if this lived in a useEffect, a child like VenueSelector would fire
+  // its own fetch effect BEFORE AuthProvider's effect swapped in the
+  // current-user closure — the first API call after signin would then go
+  // without an Authorization header, hit Spring Security's 401 entry point,
+  // and the browser would surface that as a CORS failure (Security's 401
+  // response bypasses the gateway CORS filter). Setting the module-global
+  // getter during render is safe because it's idempotent and the module
+  // itself is client-only.
+  setIdTokenGetter(getIdToken);
 
   const value = useMemo<AuthState>(
     () => ({ user, idToken, ready, signInWithEmail, signOut, getIdToken }),
