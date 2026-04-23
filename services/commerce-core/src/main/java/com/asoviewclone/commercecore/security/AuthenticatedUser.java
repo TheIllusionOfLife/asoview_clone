@@ -2,6 +2,7 @@ package com.asoviewclone.commercecore.security;
 
 import com.asoviewclone.commercecore.identity.model.TenantRole;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import org.springframework.security.core.AuthenticatedPrincipal;
 
@@ -9,18 +10,12 @@ public record AuthenticatedUser(
     String firebaseUid, String email, UUID userId, Map<UUID, TenantRole> tenantRoles)
     implements AuthenticatedPrincipal {
 
-  /**
-   * Compact constructor: take an immutable snapshot of {@code tenantRoles} so a caller cannot
-   * mutate the principal's authority set after construction. A {@code requireNonNull} guard on
-   * {@code userId} was attempted but broke {@code @WebMvcTest} slices that don't register Spring
-   * Security's {@code AuthenticationPrincipalArgumentResolver}: the default {@code
-   * ServletModelAttributeMethodProcessor} resolves this record via reflection with null fields.
-   * Tracked as a follow-up under the test-infra refactor; this PR keeps the fix surgical.
-   */
   public AuthenticatedUser {
-    if (tenantRoles != null) {
-      tenantRoles = Map.copyOf(tenantRoles);
-    }
+    Objects.requireNonNull(firebaseUid, "firebaseUid");
+    Objects.requireNonNull(email, "email");
+    Objects.requireNonNull(userId, "userId");
+    Objects.requireNonNull(tenantRoles, "tenantRoles");
+    tenantRoles = Map.copyOf(tenantRoles);
   }
 
   /**

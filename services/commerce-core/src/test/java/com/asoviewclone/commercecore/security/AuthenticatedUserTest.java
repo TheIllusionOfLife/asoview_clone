@@ -49,4 +49,26 @@ class AuthenticatedUserTest {
     assertThatThrownBy(() -> user.tenantRoles().put(UUID.randomUUID(), TenantRole.OWNER))
         .isInstanceOf(UnsupportedOperationException.class);
   }
+
+  // Compact constructor must reject nulls so a future record-field addition
+  // cannot silently revive SQLState 22001 (bloated toString spilling into
+  // created_by VARCHAR(128)) via a principal built with missing identity.
+  @Test
+  void rejectsNullRequiredFields() {
+    UUID userId = UUID.randomUUID();
+    Map<UUID, TenantRole> roles = Map.of(UUID.randomUUID(), TenantRole.VIEWER);
+
+    assertThatThrownBy(() -> new AuthenticatedUser(null, "e@x", userId, roles))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("firebaseUid");
+    assertThatThrownBy(() -> new AuthenticatedUser("uid", null, userId, roles))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("email");
+    assertThatThrownBy(() -> new AuthenticatedUser("uid", "e@x", null, roles))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("userId");
+    assertThatThrownBy(() -> new AuthenticatedUser("uid", "e@x", userId, null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("tenantRoles");
+  }
 }
