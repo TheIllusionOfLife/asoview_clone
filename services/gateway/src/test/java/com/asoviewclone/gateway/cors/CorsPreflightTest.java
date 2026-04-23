@@ -11,6 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
@@ -27,6 +28,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
  * a random port, so it fails if either regression returns.
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("test")
 @TestPropertySource(properties = "GATEWAY_CORS_ORIGINS=https://asoview-operator.duckdns.org")
 class CorsPreflightTest {
 
@@ -71,19 +73,22 @@ class CorsPreflightTest {
 
   @Test
   void preflightRejectsUnknownOrigin() {
-    // A random origin not in the allow-list must not receive an echo of the
-    // Origin header. Spring Cloud Gateway's CORS filter either returns 403
-    // or omits Access-Control-Allow-Origin entirely; the important property
-    // is that it never echoes the attacker's origin.
+    // An origin not in the allow-list must never have its origin echoed
+    // back. Spring's CorsProcessor rejects with 403 and omits the header
+    // entirely, so we assert both shapes of the rejection explicitly:
+    // the status is Forbidden and the Allow-Origin header is absent.
+    // (An earlier version used `.value(header, lambda)`, which calls
+    // `getRequiredValue()` under the hood and throws when the header is
+    // absent — i.e., it failed on correct behavior.)
     webTestClient
         .options()
         .uri("/v1/op/me/venues")
         .header(HttpHeaders.ORIGIN, "https://evil.example.com")
         .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, HttpMethod.GET.name())
         .exchange()
+        .expectStatus()
+        .isForbidden()
         .expectHeader()
-        .value(
-            HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
-            allowed -> assertThat(allowed).isNotEqualTo("https://evil.example.com"));
+        .doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN);
   }
 }

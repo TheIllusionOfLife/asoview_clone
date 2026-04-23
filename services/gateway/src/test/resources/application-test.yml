@@ -1,0 +1,29 @@
+# Profile activated by CorsPreflightTest so it can exercise the CORS
+# preflight against both URL shapes the gateway has in production: the
+# local/base shape `/v1/**` and the deployed-ingress shape `/api/v1/**`.
+#
+# Spring Cloud Gateway's globalcors filter only fires on routes that
+# actually match a request, so to verify the `/api/v1/**` CORS pattern we
+# need a route that matches `/api/v1/**`. Instead of polluting
+# `application.yml` (base/local) with a catch-all that would mis-route
+# `/api/v1/search/**` etc. to commerce-core, we provide a test-only
+# routes list here with stub upstreams. Preflights short-circuit before
+# forwarding, so the unreachable upstream (port 9) is fine.
+#
+# A profile-scoped routes list REPLACES the base routes list wholesale
+# (Spring Boot does not deep-merge list properties), so both shapes must
+# be listed here explicitly.
+spring:
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: test-v1
+              uri: http://localhost:9
+              predicates:
+                - Path=/v1/**
+            - id: test-api-v1
+              uri: http://localhost:9
+              predicates:
+                - Path=/api/v1/**

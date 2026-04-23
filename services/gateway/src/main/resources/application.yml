@@ -64,13 +64,8 @@ spring:
                 - Path=/v1/op/tickets/**
             - id: commerce-core-public
               uri: ${COMMERCE_CORE_URI:http://localhost:8081}
-              # Match both shapes so the CORS filter (scoped to globalcors
-              # patterns above) fires on local + test requests under
-              # /api/v1/**. In deployed dev, application-dev.yml overrides
-              # this routes list with StripPrefix=1 filters; in base + test,
-              # both shapes forward unstripped to the local upstream.
               predicates:
-                - Path=/v1/**,/api/v1/**
+                - Path=/v1/**
 
   # Disable gRPC auto-configuration (not using gRPC routes in Phase 1)
   grpc:

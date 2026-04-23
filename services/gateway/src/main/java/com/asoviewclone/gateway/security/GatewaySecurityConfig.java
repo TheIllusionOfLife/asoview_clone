@@ -3,7 +3,6 @@ package com.asoviewclone.gateway.security;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
@@ -22,13 +21,15 @@ public class GatewaySecurityConfig {
   @Bean
   public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
     return http.csrf(ServerHttpSecurity.CsrfSpec::disable)
-        // Delegate CORS handling to the framework's CorsWebFilter (fed by
-        // spring.cloud.gateway.server.webflux.globalcors). Spring Security
-        // won't add the CORS headers itself because Spring Cloud Gateway
-        // registers a CorsWebFilter bean rather than a
-        // CorsConfigurationSource, but we still call .cors() to make the
-        // intent explicit and future-proof.
-        .cors(Customizer.withDefaults())
+        // CORS is handled by Spring Cloud Gateway's CorsWebFilter (fed by
+        // spring.cloud.gateway.server.webflux.globalcors). We deliberately
+        // do NOT call `.cors(...)` on the SecurityWebFilterChain: Gateway
+        // does not register a CorsConfigurationSource bean, so the call
+        // would be a no-op in the best case and produce duplicate
+        // Access-Control-* headers (which browsers treat as a failed
+        // preflight) if anything ever adds a source bean. The OPTIONS
+        // permitAll below is enough to let the preflight reach the
+        // framework's CORS filter.
         .authorizeExchange(
             exchanges ->
                 exchanges
@@ -52,7 +53,7 @@ public class GatewaySecurityConfig {
                     // /v1/search/** permitAll below. (PR #21 Codex finding: the
                     // reindex endpoint was reachable by any caller through the
                     // gateway with no role check.)
-                    .pathMatchers("/v1/search/admin/**")
+                    .pathMatchers("/v1/search/admin/**", "/api/v1/search/admin/**")
                     .denyAll()
                     .pathMatchers(
                         HttpMethod.GET,
