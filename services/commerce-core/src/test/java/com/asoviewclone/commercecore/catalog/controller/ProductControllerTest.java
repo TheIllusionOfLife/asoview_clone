@@ -15,6 +15,7 @@ import com.asoviewclone.commercecore.favorites.service.FavoriteService;
 import com.asoviewclone.commercecore.identity.repository.TenantUserRepository;
 import com.asoviewclone.commercecore.identity.repository.UserRepository;
 import com.asoviewclone.commercecore.inventory.service.InventoryQueryService;
+import com.asoviewclone.commercecore.testutil.WebMvcSliceSecurityConfig;
 import com.google.firebase.auth.FirebaseAuth;
 import java.util.List;
 import java.util.UUID;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -29,6 +31,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(ProductController.class)
 @AutoConfigureMockMvc(addFilters = false)
+@Import(WebMvcSliceSecurityConfig.class)
 class ProductControllerTest {
 
   @Autowired private MockMvc mockMvc;

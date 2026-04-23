@@ -63,11 +63,11 @@
       "caption": "エリアから探す",
       "annotations": [
         {
-          "label": "北海道の体験",
+          "label": "東京の体験",
           "pointFrom": "bottom",
-          "x": 368,
-          "y": 184,
-          "width": 544,
+          "x": 80,
+          "y": 137,
+          "width": 1120,
           "height": 36
         }
       ]
@@ -167,11 +167,29 @@
       "annotations": []
     },
     {
-      "id": "12-mobile-ux",
-      "image": "12-mobile-ux.png",
-      "durationSec": 4.5,
-      "caption": "モバイル対応",
-      "annotations": []
+      "id": "12-tickets",
+      "image": "12-tickets.png",
+      "durationSec": 5,
+      "caption": "QRで入場・スマホで見せる",
+      "annotations": [
+        {
+          "label": "QRコードで入場",
+          "pointFrom": "left",
+          "tone": "highlight",
+          "x": 731,
+          "y": 186,
+          "width": 256,
+          "height": 256
+        },
+        {
+          "label": "Apple/Googleウォレットに保存",
+          "pointFrom": "right",
+          "x": 293,
+          "y": 458,
+          "width": 163,
+          "height": 36
+        }
+      ]
     },
     {
       "id": "13-architecture",
@@ -204,23 +222,6 @@
           "width": 220,
           "height": 80,
           "pointFrom": "bottom"
-        }
-      ]
-    },
-    {
-      "id": "14-home-closing",
-      "image": "14-home-closing.png",
-      "durationSec": 4,
-      "caption": "AsoClone",
-      "annotations": [
-        {
-          "label": "AsoClone",
-          "pointFrom": "bottom",
-          "tone": "highlight",
-          "x": 304,
-          "y": 121,
-          "width": 672,
-          "height": 60
         }
       ]
     }

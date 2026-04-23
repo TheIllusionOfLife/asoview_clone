@@ -52,6 +52,15 @@ Admin SDK.
 
 See the script header for env vars.
 
+## `provision-operator-claim.sh` — grant a Firebase user operator-web access
+
+Stamps `admin=true` + `tenantId` custom claims so the user can hit
+`GET /v1/op/**` on reservation-service and see the venue dropdown on
+asoview-operator. Merges with any existing custom claims (SCANNER etc.)
+rather than overwriting them.
+
+See the script header for env vars.
+
 ## `e2e-walkthrough.sh` — full ship-readiness test
 
 Runs the complete consumer → pass → scan → operator-approval loop against

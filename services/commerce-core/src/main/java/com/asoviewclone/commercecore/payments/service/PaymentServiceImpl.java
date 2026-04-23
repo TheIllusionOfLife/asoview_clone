@@ -14,6 +14,7 @@ import com.asoviewclone.common.error.NotFoundException;
 import com.asoviewclone.common.error.ValidationException;
 import java.math.BigDecimal;
 import java.util.Optional;
+import org.hibernate.exception.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -120,7 +121,29 @@ public class PaymentServiceImpl implements PaymentService {
       saved = paymentRepository.save(payment);
       paymentRepository.flush();
     } catch (org.springframework.dao.DataIntegrityViolationException e) {
-      throw new ConflictException("Order " + orderId + " already has a payment in flight");
+      // Only the uniq_payments_inflight_order partial unique index (see
+      // V5__payments_inflight_unique.sql) represents an actual "already has a payment in flight"
+      // race. Any other integrity violation (FK, NOT NULL, column length) would masquerade
+      // as "already in flight" under the old blanket catch; the VARCHAR(128) overflow on
+      // created_by fixed in #103 is the canonical example of that misdiagnosis. Rethrow so
+      // the real cause reaches the global error handler and the logs.
+      //
+      // Walk the cause chain looking for Hibernate's ConstraintViolationException:
+      // NestedExceptionUtils.getMostSpecificCause drills to the innermost SQLException, past
+      // the CVE that carries getConstraintName(). The chain is bounded in practice (DIVE ->
+      // CVE -> SQLException) and we cap the depth defensively.
+      Throwable cursor = e;
+      ConstraintViolationException cve = null;
+      for (int i = 0; i < 10 && cursor != null; i++, cursor = cursor.getCause()) {
+        if (cursor instanceof ConstraintViolationException hit) {
+          cve = hit;
+          break;
+        }
+      }
+      if (cve != null && "uniq_payments_inflight_order".equals(cve.getConstraintName())) {
+        throw new ConflictException("Order " + orderId + " already has a payment in flight");
+      }
+      throw e;
     }
     eventPublisher.publishEvent(
         new PaymentCreatedEvent(
