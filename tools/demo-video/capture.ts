@@ -651,8 +651,33 @@ async function main() {
       const route = shot.route
         .replace("__PRODUCT_DETAIL__", `/ja/products/${orderPick.product.id}`)
         .replace("__TICKET_DETAIL__", `/ja/tickets/${orderId}`);
-      const entry = await captureShot(page, shot, route, viewportByContext[ctx]);
-      manifest.shots.push(entry);
+
+      // Shot 12 renders TicketCard, which only shows the QR <img> when the
+      // seeded slot's validFrom <= Date.now() < validUntil. Seeded slots are
+      // 2h windows at 10:00/13:00/16:00 JST, so at any moment we run the
+      // capture we're almost always BEFORE or BETWEEN windows. Freeze the
+      // browser clock at orderPick.slotStartAt + 30min so the TicketCard
+      // phase resolves to "active" and lazily imports qrcode. Clock is
+      // cleared right after the shot so subsequent shots (if any) see the
+      // real time again.
+      let clockInstalled = false;
+      if (shot.kind === "capture" && shot.route === "__TICKET_DETAIL__") {
+        const slotStart = new Date(`${orderPick.slotStartAt}+09:00`);
+        const frozen = new Date(slotStart.getTime() + 30 * 60_000);
+        await page.clock.install({ time: frozen });
+        clockInstalled = true;
+      }
+      try {
+        const entry = await captureShot(page, shot, route, viewportByContext[ctx]);
+        manifest.shots.push(entry);
+      } finally {
+        if (clockInstalled) {
+          // Playwright doesn't expose uninstall; resume() lets wall time
+          // advance normally from the frozen point. Good enough here because
+          // shot 12 is the last capture-based shot in the manifest.
+          await page.clock.resume();
+        }
+      }
     }
 
     await writeFile(join(OUT_DIR, "shots.json"), JSON.stringify(manifest, null, 2));

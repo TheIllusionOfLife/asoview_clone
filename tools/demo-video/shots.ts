@@ -118,7 +118,10 @@ export const SHOTS: Shot[] = [
     id: "03-area-landing",
     kind: "capture",
     // Route was /area/ (singular) in v1 — the real page is /areas/ (plural).
-    route: "/ja/areas/hokkaido",
+    // Slug is a seeded Venue name lowercased (tokyo, yokohama, kyoto, osaka,
+    // sapporo); prefecture slugs like "hokkaido" 404 because no matching
+    // Venue exists. See GET /api/v1/areas for the authoritative list.
+    route: "/ja/areas/tokyo",
     durationSec: 3.5,
     caption: "エリアから探す",
     // Wait for the subtitle that only the success path renders
@@ -126,7 +129,7 @@ export const SHOTS: Shot[] = [
     // ("問題が発生しました") but not this string, so a fallback to the
     // h1 selector would silently match the error boundary.
     waitFor: { selector: "text=件の体験が見つかりました" },
-    annotations: [{ selector: "h1", label: "北海道の体験", pointFrom: "bottom" }],
+    annotations: [{ selector: "h1", label: "東京の体験", pointFrom: "bottom" }],
   },
   {
     id: "04-signin",
