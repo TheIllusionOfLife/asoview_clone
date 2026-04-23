@@ -647,7 +647,6 @@ async function main() {
       }
 
       const ctx = shot.context ?? (shot.requiresAuth === false ? "anon" : "auth");
-      const page = pagesByContext[ctx];
       const route = shot.route
         .replace("__PRODUCT_DETAIL__", `/ja/products/${orderPick.product.id}`)
         .replace("__TICKET_DETAIL__", `/ja/tickets/${orderId}`);
@@ -659,26 +658,45 @@ async function main() {
       // in the page to orderPick.slotStartAt + 30min so TicketCard classifies
       // the phase as "active" and lazily imports qrcode.
       //
-      // setFixedTime is the right Playwright API here: it only overrides
-      // Date.now() / new Date() without touching setTimeout/setInterval, so
-      // the page's React effects keep ticking normally. install() + resume()
-      // is NOT a safe substitute on a page whose timers have already been
-      // exercised (sign-in, earlier captures). Re-pin to real time in the
-      // finally block so subsequent shots cannot inherit the fake clock.
+      // Use a throwaway BrowserContext for this shot rather than touching the
+      // shared authContext. Playwright's page.clock APIs have no "restore"
+      // method: once setFixedTime/install is called, the only clean way back
+      // to the system clock is to close the context. Doing this on the shared
+      // auth page would leak the pinned clock to any subsequent capture shot.
+      // Closing the throwaway context after the shot guarantees the isolation.
       const isTicketShot = shot.kind === "capture" && shot.route === "__TICKET_DETAIL__";
       if (isTicketShot) {
-        const slotStart = new Date(`${orderPick.slotStartAt}+09:00`);
-        const frozen = new Date(slotStart.getTime() + 30 * 60_000);
-        await page.clock.setFixedTime(frozen);
-      }
-      try {
-        const entry = await captureShot(page, shot, route, viewportByContext[ctx]);
-        manifest.shots.push(entry);
-      } finally {
-        if (isTicketShot) {
-          await page.clock.setFixedTime(new Date());
+        const ticketContext = await newDesktopContext(browser);
+        // Re-apply the cart init script so /ja/cart navigations from links on
+        // the ticket page would still show the seeded cart; also keeps parity
+        // with the shared authContext.
+        await ticketContext.addInitScript(
+          ({ key, value }) => {
+            try {
+              localStorage.setItem(key, value);
+            } catch {
+              // Storage may be inaccessible pre-navigation; swallow.
+            }
+          },
+          { key: cartKey, value: cartValue },
+        );
+        const ticketPage = await ticketContext.newPage();
+        try {
+          await signInViaUI(ticketPage);
+          const slotStart = new Date(`${orderPick.slotStartAt}+09:00`);
+          const frozen = new Date(slotStart.getTime() + 30 * 60_000);
+          await ticketPage.clock.setFixedTime(frozen);
+          const entry = await captureShot(ticketPage, shot, route, VIEWPORT);
+          manifest.shots.push(entry);
+        } finally {
+          await ticketContext.close();
         }
+        continue;
       }
+
+      const page = pagesByContext[ctx];
+      const entry = await captureShot(page, shot, route, viewportByContext[ctx]);
+      manifest.shots.push(entry);
     }
 
     await writeFile(join(OUT_DIR, "shots.json"), JSON.stringify(manifest, null, 2));
