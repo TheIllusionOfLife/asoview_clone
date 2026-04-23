@@ -58,12 +58,18 @@ resource "google_container_node_pool" "default" {
   # autoscaler in parallel would race — the scheduler's scale-to-0 would
   # be reverted by the autoscaler as soon as a pending pod triggered it.
   # A static count is the simpler mental model for dev.
-  initial_node_count = 2
+  #
+  # node_count (not initial_node_count) is the correct field for a
+  # statically sized pool without autoscaling; initial_node_count is
+  # semantically the creation-time value and is primarily used with
+  # autoscaling blocks.
+  node_count = 2
 
   lifecycle {
     # The scheduler resizes the pool via setSize from outside Terraform.
     # Without this ignore, every `terraform apply` would undo the
-    # scheduler's off-hours resize.
+    # scheduler's off-hours resize. initial_node_count is also listed
+    # so terraform doesn't force-replace on provider-default drift.
     ignore_changes = [node_count, initial_node_count]
   }
 

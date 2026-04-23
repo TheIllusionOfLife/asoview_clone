@@ -20,10 +20,12 @@ resource "google_logging_project_exclusion" "kube_infra_noise" {
   name        = "exclude-kube-infra-noise"
   description = "Drop INFO+ logs from control-plane / infra namespaces that we never read."
 
-  # Match all resource types (GKE container logs arrive under
-  # k8s_container, GKE component logs under k8s_cluster).
+  # Only k8s_container and k8s_pod carry resource.labels.namespace_name.
+  # k8s_node and k8s_cluster logs have no namespace label, so including
+  # them in the type set would have produced dead branches (the
+  # namespace_name AND term can never match those types).
   filter = <<-EOT
-    resource.type=("k8s_container" OR "k8s_pod" OR "k8s_node" OR "k8s_cluster")
+    resource.type=("k8s_container" OR "k8s_pod")
     resource.labels.namespace_name=("kube-system" OR "gmp-system" OR "argocd" OR "cert-manager" OR "external-secrets")
     severity<ERROR
   EOT
