@@ -343,6 +343,40 @@ function buildCartLine(pick: SlotPick): Record<string, unknown> {
   };
 }
 
+/** Probe for the global error.tsx boundary ("問題が発生しました") after
+ *  waitFor resolves. Without this, a shot whose waitFor selector
+ *  accidentally matches an element rendered by BOTH the success path and
+ *  error.tsx (e.g. "h1") will silently capture the error frame. Returns
+ *  true if the boundary is currently visible.
+ */
+async function hasErrorBoundary(page: Page): Promise<boolean> {
+  try {
+    await page
+      .locator("text=問題が発生しました")
+      .first()
+      .waitFor({ state: "visible", timeout: 500 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Navigate + wait for the shot's selector + probe for error.tsx.
+ *  Throws if the selector times out OR the error boundary is showing.
+ */
+async function navigateAndVerify(page: Page, shot: Shot, url: string): Promise<void> {
+  await page.goto(url, { waitUntil: "domcontentloaded" });
+  if (shot.kind === "capture" && shot.waitFor?.selector) {
+    await page
+      .locator(shot.waitFor.selector)
+      .first()
+      .waitFor({ state: "visible", timeout: shot.waitFor.timeoutMs ?? 15_000 });
+  }
+  if (await hasErrorBoundary(page)) {
+    throw new Error(`[${shot.id}] error boundary visible at ${url}`);
+  }
+}
+
 async function captureShot(
   page: Page,
   shot: Shot,
@@ -354,13 +388,45 @@ async function captureShot(
   }
   const url = `${BASE_URL}${resolvedRoute}`;
   console.log(`  → ${shot.id} :: ${url}`);
-  await page.goto(url, { waitUntil: "domcontentloaded" });
-  if (shot.waitFor?.selector) {
-    await page
-      .locator(shot.waitFor.selector)
-      .first()
-      .waitFor({ state: "visible", timeout: shot.waitFor.timeoutMs ?? 15_000 });
+
+  // Shot 03 has historically caught mid-rollout 5xxs from /v1/areas or
+  // /v1/products, which makes Next render error.tsx. Log those responses
+  // so a deterministic failure surfaces the offending body, and retry
+  // once to absorb transient cluster flakes. Listener is shot-scoped and
+  // detached before the shot returns.
+  const shouldInstrument = shot.id === "03-area-landing";
+  const captured: Array<{ url: string; status: number; body: string }> = [];
+  const responseListener = shouldInstrument
+    ? async (resp: import("@playwright/test").Response) => {
+        const u = resp.url();
+        if (!/\/v1\/(areas|products)(\?|$|\/)/.test(u)) return;
+        let body = "";
+        try {
+          body = (await resp.text()).slice(0, 200);
+        } catch {
+          // body not readable (redirect, aborted) — skip
+        }
+        captured.push({ url: u, status: resp.status(), body });
+      }
+    : null;
+  if (responseListener) page.on("response", responseListener);
+
+  try {
+    try {
+      await navigateAndVerify(page, shot, url);
+    } catch (err) {
+      if (!shouldInstrument) throw err;
+      console.warn(`    [${shot.id}] first attempt failed: ${(err as Error).message}`);
+      for (const c of captured) {
+        console.warn(`      ← ${c.status} ${c.url}  ${c.body}`);
+      }
+      captured.length = 0;
+      await navigateAndVerify(page, shot, url);
+    }
+  } finally {
+    if (responseListener) page.off("response", responseListener);
   }
+
   await page.evaluate(() => document.fonts.ready);
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForTimeout(600);
@@ -582,7 +648,9 @@ async function main() {
 
       const ctx = shot.context ?? (shot.requiresAuth === false ? "anon" : "auth");
       const page = pagesByContext[ctx];
-      const route = shot.route.replace("__PRODUCT_DETAIL__", `/ja/products/${orderPick.product.id}`);
+      const route = shot.route
+        .replace("__PRODUCT_DETAIL__", `/ja/products/${orderPick.product.id}`)
+        .replace("__TICKET_DETAIL__", `/ja/tickets/${orderId}`);
       const entry = await captureShot(page, shot, route, viewportByContext[ctx]);
       manifest.shots.push(entry);
     }

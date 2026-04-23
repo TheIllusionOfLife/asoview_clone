@@ -69,7 +69,7 @@ export const MOBILE_VIEWPORT = { width: 390, height: 844 } as const;
 export const DPR = 1;
 export const FPS = 30;
 
-// Ordered 14-shot list. Durations tuned for ~60s total when summed with
+// Ordered 13-shot list. Durations tuned for ~57s total when summed with
 // crossfades. Japanese captions + annotations per revised plan.
 export const SHOTS: Shot[] = [
   {
@@ -121,7 +121,11 @@ export const SHOTS: Shot[] = [
     route: "/ja/areas/hokkaido",
     durationSec: 3.5,
     caption: "エリアから探す",
-    waitFor: { selector: "h1" },
+    // Wait for the subtitle that only the success path renders
+    // ("{N}件の体験が見つかりました"). error.tsx renders its own <h1>
+    // ("問題が発生しました") but not this string, so a fallback to the
+    // h1 selector would silently match the error boundary.
+    waitFor: { selector: "text=件の体験が見つかりました" },
     annotations: [{ selector: "h1", label: "北海道の体験", pointFrom: "bottom" }],
   },
   {
@@ -260,17 +264,36 @@ export const SHOTS: Shot[] = [
     waitFor: { selector: "text=保有ポイント" },
   },
   {
-    id: "12-mobile-ux",
+    // Ticket detail — the post-payment screen. Shows the QR code that a
+    // phone camera can scan, plus Apple/Google Wallet buttons. Tells the
+    // "your phone is your ticket" story without needing a phone-frame
+    // mockup or mobile emulation. Replaces the old 12-mobile-ux shot
+    // (whose phone-frame rendering was visually broken and whose framing
+    // — "this app is responsive" — was stale).
+    id: "12-tickets",
     kind: "capture",
-    route: "/ja",
-    durationSec: 4.5,
-    caption: "モバイル対応",
-    context: "mobile",
-    waitFor: { selector: "h1" },
-    // No annotations: mobile captures at 390x844 but render inside a
-    // phone-frame mockup (scaled + centered in the 1280x800 canvas), so
-    // captured element bboxes no longer map to on-screen coordinates. The
-    // caption + phone-frame visual already communicate "mobile UX".
+    route: "__TICKET_DETAIL__",
+    durationSec: 5.0,
+    caption: "QRで入場・スマホで見せる",
+    requiresAuth: true,
+    // TicketCard renders <img alt="QR code for ticket {id}"> only when
+    // the TicketPass is in the "active" phase (validFrom <= now < validUntil).
+    // Waiting on this alt text ensures the lazy `qrcode` import resolved
+    // AND we're not staring at the before/expired text-pill variant.
+    waitFor: { selector: "img[alt*='QR code']" },
+    annotations: [
+      {
+        selector: "img[alt*='QR code']",
+        label: "QRコードで入場",
+        pointFrom: "left",
+        tone: "highlight",
+      },
+      {
+        selector: "button:has-text('Apple'), button:has-text('Google')",
+        label: "Apple/Googleウォレットに保存",
+        pointFrom: "right",
+      },
+    ],
   },
   {
     id: "13-architecture",
@@ -312,17 +335,6 @@ export const SHOTS: Shot[] = [
         height: 80,
         pointFrom: "bottom",
       },
-    ],
-  },
-  {
-    id: "14-home-closing",
-    kind: "capture",
-    route: "/ja",
-    durationSec: 4.0,
-    caption: "AsoClone",
-    waitFor: { selector: "h1" },
-    annotations: [
-      { selector: "h1", label: "AsoClone", pointFrom: "bottom", tone: "highlight" },
     ],
   },
 ];
