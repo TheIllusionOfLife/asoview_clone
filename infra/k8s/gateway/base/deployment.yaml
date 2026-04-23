@@ -48,6 +48,16 @@ spec:
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: dev
+            # Origins that the browser-exposed gateway must accept as
+            # cross-origin callers. asoview-operator.duckdns.org is the
+            # operator PWA; its dashboard hits /api/v1/op/** on this
+            # gateway and needs to pass the CORS preflight. The consumer
+            # host is included for symmetry (same-origin today, but the
+            # comma-separated allow-list keeps future edge moves cheap).
+            # Without this, the globalcors fallback is localhost-only and
+            # production browsers get 401 on every preflight.
+            - name: GATEWAY_CORS_ORIGINS
+              value: "https://asoview-operator.duckdns.org,https://asoview-clone-dev.duckdns.org"
           ports:
             - name: http
               containerPort: 8080
