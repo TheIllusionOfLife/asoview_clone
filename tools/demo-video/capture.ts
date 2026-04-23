@@ -655,27 +655,28 @@ async function main() {
       // Shot 12 renders TicketCard, which only shows the QR <img> when the
       // seeded slot's validFrom <= Date.now() < validUntil. Seeded slots are
       // 2h windows at 10:00/13:00/16:00 JST, so at any moment we run the
-      // capture we're almost always BEFORE or BETWEEN windows. Freeze the
-      // browser clock at orderPick.slotStartAt + 30min so the TicketCard
-      // phase resolves to "active" and lazily imports qrcode. Clock is
-      // cleared right after the shot so subsequent shots (if any) see the
-      // real time again.
-      let clockInstalled = false;
-      if (shot.kind === "capture" && shot.route === "__TICKET_DETAIL__") {
+      // capture we're almost always BEFORE or BETWEEN windows. Pin Date.now()
+      // in the page to orderPick.slotStartAt + 30min so TicketCard classifies
+      // the phase as "active" and lazily imports qrcode.
+      //
+      // setFixedTime is the right Playwright API here: it only overrides
+      // Date.now() / new Date() without touching setTimeout/setInterval, so
+      // the page's React effects keep ticking normally. install() + resume()
+      // is NOT a safe substitute on a page whose timers have already been
+      // exercised (sign-in, earlier captures). Re-pin to real time in the
+      // finally block so subsequent shots cannot inherit the fake clock.
+      const isTicketShot = shot.kind === "capture" && shot.route === "__TICKET_DETAIL__";
+      if (isTicketShot) {
         const slotStart = new Date(`${orderPick.slotStartAt}+09:00`);
         const frozen = new Date(slotStart.getTime() + 30 * 60_000);
-        await page.clock.install({ time: frozen });
-        clockInstalled = true;
+        await page.clock.setFixedTime(frozen);
       }
       try {
         const entry = await captureShot(page, shot, route, viewportByContext[ctx]);
         manifest.shots.push(entry);
       } finally {
-        if (clockInstalled) {
-          // Playwright doesn't expose uninstall; resume() lets wall time
-          // advance normally from the frozen point. Good enough here because
-          // shot 12 is the last capture-based shot in the manifest.
-          await page.clock.resume();
+        if (isTicketShot) {
+          await page.clock.setFixedTime(new Date());
         }
       }
     }
