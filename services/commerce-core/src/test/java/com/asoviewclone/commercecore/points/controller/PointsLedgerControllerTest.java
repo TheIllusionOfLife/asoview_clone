@@ -14,6 +14,7 @@ import com.asoviewclone.commercecore.points.model.PointLedgerEntry;
 import com.asoviewclone.commercecore.points.model.PointReason;
 import com.asoviewclone.commercecore.points.service.PointService;
 import com.asoviewclone.commercecore.security.AuthenticatedUser;
+import com.asoviewclone.commercecore.testutil.WebMvcSliceSecurityConfig;
 import com.google.firebase.auth.FirebaseAuth;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -32,6 +34,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(PointController.class)
 @AutoConfigureMockMvc(addFilters = false)
+@Import(WebMvcSliceSecurityConfig.class)
 class PointsLedgerControllerTest {
 
   @Autowired private MockMvc mockMvc;
