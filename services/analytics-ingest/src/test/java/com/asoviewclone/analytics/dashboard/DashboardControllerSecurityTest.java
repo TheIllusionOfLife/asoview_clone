@@ -41,9 +41,14 @@ class DashboardControllerSecurityTest {
     // Was isForbidden() before JsonAuthenticationEntryPoint landed. The
     // REST-canonical split is 401 for "no authentication", 403 for
     // "authenticated but not authorized". See SecurityConfig rationale.
+    // Assert the JSON body shape too so a future change to the entry
+    // point's envelope is caught here (not by the frontend).
     mockMvc
         .perform(get("/v1/admin/analytics/revenue-summary"))
-        .andExpect(status().isUnauthorized());
+        .andExpect(status().isUnauthorized())
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                .string(org.hamcrest.Matchers.containsString("\"error\":\"UNAUTHORIZED\"")));
   }
 
   @Test

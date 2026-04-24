@@ -32,6 +32,11 @@ public class JsonAuthenticationEntryPoint implements AuthenticationEntryPoint {
         request.getMethod(),
         request.getRequestURI(),
         ex.getMessage());
+    // RFC 9110 §11.6.1 requires at least one WWW-Authenticate challenge on a
+    // 401. We use `Bearer` without a realm because the tokens are Firebase
+    // ID tokens; we deliberately omit the `realm` parameter (browsers will
+    // not prompt for Basic credentials since the scheme is Bearer).
+    response.setHeader("WWW-Authenticate", "Bearer");
     ErrorResponseWriter.write(
         response, HttpServletResponse.SC_UNAUTHORIZED, "UNAUTHORIZED", "Authentication required");
   }

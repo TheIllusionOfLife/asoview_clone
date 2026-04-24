@@ -154,8 +154,12 @@ public class GlobalExceptionHandler {
     // of rendering the static-resource handler's 404. Translating it here
     // keeps the JSON body consistent with NotFoundException and prevents
     // the default /error view from rendering in content-negotiated form.
-    return buildResponse(
-        HttpStatus.NOT_FOUND, "NOT_FOUND", "No handler for " + ex.getResourcePath());
+    // Deliberately do NOT echo ex.getResourcePath() into the response body:
+    // it's client-controlled input and there is no downstream benefit that
+    // justifies reflecting it. The debug log at buildResponse still carries
+    // the code + status for ops; the actual path is available via access
+    // logs keyed on the same request id.
+    return buildResponse(HttpStatus.NOT_FOUND, "NOT_FOUND", "Resource not found");
   }
 
   private ResponseEntity<Map<String, Object>> buildDomainResponse(

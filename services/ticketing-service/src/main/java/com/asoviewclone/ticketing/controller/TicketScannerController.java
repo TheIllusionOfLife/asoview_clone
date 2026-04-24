@@ -126,17 +126,12 @@ public class TicketScannerController {
         .body(Map.of("code", "RATE_LIMITED", "detail", "Too many requests"));
   }
 
-  @ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
-  public ResponseEntity<Map<String, Object>> handleValidation(
-      jakarta.validation.ConstraintViolationException e) {
-    return ResponseEntity.badRequest()
-        .body(Map.of("code", "VALIDATION_ERROR", "detail", e.getMessage()));
-  }
-
-  @ExceptionHandler(org.springframework.web.bind.MethodArgumentNotValidException.class)
-  public ResponseEntity<Map<String, Object>> handleBodyValidation(
-      org.springframework.web.bind.MethodArgumentNotValidException e) {
-    return ResponseEntity.badRequest()
-        .body(Map.of("code", "VALIDATION_ERROR", "detail", "Invalid request body"));
-  }
+  // ConstraintViolationException and MethodArgumentNotValidException used to
+  // be handled here with a {code, detail} envelope, but the shared
+  // GlobalExceptionHandler in java-common now owns both and emits the unified
+  // {error, message, timestamp} envelope (see PR #110). Removing the locals
+  // lets the shared advice take over; the scanner-specific domain handlers
+  // above keep their legacy {code, detail} shape intentionally — they
+  // reference well-known domain states that existing scanner clients
+  // already branch on.
 }
