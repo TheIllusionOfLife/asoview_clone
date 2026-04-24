@@ -5,4 +5,4 @@ resources:
   - ../../base
 images:
   - name: asia-northeast1-docker.pkg.dev/asoview-clone-dev/asoview-clone/urakata-reservation-web
-    newTag: "4c22522"
+    newTag: "932b6a0"
