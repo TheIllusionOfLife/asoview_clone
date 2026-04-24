@@ -61,6 +61,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { auth } = await ensureFirebaseReady();
         if (cancelled) return;
         unsub = onIdTokenChanged(auth, async (u) => {
+          // Wire the API client's idTokenGetter BEFORE dispatching React
+          // state updates. React runs effects depth-first (child ->
+          // parent); if the getter were wired in AuthProvider's own
+          // useEffect, a descendant firing its first authed fetch in a
+          // post-commit effect would see the placeholder getter and send
+          // the request without an Authorization header. The getter
+          // closes over `u` directly — no React state dependency — so it
+          // returns the live token even if React is mid-render. This is
+          // same-origin on asoview-web so a 401 wouldn't manifest as a
+          // CORS error like it does on the operator app, but the request
+          // would still fail spuriously on first mount.
+          setIdTokenGetter(
+            u
+              ? async (forceRefresh) => u.getIdToken(forceRefresh ?? false)
+              : async () => null,
+          );
           // Reset per-user cached state on every identity transition:
           // sign-in (null → user), sign-out (user → null), and account
           // switch (userA → userB). The check uses an external ref so
@@ -107,6 +123,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
       if (unsub) unsub();
+      // Reset the module-global getter on unmount so a remount (or a
+      // different provider in the same process) starts from a clean slate.
+      setIdTokenGetter(async () => null);
     };
   }, []);
 
@@ -144,15 +163,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [user],
   );
-
-  // Wire the API client's token getter to this provider so that authed
-  // requests pick up `idToken` (and refreshes) without an import-time cycle.
-  useEffect(() => {
-    setIdTokenGetter(getIdToken);
-    return () => {
-      setIdTokenGetter(async () => null);
-    };
-  }, [getIdToken]);
 
   const value = useMemo<AuthState>(
     () => ({ user, idToken, ready, signIn, signInWithEmail, signOut, getIdToken }),
