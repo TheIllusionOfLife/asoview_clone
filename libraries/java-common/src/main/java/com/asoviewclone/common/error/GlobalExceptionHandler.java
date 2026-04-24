@@ -166,6 +166,14 @@ public class GlobalExceptionHandler {
 
   private ResponseEntity<Map<String, Object>> buildResponse(
       HttpStatus status, String errorCode, String message) {
+    // Every 4xx that goes through this advice gets a debug-level breadcrumb
+    // so operators can correlate "client saw X" with server-side state.
+    // Warn is reserved for domain exceptions (see buildDomainResponse) and
+    // 5xx paths handled elsewhere; framework 400/404/405/415/etc. are
+    // client errors and do not warrant log noise at info level.
+    if (log.isDebugEnabled()) {
+      log.debug("{} ({}): {}", errorCode, status.value(), message);
+    }
     // Map.of throws NullPointerException on null values. DomainException
     // subclasses can construct with a null message (and framework
     // exceptions occasionally emit null getMessage()), so coerce before

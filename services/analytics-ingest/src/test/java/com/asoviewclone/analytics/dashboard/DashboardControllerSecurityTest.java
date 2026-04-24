@@ -7,6 +7,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.asoviewclone.analytics.dashboard.dto.RevenueSummaryResponse;
 import com.asoviewclone.analytics.security.FirebaseTokenFilter;
 import com.asoviewclone.analytics.security.SecurityConfig;
+import com.asoviewclone.common.error.JsonAccessDeniedHandler;
+import com.asoviewclone.common.error.JsonAuthenticationEntryPoint;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseToken;
 import java.util.Map;
@@ -17,8 +19,16 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+// JsonAccessDeniedHandler + JsonAuthenticationEntryPoint are
+// constructor-injected by SecurityConfig, so the slice needs them in the
+// context. @WebMvcTest's default scan doesn't cover com.asoviewclone.common.
 @WebMvcTest(DashboardController.class)
-@Import({SecurityConfig.class, FirebaseTokenFilter.class})
+@Import({
+  SecurityConfig.class,
+  FirebaseTokenFilter.class,
+  JsonAccessDeniedHandler.class,
+  JsonAuthenticationEntryPoint.class
+})
 class DashboardControllerSecurityTest {
 
   @Autowired private MockMvc mockMvc;
@@ -27,8 +37,13 @@ class DashboardControllerSecurityTest {
   @MockitoBean private FirebaseAuth firebaseAuth;
 
   @Test
-  void noToken_returnsForbidden() throws Exception {
-    mockMvc.perform(get("/v1/admin/analytics/revenue-summary")).andExpect(status().isForbidden());
+  void noToken_returnsUnauthorized() throws Exception {
+    // Was isForbidden() before JsonAuthenticationEntryPoint landed. The
+    // REST-canonical split is 401 for "no authentication", 403 for
+    // "authenticated but not authorized". See SecurityConfig rationale.
+    mockMvc
+        .perform(get("/v1/admin/analytics/revenue-summary"))
+        .andExpect(status().isUnauthorized());
   }
 
   @Test

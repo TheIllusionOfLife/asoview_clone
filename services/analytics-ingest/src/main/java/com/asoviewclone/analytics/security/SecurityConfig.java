@@ -1,5 +1,7 @@
 package com.asoviewclone.analytics.security;
 
+import com.asoviewclone.common.error.JsonAccessDeniedHandler;
+import com.asoviewclone.common.error.JsonAuthenticationEntryPoint;
 import jakarta.servlet.DispatcherType;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
@@ -15,9 +17,16 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
   private final FirebaseTokenFilter firebaseTokenFilter;
+  private final JsonAccessDeniedHandler accessDeniedHandler;
+  private final JsonAuthenticationEntryPoint authenticationEntryPoint;
 
-  public SecurityConfig(FirebaseTokenFilter firebaseTokenFilter) {
+  public SecurityConfig(
+      FirebaseTokenFilter firebaseTokenFilter,
+      JsonAccessDeniedHandler accessDeniedHandler,
+      JsonAuthenticationEntryPoint authenticationEntryPoint) {
     this.firebaseTokenFilter = firebaseTokenFilter;
+    this.accessDeniedHandler = accessDeniedHandler;
+    this.authenticationEntryPoint = authenticationEntryPoint;
   }
 
   @Bean
@@ -25,10 +34,14 @@ public class SecurityConfig {
     http.csrf(csrf -> csrf.disable())
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .exceptionHandling(
+            e ->
+                e.accessDeniedHandler(accessDeniedHandler)
+                    .authenticationEntryPoint(authenticationEntryPoint))
         .authorizeHttpRequests(
             auth ->
                 // See commerce-core SecurityConfig for rationale.
-                auth.dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.FORWARD)
+                auth.dispatcherTypeMatchers(DispatcherType.ERROR)
                     .permitAll()
                     .requestMatchers("/healthz", "/actuator/**")
                     .permitAll()

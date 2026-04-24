@@ -87,4 +87,21 @@ class ValidationErrorPassthroughIT {
     assertThat(res.statusCode()).isEqualTo(404);
     assertThat(res.body()).contains("\"error\":\"NOT_FOUND\"");
   }
+
+  @Test
+  void protectedEndpointDeniedUnauthenticatedReturnsJsonBody() throws Exception {
+    // Companion guard for the JsonAccessDeniedHandler / JsonAuthenticationEntryPoint
+    // wired into SecurityConfig. Before those handlers existed, Spring Security's
+    // default denial emitted an empty body — different envelope shape from every
+    // other error path in the service. This test asserts the envelope shape is
+    // now uniform: status 401 or 403, JSON body with an `error` code.
+    HttpResponse<String> res = get("/v1/me/orders");
+
+    assertThat(res.statusCode()).isIn(401, 403);
+    assertThat(res.headers().firstValue("content-type").orElse("")).contains("application/json");
+    // Accept either UNAUTHORIZED (no auth, entry point fires) or FORBIDDEN
+    // (authenticated anonymously, access denied handler fires) — Spring's
+    // default translation between the two varies by filter-chain shape.
+    assertThat(res.body()).matches("(?s).*\"error\":\"(UNAUTHORIZED|FORBIDDEN)\".*");
+  }
 }

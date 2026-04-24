@@ -16,6 +16,8 @@ import com.asoviewclone.commercecore.identity.repository.UserRepository;
 import com.asoviewclone.commercecore.inventory.service.InventoryQueryService;
 import com.asoviewclone.commercecore.security.FirebaseTokenFilter;
 import com.asoviewclone.commercecore.security.SecurityConfig;
+import com.asoviewclone.common.error.JsonAccessDeniedHandler;
+import com.asoviewclone.common.error.JsonAuthenticationEntryPoint;
 import com.asoviewclone.common.error.NotFoundException;
 import com.google.firebase.auth.FirebaseAuth;
 import java.util.List;
@@ -34,7 +36,12 @@ import org.springframework.test.web.servlet.MockMvc;
  * public-vs-authenticated permissions are verified together with the controller routing.
  */
 @WebMvcTest(ProductController.class)
-@Import({SecurityConfig.class, FirebaseTokenFilter.class})
+@Import({
+  SecurityConfig.class,
+  FirebaseTokenFilter.class,
+  JsonAccessDeniedHandler.class,
+  JsonAuthenticationEntryPoint.class
+})
 class ProductControllerAuthTest {
 
   @Autowired private MockMvc mockMvc;

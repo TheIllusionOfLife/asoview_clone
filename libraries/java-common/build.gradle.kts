@@ -14,5 +14,14 @@ dependencies {
     api("jakarta.validation:jakarta.validation-api")
     compileOnly("jakarta.persistence:jakarta.persistence-api")
     compileOnly("org.springframework.data:spring-data-commons")
+    // compileOnly: JsonAccessDeniedHandler / JsonAuthenticationEntryPoint
+    // reference spring-security types, but only services that actually
+    // enable Spring Security (i.e. register a SecurityFilterChain) need
+    // the runtime classes. Those services pull spring-boot-starter-security
+    // transitively, so the classes are available at runtime where they
+    // matter; compile-time visibility is enough here.
+    compileOnly("org.springframework.security:spring-security-web")
+    compileOnly("org.springframework.security:spring-security-core")
+    compileOnly("jakarta.servlet:jakarta.servlet-api")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 }

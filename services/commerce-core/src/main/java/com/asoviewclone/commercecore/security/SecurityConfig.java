@@ -1,6 +1,8 @@
 package com.asoviewclone.commercecore.security;
 
 import com.asoviewclone.commercecore.payments.webhook.WebhookRateLimitFilter;
+import com.asoviewclone.common.error.JsonAccessDeniedHandler;
+import com.asoviewclone.common.error.JsonAuthenticationEntryPoint;
 import jakarta.servlet.DispatcherType;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
@@ -18,11 +20,18 @@ public class SecurityConfig {
 
   private final FirebaseTokenFilter firebaseTokenFilter;
   private final WebhookRateLimitFilter webhookRateLimitFilter;
+  private final JsonAccessDeniedHandler accessDeniedHandler;
+  private final JsonAuthenticationEntryPoint authenticationEntryPoint;
 
   public SecurityConfig(
-      FirebaseTokenFilter firebaseTokenFilter, WebhookRateLimitFilter webhookRateLimitFilter) {
+      FirebaseTokenFilter firebaseTokenFilter,
+      WebhookRateLimitFilter webhookRateLimitFilter,
+      JsonAccessDeniedHandler accessDeniedHandler,
+      JsonAuthenticationEntryPoint authenticationEntryPoint) {
     this.firebaseTokenFilter = firebaseTokenFilter;
     this.webhookRateLimitFilter = webhookRateLimitFilter;
+    this.accessDeniedHandler = accessDeniedHandler;
+    this.authenticationEntryPoint = authenticationEntryPoint;
   }
 
   @Bean
@@ -30,6 +39,10 @@ public class SecurityConfig {
     http.csrf(csrf -> csrf.disable())
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .exceptionHandling(
+            e ->
+                e.accessDeniedHandler(accessDeniedHandler)
+                    .authenticationEntryPoint(authenticationEntryPoint))
         .authorizeHttpRequests(
             auth ->
                 // Spring Boot's error-page mechanism re-dispatches with
@@ -42,9 +55,10 @@ public class SecurityConfig {
                 // with an empty body instead of the 400 the exception
                 // resolver produced. The Next.js consumer then can't
                 // distinguish this from an auth failure and renders a 500
-                // error boundary. Permitting FORWARD as well covers
-                // internal forwards (e.g. welcome-page dispatches).
-                auth.dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.FORWARD)
+                // error boundary. Scope to ERROR only — permitting FORWARD
+                // would silently bypass authz on any future controller-
+                // driven forward, and none of our controllers do that.
+                auth.dispatcherTypeMatchers(DispatcherType.ERROR)
                     .permitAll()
                     .requestMatchers("/healthz", "/actuator/**")
                     .permitAll()
