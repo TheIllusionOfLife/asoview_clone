@@ -8,6 +8,11 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication(
+    // Include java-common so the shared GlobalExceptionHandler picks up
+    // validation exceptions uniformly across services. Without this,
+    // ConstraintViolationException and friends fall through to
+    // DefaultHandlerExceptionResolver and trip the ERROR re-dispatch.
+    scanBasePackages = {"com.asoviewclone.ticketing", "com.asoviewclone.common"},
     exclude = {
       GcpSpannerAutoConfiguration.class,
       SpannerRepositoriesAutoConfiguration.class,

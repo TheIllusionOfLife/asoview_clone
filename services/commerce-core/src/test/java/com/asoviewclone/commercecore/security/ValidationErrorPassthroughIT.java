@@ -9,6 +9,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
@@ -44,39 +45,46 @@ class ValidationErrorPassthroughIT {
 
   @LocalServerPort private int port;
 
-  private final HttpClient http = HttpClient.newHttpClient();
+  // Timeouts are defensive: a hung server (CI sandbox congestion, deadlock in
+  // a new filter) must surface as a test failure, not a 15-minute Gradle
+  // timeout. 5s to connect, 10s for the full exchange — well above p99 for
+  // an in-process Tomcat.
+  private final HttpClient http =
+      HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+
+  private HttpResponse<String> get(String path) throws Exception {
+    return http.send(
+        HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+            .timeout(Duration.ofSeconds(10))
+            .GET()
+            .build(),
+        HttpResponse.BodyHandlers.ofString());
+  }
 
   @Test
   void invalidUuidOnPublicGetReturns400NotForbidden() throws Exception {
-    HttpResponse<String> res =
-        http.send(
-            HttpRequest.newBuilder(
-                    URI.create("http://localhost:" + port + "/v1/products/not-a-uuid"))
-                .GET()
-                .build(),
-            HttpResponse.BodyHandlers.ofString());
-
     // Pre-fix: 403 empty body.
-    // Post-fix: 400 JSON from GlobalExceptionHandler. Belt-and-suspenders: even if a
-    // future refactor removes the explicit handler, dispatcherTypeMatchers(ERROR,FORWARD)
-    // .permitAll() on the SecurityFilterChain ensures the container's error-page
-    // re-dispatch is not re-gated by security.
+    // Post-fix: 400 JSON from GlobalExceptionHandler. Belt-and-suspenders: even if
+    // a future refactor removes the explicit handler, dispatcherTypeMatchers(ERROR,
+    // FORWARD).permitAll() on the SecurityFilterChain ensures the container's
+    // error-page re-dispatch is not re-gated by security.
+    HttpResponse<String> res = get("/v1/products/not-a-uuid");
+
     assertThat(res.statusCode()).isEqualTo(400);
-    assertThat(res.body()).contains("\"error\"").contains("VALIDATION");
+    // Assert the exact JSON shape rather than a loose substring: a hypothetical
+    // HTML error page containing the word "validation" would slip past a
+    // .contains("VALIDATION") check.
+    assertThat(res.body()).contains("\"error\":\"VALIDATION_ERROR\"").contains("\"message\"");
   }
 
   @Test
   void unknownPathUnderPublicPrefixReturns404NotForbidden() throws Exception {
     // Any path no controller can handle goes through NoResourceFoundException ->
-    // default 404 -> ERROR re-dispatch. Pre-fix: 403 on the re-dispatch. Post-fix: 404.
-    HttpResponse<String> res =
-        http.send(
-            HttpRequest.newBuilder(
-                    URI.create("http://localhost:" + port + "/v1/products/extra/segments/here"))
-                .GET()
-                .build(),
-            HttpResponse.BodyHandlers.ofString());
+    // default 404 -> ERROR re-dispatch. Pre-fix: 403 on the re-dispatch. Post-fix:
+    // 404 JSON from GlobalExceptionHandler.
+    HttpResponse<String> res = get("/v1/products/extra/segments/here");
 
     assertThat(res.statusCode()).isEqualTo(404);
+    assertThat(res.body()).contains("\"error\":\"NOT_FOUND\"");
   }
 }

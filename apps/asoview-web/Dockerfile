@@ -71,13 +71,14 @@ COPY --from=build /repo/apps/asoview-web/public ./apps/asoview-web/public
 # The COPY commands above run as root, so /app/apps/asoview-web/.next is
 # owned by root:root. Next.js's ISR runtime then tries to `mkdir .next/
 # cache` as USER node and fails with ENOENT/EACCES, logging a "Failed to
-# update prerender cache" warning on every dynamic render. Pre-create
-# the cache directory and hand the whole `.next/` tree to the node user
-# so the runtime can write freely. Scope is narrow on purpose: we do not
-# chown the rest of /app because node_modules and server.js remain
-# read-only at runtime.
+# update prerender cache" warning on every dynamic render. Least-privilege
+# fix: chown the `.next` directory itself (so node can create new subdirs
+# like `cache/`) and recursively chown only `.next/cache/` (so node can
+# write ISR entries). Root-owned files inside `.next/` such as `server.js`
+# and `prerender-manifest.json` stay read-only at runtime.
 RUN mkdir -p /app/apps/asoview-web/.next/cache \
-    && chown -R node:node /app/apps/asoview-web/.next
+    && chown node:node /app/apps/asoview-web/.next \
+    && chown -R node:node /app/apps/asoview-web/.next/cache
 USER node
 EXPOSE 3000
 WORKDIR /app/apps/asoview-web

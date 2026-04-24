@@ -10,8 +10,15 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+/**
+ * Reservation-service-local advice for its own domain exceptions ({@link NotFoundException}, {@link
+ * ConflictException}) plus {@link AccessDeniedException} and {@link IllegalArgumentException}.
+ * Renamed from {@code GlobalExceptionHandler} to avoid a bean-name collision with {@code
+ * com.asoviewclone.common.error.GlobalExceptionHandler}, which reservation-service now also scans
+ * for framework validation exceptions.
+ */
 @RestControllerAdvice
-public class GlobalExceptionHandler {
+public class ReservationExceptionHandler {
 
   @ExceptionHandler(NotFoundException.class)
   public ResponseEntity<Map<String, String>> handleNotFound(NotFoundException ex) {

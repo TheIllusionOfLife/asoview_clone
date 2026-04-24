@@ -1,7 +1,10 @@
 package com.asoviewclone.common.error;
 
+import jakarta.validation.ConstraintViolationException;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -69,18 +72,44 @@ public class GlobalExceptionHandler {
             + ex.getValue()
             + "'; expected "
             + required;
-    return buildResponse(HttpStatus.BAD_REQUEST, "VALIDATION", message);
+    return buildResponse(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", message);
   }
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
   public ResponseEntity<Map<String, Object>> handleMethodArgumentNotValid(
       MethodArgumentNotValidException ex) {
+    // getAllErrors() includes class-level cross-field errors (global errors)
+    // that getFieldErrors() silently drops, e.g. @AssertTrue on a record.
     String message =
-        ex.getBindingResult().getFieldErrors().stream()
-            .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
+        ex.getBindingResult().getAllErrors().stream()
+            .map(
+                err -> {
+                  String field =
+                      err instanceof org.springframework.validation.FieldError fe
+                          ? fe.getField()
+                          : err.getObjectName();
+                  return field + ": " + err.getDefaultMessage();
+                })
             .reduce((a, b) -> a + "; " + b)
             .orElse("Validation failed");
-    return buildResponse(HttpStatus.BAD_REQUEST, "VALIDATION", message);
+    return buildResponse(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", message);
+  }
+
+  @ExceptionHandler(ConstraintViolationException.class)
+  public ResponseEntity<Map<String, Object>> handleConstraintViolation(
+      ConstraintViolationException ex) {
+    // Thrown when @Validated sits at the controller-class level and a method
+    // parameter fails a jakarta.validation constraint (@NotBlank on @PathVariable,
+    // @Min on @RequestParam, etc.). Different from MethodArgumentNotValidException,
+    // which is for @Valid on @RequestBody DTOs. Handle explicitly so it doesn't
+    // fall through to DefaultHandlerExceptionResolver and trip the ERROR
+    // re-dispatch path.
+    String message =
+        ex.getConstraintViolations().stream()
+            .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+            .reduce((a, b) -> a + "; " + b)
+            .orElse("Constraint violation");
+    return buildResponse(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", message);
   }
 
   @ExceptionHandler(MissingServletRequestParameterException.class)
@@ -88,7 +117,7 @@ public class GlobalExceptionHandler {
       MissingServletRequestParameterException ex) {
     return buildResponse(
         HttpStatus.BAD_REQUEST,
-        "VALIDATION",
+        "VALIDATION_ERROR",
         "Missing required parameter '" + ex.getParameterName() + "'");
   }
 
@@ -97,13 +126,13 @@ public class GlobalExceptionHandler {
       MissingServletRequestPartException ex) {
     return buildResponse(
         HttpStatus.BAD_REQUEST,
-        "VALIDATION",
+        "VALIDATION_ERROR",
         "Missing required multipart part '" + ex.getRequestPartName() + "'");
   }
 
   @ExceptionHandler(HttpMessageNotReadableException.class)
   public ResponseEntity<Map<String, Object>> handleNotReadable(HttpMessageNotReadableException ex) {
-    return buildResponse(HttpStatus.BAD_REQUEST, "VALIDATION", "Malformed request body");
+    return buildResponse(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Malformed request body");
   }
 
   @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
@@ -137,8 +166,15 @@ public class GlobalExceptionHandler {
 
   private ResponseEntity<Map<String, Object>> buildResponse(
       HttpStatus status, String errorCode, String message) {
-    Map<String, Object> body =
-        Map.of("error", errorCode, "message", message, "timestamp", Instant.now().toString());
-    return ResponseEntity.status(status).body(body);
+    // Map.of throws NullPointerException on null values. DomainException
+    // subclasses can construct with a null message (and framework
+    // exceptions occasionally emit null getMessage()), so coerce before
+    // handing to the immutable factory. HashMap-wrapped unmodifiableMap
+    // keeps the same serialization shape as Map.of.
+    Map<String, Object> body = new HashMap<>(3);
+    body.put("error", Objects.requireNonNullElse(errorCode, "ERROR"));
+    body.put("message", Objects.requireNonNullElse(message, ""));
+    body.put("timestamp", Instant.now().toString());
+    return ResponseEntity.status(status).body(Map.copyOf(body));
   }
 }

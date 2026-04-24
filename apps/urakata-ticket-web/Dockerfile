@@ -49,7 +49,8 @@ COPY --from=build /repo/apps/urakata-ticket-web/.next/static ./apps/urakata-tick
 # the .next tree is root-owned and the non-root `node` runtime user
 # can't `mkdir .next/cache` for ISR. Pre-create + chown.
 RUN mkdir -p /app/apps/urakata-ticket-web/.next/cache \
-    && chown -R node:node /app/apps/urakata-ticket-web/.next
+    && chown node:node /app/apps/urakata-ticket-web/.next \
+    && chown -R node:node /app/apps/urakata-ticket-web/.next/cache
 USER node
 EXPOSE 3000
 WORKDIR /app/apps/urakata-ticket-web
