@@ -58,9 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // the render body pure — safe under concurrent React and SSR,
           // since useEffect never runs on the server.
           setIdTokenGetter(
-            u
-              ? async (forceRefresh) => u.getIdToken(forceRefresh ?? false)
-              : async () => null,
+            u ? async (forceRefresh) => u.getIdToken(forceRefresh ?? false) : async () => null,
           );
           setUser(u);
           try {

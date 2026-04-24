@@ -73,9 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // CORS error like it does on the operator app, but the request
           // would still fail spuriously on first mount.
           setIdTokenGetter(
-            u
-              ? async (forceRefresh) => u.getIdToken(forceRefresh ?? false)
-              : async () => null,
+            u ? async (forceRefresh) => u.getIdToken(forceRefresh ?? false) : async () => null,
           );
           // Reset per-user cached state on every identity transition:
           // sign-in (null → user), sign-out (user → null), and account
