@@ -1,0 +1,38 @@
+{
+  "viewport": {
+    "width": 1280,
+    "height": 800
+  },
+  "dpr": 1,
+  "fps": 30,
+  "shots": [
+    {
+      "id": "op-01-dashboard",
+      "image": "op-01-dashboard.png",
+      "durationSec": 5,
+      "caption": "ダッシュボード: 予約状況と稼働率を一目で",
+      "annotations": []
+    },
+    {
+      "id": "op-02-slots",
+      "image": "op-02-slots.png",
+      "durationSec": 5,
+      "caption": "スロット管理: 容量・時間帯を編集",
+      "annotations": []
+    },
+    {
+      "id": "op-03-reservations",
+      "image": "op-03-reservations.png",
+      "durationSec": 5,
+      "caption": "予約一覧: ステータス別に管理",
+      "annotations": []
+    },
+    {
+      "id": "op-04-reservation-detail",
+      "image": "op-04-reservation-detail.png",
+      "durationSec": 5,
+      "caption": "予約詳細: 承認・却下・キャンセル",
+      "annotations": []
+    }
+  ]
+}
