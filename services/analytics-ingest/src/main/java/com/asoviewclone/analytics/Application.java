@@ -7,6 +7,8 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication(
+    // Include java-common for the shared GlobalExceptionHandler.
+    scanBasePackages = {"com.asoviewclone.analytics", "com.asoviewclone.common"},
     exclude = {
       GcpPubSubAutoConfiguration.class,
       GcpPubSubReactiveAutoConfiguration.class,

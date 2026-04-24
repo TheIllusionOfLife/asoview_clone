@@ -46,6 +46,12 @@ ENV NODE_ENV=production \
 COPY --from=build /repo/apps/urakata-reservation-web/.next/standalone ./
 COPY --from=build /repo/apps/urakata-reservation-web/.next/static ./apps/urakata-reservation-web/.next/static
 COPY --from=build /repo/apps/urakata-reservation-web/public ./apps/urakata-reservation-web/public
+# See apps/asoview-web/Dockerfile for rationale: COPYs run as root, so
+# the .next tree is root-owned and the non-root `node` runtime user
+# can't `mkdir .next/cache` for ISR. Pre-create + chown.
+RUN mkdir -p /app/apps/urakata-reservation-web/.next/cache \
+    && chown node:node /app/apps/urakata-reservation-web/.next \
+    && chown -R node:node /app/apps/urakata-reservation-web/.next/cache
 USER node
 EXPOSE 3000
 WORKDIR /app/apps/urakata-reservation-web

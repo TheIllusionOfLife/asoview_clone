@@ -10,6 +10,8 @@ import org.springframework.scheduling.annotation.EnableAsync;
 
 @EnableAsync
 @SpringBootApplication(
+    // Include java-common for the shared GlobalExceptionHandler.
+    scanBasePackages = {"com.asoviewclone.reservation", "com.asoviewclone.common"},
     exclude = {
       GcpSpannerAutoConfiguration.class,
       SpannerRepositoriesAutoConfiguration.class,
