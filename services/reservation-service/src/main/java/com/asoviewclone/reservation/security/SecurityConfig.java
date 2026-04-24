@@ -1,5 +1,6 @@
 package com.asoviewclone.reservation.security;
 
+import jakarta.servlet.DispatcherType;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,7 +27,10 @@ public class SecurityConfig {
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
             auth ->
-                auth.requestMatchers(
+                // See commerce-core SecurityConfig for rationale.
+                auth.dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.FORWARD)
+                    .permitAll()
+                    .requestMatchers(
                         "/healthz",
                         "/actuator/health",
                         "/actuator/health/**",

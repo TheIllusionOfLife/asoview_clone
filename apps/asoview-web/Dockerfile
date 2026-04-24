@@ -68,6 +68,16 @@ COPY --from=build /repo/apps/asoview-web/.next/standalone ./
 # Static assets land next to the monorepo-nested server.js.
 COPY --from=build /repo/apps/asoview-web/.next/static ./apps/asoview-web/.next/static
 COPY --from=build /repo/apps/asoview-web/public ./apps/asoview-web/public
+# The COPY commands above run as root, so /app/apps/asoview-web/.next is
+# owned by root:root. Next.js's ISR runtime then tries to `mkdir .next/
+# cache` as USER node and fails with ENOENT/EACCES, logging a "Failed to
+# update prerender cache" warning on every dynamic render. Pre-create
+# the cache directory and hand the whole `.next/` tree to the node user
+# so the runtime can write freely. Scope is narrow on purpose: we do not
+# chown the rest of /app because node_modules and server.js remain
+# read-only at runtime.
+RUN mkdir -p /app/apps/asoview-web/.next/cache \
+    && chown -R node:node /app/apps/asoview-web/.next
 USER node
 EXPOSE 3000
 WORKDIR /app/apps/asoview-web

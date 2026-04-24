@@ -1,5 +1,6 @@
 package com.asoviewclone.ticketing.security;
 
+import jakarta.servlet.DispatcherType;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,7 +26,12 @@ public class SecurityConfig {
         .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
             auth ->
-                auth.requestMatchers(
+                // See commerce-core SecurityConfig for rationale: Spring Boot's
+                // error-page re-dispatch must bypass the security filter chain
+                // or validation errors turn into empty-body 403s.
+                auth.dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.FORWARD)
+                    .permitAll()
+                    .requestMatchers(
                         "/healthz", "/actuator/health", "/actuator/health/**", "/actuator/info")
                     .permitAll()
                     .requestMatchers("/v1/op/tickets/*/revoke")

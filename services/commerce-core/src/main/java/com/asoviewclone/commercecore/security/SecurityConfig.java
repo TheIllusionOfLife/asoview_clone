@@ -1,6 +1,7 @@
 package com.asoviewclone.commercecore.security;
 
 import com.asoviewclone.commercecore.payments.webhook.WebhookRateLimitFilter;
+import jakarta.servlet.DispatcherType;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -31,7 +32,21 @@ public class SecurityConfig {
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
             auth ->
-                auth.requestMatchers("/healthz", "/actuator/**")
+                // Spring Boot's error-page mechanism re-dispatches with
+                // DispatcherType.ERROR on every unhandled exception
+                // (including MethodArgumentTypeMismatchException from a
+                // bad UUID in a path variable). That re-dispatch re-enters
+                // the SecurityFilterChain — and without this permit, an
+                // unauthenticated ERROR dispatch falls through to
+                // .anyRequest().authenticated() and the caller sees 403
+                // with an empty body instead of the 400 the exception
+                // resolver produced. The Next.js consumer then can't
+                // distinguish this from an auth failure and renders a 500
+                // error boundary. Permitting FORWARD as well covers
+                // internal forwards (e.g. welcome-page dispatches).
+                auth.dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.FORWARD)
+                    .permitAll()
+                    .requestMatchers("/healthz", "/actuator/**")
                     .permitAll()
                     // Payment provider webhooks are authenticated by signature verification
                     // inside the handler, not by Firebase. FirebaseTokenFilter must ALSO
