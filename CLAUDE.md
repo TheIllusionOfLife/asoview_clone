@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Internal study clone of the Asoview product family (8 product apps) built on GCP. The project preserves publicly observable Asoview architecture patterns, substituting AWS with GCP infrastructure. Phase 1 (shared commerce/identity domain core) is implemented; Phase 2 (Asoview! consumer marketplace) is next.
+Internal study clone of the Asoview product family (8 product apps) built on GCP. The project preserves publicly observable Asoview architecture patterns, substituting AWS with GCP infrastructure. Phases 0-5 are implemented (shared commerce/identity core, Asoview! consumer marketplace, PWA/edge HTTPS polish, analytics outbox + Vertex AI Search, UraKata Reservation/Ticket + scanner). The dev environment is currently suspended; remaining product surfaces (Gift, Furusato, Overseas, AREA GATE, Ads) exist as scaffolds only.
 
 ## Architecture
 
@@ -17,7 +17,7 @@ Internal study clone of the Asoview product family (8 product apps) built on GCP
 - **Primary DB**: Cloud Spanner (booking, inventory, entitlements, check-in)
 - **Secondary DB**: Cloud SQL for PostgreSQL (admin, CMS, reporting)
 - **Cache**: Memorystore Redis (inventory holds, sessions)
-- **Search**: OpenSearch on GKE (Japanese full-text)
+- **Search**: Vertex AI Search (Discovery Engine; migrated from OpenSearch in PR #62)
 - **Auth**: Identity Platform (Firebase-compatible)
 - **Messaging**: Pub/Sub for domain events, Cloud Tasks for async jobs
 - **Analytics**: BigQuery
@@ -61,10 +61,15 @@ docs/           # PRD, technical design, implementation plan
 
 ## Key Design Documents
 
-Read these in order for full context:
-1. `docs/PRD.md` - Product requirements (what to build)
-2. `docs/technical_design.md` - Architecture decisions (how to build)
-3. `docs/implementation_plan.md` - Execution order (when to build)
+Historical planning documents are archived under `docs/archive/` and are no
+longer kept in sync with the running stack. For original context, read in
+order:
+1. `docs/archive/PRD.md` - Product requirements (what to build)
+2. `docs/archive/technical_design.md` - Architecture decisions (how to build)
+3. `docs/archive/implementation_plan.md` - Execution order (when to build)
+
+Current sources of truth: this file (`CLAUDE.md`), `docs/adr/`, and
+`docs/operations/`.
 
 ## Implementation Phases
 

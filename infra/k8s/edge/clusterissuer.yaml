@@ -8,7 +8,7 @@
 # their real email after terraform apply. If someone misses the
 # substitution, ACME registration fails loudly rather than silently
 # creating an account under a bogus but syntactically-valid address.
-# See docs/demo.md.
+# See docs/archive/demo.md.
 #
 # Field notes (cert-manager >= 1.14):
 # - `ingressClassName: nginx` is the modern field. The legacy `class`
