@@ -1,14 +1,14 @@
 # asoview_clone
 
 Internal study clone of the Asoview product family on GCP. A polyglot
-monorepo (Java 21 / Spring Boot 4 services, Next.js 16 + React 19 web
-apps, React Native + Expo scanner) built to learn modular-monolith
+monorepo (Java 21 / Spring Boot 4 services, Next.js 15/16 + React 19
+web apps, React Native + Expo scanner) built to learn modular-monolith
 design, Cloud Spanner, GKE, and event-driven commerce on GCP.
 
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Java](https://img.shields.io/badge/Java-21-orange.svg)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0-brightgreen.svg)
-![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)
+![Next.js](https://img.shields.io/badge/Next.js-15%2F16-black.svg)
 ![Runtime](https://img.shields.io/badge/runtime-GKE-blue.svg)
 
 > **Dev environment is currently SUSPENDED** as of 2026-04-25 to stop
@@ -101,7 +101,7 @@ NetworkPolicy boundaries, lives in the archived
 | Eventing | Pub/Sub with transactional outbox |
 | Auth | Firebase / Identity Platform (browserSessionPersistence, custom claims for operator RBAC) |
 | AI | Gemini (recommendations, chatbot, search ranking boost) |
-| Web | Next.js 16, React 19, Tailwind, hand-rolled PWA service worker |
+| Web | Next.js 15 (16 on `asoview-web`), React 19, Tailwind, hand-rolled PWA service worker |
 | Mobile | React Native 0.85 + Expo 55 |
 | Lint/format | Biome (TS), Spotless + Checkstyle (JVM) |
 | IaC | Terraform |
@@ -181,9 +181,9 @@ change. See [ADR-001](./docs/adr/001-vertex-ai-search-global-data-residency.md).
 │   ├── e2e-walkthrough.sh         # Full consumer → ticket → scan loop
 │   └── bootstrap-dev-secrets.sh   # GSM bootstrap (run-once per env)
 ├── docs/
-│   ├── PRD.md                     # Product requirements
-│   ├── technical_design.md        # Architecture decisions
 │   ├── adr/                       # Architecture Decision Records
+│   ├── archive/                   # Historical planning docs (PRD, technical design, etc.)
+│   ├── diagrams/                  # architecture.drawio + .svg
 │   └── operations/                # Runbooks (suspend/resume, OAuth, etc.)
 ├── tools/demo-video/              # Playwright capture + Remotion renderer
 ├── docker-compose.yml             # Local Postgres / Redis / Spanner emulator
@@ -235,22 +235,30 @@ mechanically rather than by review.
 | Integration tests | Testcontainers (Postgres + Redis + Spanner emulator); JPA + Spanner CAS + saga recovery | `./gradlew test` |
 | Frontend | Vitest unit, Playwright E2E (consumer + operator), Lighthouse | `bun run test`, `bun run e2e` |
 | End-to-end smoke | Live cluster walkthrough: consumer → pass → QR → scan → USED | [`scripts/e2e-walkthrough.sh`](./scripts/e2e-walkthrough.sh) |
-| CI | Cloud Build runs the same tiers; `Lint - Pitfalls` job runs `run-all.sh` | [`cloudbuild.yaml`](./cloudbuild.yaml) |
+| CI (tests + lints) | GitHub Actions (`ci.yml`): `Lint - Pitfalls`, Gradle test, Bun test, Lighthouse, Playwright | [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) |
+| CI (build + deploy) | Cloud Build builds + pushes container images and bumps Argo CD manifests on `main` only | [`cloudbuild.yaml`](./cloudbuild.yaml) |
 
 The full pitfall catalog (with which mechanism enforces each rule) is
 in [`CLAUDE.md`](./CLAUDE.md#pitfall-enforcement).
 
 ## Deployment & CI/CD
 
-Cloud Build → Artifact Registry → Argo CD on GKE.
+GitHub Actions (PR lane) → Cloud Build (`main` lane) → Artifact
+Registry → Argo CD on GKE.
 
-1. PR merges to `main`.
-2. Cloud Build builds JVM images with Jib and web images via Docker;
-   pushes to Artifact Registry.
-3. A post-build step bumps image tags in `infra/k8s/*` kustomizations
-   and commits `chore(deploy): bump image tags to <sha> [skip ci]` to
-   `main`.
-4. Argo CD reconciles the change to the dev cluster.
+1. **PR lane (GitHub Actions).** On every PR and push to `main`,
+   `ci.yml` runs the pitfall checks, JVM tests, web tests, and
+   Lighthouse. Nothing here pushes images.
+2. **Merge to `main`.** Cloud Build (`cloudbuild.yaml`,
+   `--branch-pattern='^main$'`) builds JVM + web images using
+   multi-stage Dockerfiles (no Jib) and pushes them to Artifact
+   Registry.
+3. **Post-build commit.** A bump step rewrites image tags in
+   `infra/k8s/*` and commits
+   `chore(deploy): bump image tags to <sha> [skip ci]` back to `main`
+   with `--force-with-lease`. The build explicitly skips this step on
+   non-main triggers.
+4. **Argo CD reconciles** the change to the dev cluster.
 
 The `[skip ci]` flag prevents the bump commit from re-triggering Cloud
 Build. The `chore(deploy):` prefix is reserved for these auto-commits;
@@ -320,7 +328,7 @@ Boot 4 / Vertex AI Search).
 |---|---|---|
 | 0 | Repo skeleton, scaffolds, CI/CD, Terraform baseline | Done |
 | 1 | Shared domain core (identity, catalog, inventory, orders, payments, entitlements) | Done |
-| 2 | Asoview! consumer marketplace, end to end | Done |
+| 2 | Asoview! consumer marketplace, end-to-end | Done |
 | 3 | Polish, PWA, edge HTTPS, deploy stabilization, AI/analytics | Done |
 | 4 | Analytics outbox, Vertex AI Search migration, admin auth | Done |
 | 5 | UraKata Reservation + UraKata Ticket end-to-end, scanner app | Done |
