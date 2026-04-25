@@ -73,70 +73,12 @@ transactional outbox into `analytics-ingest`, which streams into
 BigQuery. External integrations: Stripe (payments), Firebase /
 Identity Platform (auth), Gemini (recommendations + chatbot).
 
-```mermaid
-graph TD
-    subgraph Clients
-        AW[asoview-web<br/>Next.js + PWA]
-        UTW[urakata-ticket-web<br/>Next.js]
-        URW[urakata-reservation-web<br/>operator Next.js]
-        SC[scanner-app<br/>React Native + Expo]
-    end
+![asoview_clone — Google Cloud Architecture (dev cluster)](./docs/diagrams/architecture.svg)
 
-    subgraph Edge
-        IN[ingress-nginx<br/>+ cert-manager]
-        GW[Spring Cloud Gateway]
-    end
-
-    subgraph Services
-        CC[commerce-core<br/>modular monolith]
-        TS[ticketing-service]
-        RS[reservation-service]
-        SS[search-service]
-        AI[analytics-ingest]
-    end
-
-    subgraph Data
-        SP[(Cloud Spanner)]
-        PG[(Cloud SQL<br/>Postgres)]
-        RD[(Memorystore<br/>Redis)]
-        BQ[(BigQuery)]
-        VX[(Vertex AI<br/>Search)]
-    end
-
-    subgraph External
-        FB[Firebase /<br/>Identity Platform]
-        ST[Stripe]
-        GM[Gemini]
-        PS[(Pub/Sub)]
-    end
-
-    AW & UTW & URW & SC -->|HTTPS| IN
-    IN -->|HTTP| GW
-    GW -->|REST/JSON| CC
-    GW -->|REST/JSON| TS
-    GW -->|REST/JSON| RS
-    GW -->|REST/JSON| SS
-
-    CC -->|Spanner SQL| SP
-    CC -->|JPA| PG
-    CC -->|cache| RD
-    CC -->|Idempotency-Key| ST
-    ST -.->|Webhook| CC
-    CC -->|domain events| PS
-    PS -->|push subscription| AI
-    AI -->|streaming insert| BQ
-
-    TS -->|Spanner SQL + FGAC| SP
-    RS -->|Spanner SQL| SP
-    RS -->|JPA| PG
-    SS -->|Discovery Engine API| VX
-    SS -->|popularity sync| BQ
-
-    CC -.->|verify ID token| FB
-    TS -.->|verify ID token| FB
-    RS -.->|verify ID token| FB
-    AW -->|recs + chatbot| GM
-```
+The SVG is round-trippable — open
+[`docs/diagrams/architecture.drawio`](./docs/diagrams/architecture.drawio)
+in [draw.io](https://app.diagrams.net) (or import `architecture.svg`,
+which has the diagram XML embedded) to edit.
 
 A more detailed runtime topology, including GKE namespaces and
 NetworkPolicy boundaries, lives in the archived
