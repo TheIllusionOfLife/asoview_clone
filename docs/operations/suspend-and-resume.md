@@ -22,14 +22,14 @@ Disabling the Firebase/Identity Platform API key does **not** reduce any of thes
 ## Before you suspend
 
 1. Merge or stash any work in flight. The cluster will be gone after this.
-2. Export Spanner to GCS. Spanner has no "stop" mode, so deleting is the only way to stop billing — backups are tied to the instance and die with it. The official path is the Dataflow `Cloud_Spanner_to_GCS_Avro` template.
+2. One-time bucket + IAM setup for the Spanner GCS export (skip if already done — the actual export runs in suspend step 4 below, after the cluster is gone, so writes can't be lost mid-export):
 
    ```bash
+   set -euo pipefail
    PROJECT=asoview-clone-dev
    REGION=asia-northeast1
    BUCKET=gs://asoview-clone-dev-spanner-backup
 
-   # One-time bucket + IAM setup (skip if already done):
    gsutil mb -p $PROJECT -l $REGION $BUCKET
    gcloud services enable dataflow.googleapis.com --project=$PROJECT
    PROJECT_NUM=$(gcloud projects describe $PROJECT --format='value(projectNumber)')
@@ -45,29 +45,6 @@ Disabling the Firebase/Identity Platform API key does **not** reduce any of thes
    gcloud projects add-iam-policy-binding $PROJECT \
      --member="serviceAccount:service-${PROJECT_NUM}@dataflow-service-producer-prod.iam.gserviceaccount.com" \
      --role=roles/dataflow.serviceAgent --condition=None
-
-   # Run the export. Pin the worker zone — asia-northeast1-b/-c hit
-   # ZONE_RESOURCE_POOL_EXHAUSTED in the morning Tokyo window, asia-northeast1-a
-   # was clear. e2-small is fine for sub-1GB databases and avoids quota issues.
-   STAMP=$(date +%Y%m%d-%H%M%S)
-   gcloud dataflow jobs run spanner-export-$STAMP \
-     --project=$PROJECT --region=$REGION \
-     --worker-zone=$REGION-a \
-     --worker-machine-type=e2-small \
-     --max-workers=1 --num-workers=1 \
-     --gcs-location=gs://dataflow-templates-$REGION/latest/Cloud_Spanner_to_GCS_Avro \
-     --staging-location=$BUCKET/staging \
-     --parameters="instanceId=asoview-clone-dev,databaseId=asoview,outputDir=$BUCKET/$STAMP/"
-
-   # Poll until JOB_STATE_DONE (typically 5-10 min for a small dev DB):
-   JOB_ID=$(gcloud dataflow jobs list --project=$PROJECT --region=$REGION \
-     --filter="name=spanner-export-$STAMP" --format='value(id)' --limit=1)
-   while :; do
-     STATE=$(gcloud dataflow jobs describe $JOB_ID --project=$PROJECT --region=$REGION --format='value(currentState)')
-     echo "$STATE"
-     case $STATE in JOB_STATE_DONE|JOB_STATE_FAILED|JOB_STATE_CANCELLED) break;; esac
-     sleep 60
-   done
    ```
 
 3. Cloud SQL gets `--activation-policy=NEVER` below (data preserved automatically).
@@ -79,14 +56,21 @@ Order matters: take the cluster down first so nothing is actively reading Spanne
 
 ### 1. Disable Cloud Build triggers
 
-`gcloud builds triggers update --disabled` is not a flag (only `--description` etc. are surfaced); the supported path is export → flip → import.
+`gcloud builds triggers update --disabled` is not a flag (only `--description` etc. are surfaced); the supported path is export → flip → import. The `sed` below replaces an existing `disabled: false` line in addition to appending when absent — a `grep -q` guard would silently leave `disabled: false` triggers enabled.
 
 ```bash
+set -euo pipefail
 PROJECT=asoview-clone-dev
+TMP=$(mktemp)
+trap 'rm -f "$TMP"' EXIT
 for TRIGGER in $(gcloud builds triggers list --project=$PROJECT --format='value(id)'); do
-  gcloud beta builds triggers export $TRIGGER --project=$PROJECT --destination=/tmp/trigger.yaml
-  grep -q '^disabled:' /tmp/trigger.yaml || echo "disabled: true" >> /tmp/trigger.yaml
-  gcloud beta builds triggers import --project=$PROJECT --source=/tmp/trigger.yaml
+  gcloud beta builds triggers export $TRIGGER --project=$PROJECT --destination=$TMP
+  if grep -qE '^disabled:' $TMP; then
+    sed -i.bak 's/^disabled:.*/disabled: true/' $TMP && rm -f "$TMP.bak"
+  else
+    echo "disabled: true" >> $TMP
+  fi
+  gcloud beta builds triggers import --project=$PROJECT --source=$TMP
 done
 gcloud builds triggers list --project=$PROJECT --format='table(name,disabled)'
 ```
@@ -106,24 +90,76 @@ gcloud container clusters delete asoview-clone-dev \
 
 ### 3. Clean up orphan LB plumbing
 
-GKE doesn't always reap every LB resource on cluster delete. Inventory + delete:
+GKE doesn't always reap every LB resource on cluster delete. The orphan forwarding rule keeps charging ~¥2K/mo if you skip this. Names are random hashes (cluster k8s service UIDs), so inventory first, then delete each by name.
 
 ```bash
 PROJECT=asoview-clone-dev
-gcloud compute forwarding-rules list --project=$PROJECT --format='value(name,region)'
-gcloud compute target-pools list --project=$PROJECT --format='value(name,region)'
-gcloud compute http-health-checks list --project=$PROJECT --format='value(name)'
-gcloud compute firewall-rules list --project=$PROJECT --filter='name~^k8s' --format='value(name)'
-
-# Delete in order: forwarding rule → target pool → health check → firewall rules.
-# Each was created and named after the cluster's k8s service UID — so the names
-# look like ab2cac4d... not asoview-anything. Delete every match for the
-# deleted cluster's UIDs.
+REGION=asia-northeast1
+echo "=== forwarding rules ==="; gcloud compute forwarding-rules list --project=$PROJECT
+echo "=== target pools ==="; gcloud compute target-pools list --project=$PROJECT
+echo "=== backend services ==="; gcloud compute backend-services list --project=$PROJECT
+echo "=== HTTP health checks ==="; gcloud compute http-health-checks list --project=$PROJECT
+echo "=== generic health checks ==="; gcloud compute health-checks list --project=$PROJECT
+echo "=== k8s firewall rules ==="; gcloud compute firewall-rules list --project=$PROJECT --filter='name~^k8s' --format='value(name)'
 ```
 
-If you skip this, the orphan forwarding rule keeps charging ~¥2K/mo.
+For each name found, delete in this order (forwarding rule first frees the IP and allows the target/backend to be removed):
 
-### 4. Delete Spanner backups, then the instance
+```bash
+# Replace <NAME> with each hash from the inventory above.
+gcloud compute forwarding-rules delete <NAME>   --region=$REGION --project=$PROJECT --quiet
+gcloud compute target-pools delete <NAME>       --region=$REGION --project=$PROJECT --quiet
+gcloud compute backend-services delete <NAME>   --region=$REGION --project=$PROJECT --quiet  # only if the inventory listed any
+gcloud compute http-health-checks delete <NAME> --project=$PROJECT --quiet
+gcloud compute health-checks delete <NAME>      --region=$REGION --project=$PROJECT --quiet  # newer L4 ILBs use regional health-checks
+gcloud compute firewall-rules delete <NAME>     --project=$PROJECT --quiet                   # one or more `k8s-*` rules
+```
+
+### 4. Export Spanner to GCS
+
+Run this AFTER the cluster is gone — no more writers, no risk of losing data between export-start and instance-delete. Spanner has no "stop" mode, so deleting is the only way to stop billing, and Spanner-native backups die with the instance, so a GCS export is the only durable copy.
+
+The export uses the Dataflow `Cloud_Spanner_to_GCS_Avro` template. The custom VPC `asoview-clone-subnet` is required (the project has no default network), and the worker zone must be pinned to `asia-northeast1-a` because `-b`/`-c` regularly hit `ZONE_RESOURCE_POOL_EXHAUSTED` in the morning Tokyo window.
+
+```bash
+set -euo pipefail
+PROJECT=asoview-clone-dev
+REGION=asia-northeast1
+BUCKET=gs://asoview-clone-dev-spanner-backup
+STAMP=$(date +%Y%m%d-%H%M%S)
+
+gcloud dataflow jobs run spanner-export-$STAMP \
+  --project=$PROJECT --region=$REGION \
+  --worker-zone=$REGION-a \
+  --subnetwork=https://www.googleapis.com/compute/v1/projects/$PROJECT/regions/$REGION/subnetworks/asoview-clone-subnet \
+  --worker-machine-type=e2-small \
+  --max-workers=1 --num-workers=1 \
+  --gcs-location=gs://dataflow-templates-$REGION/latest/Cloud_Spanner_to_GCS_Avro \
+  --staging-location=$BUCKET/staging \
+  --parameters="instanceId=asoview-clone-dev,databaseId=asoview,outputDir=$BUCKET/$STAMP/"
+
+# Poll until terminal state. Typical run: 5-10 min for a small dev DB.
+JOB_ID=$(gcloud dataflow jobs list --project=$PROJECT --region=$REGION \
+  --filter="name=spanner-export-$STAMP" --format='value(id)' --limit=1)
+while :; do
+  STATE=$(gcloud dataflow jobs describe $JOB_ID --project=$PROJECT --region=$REGION --format='value(currentState)')
+  echo "$STATE"
+  case $STATE in JOB_STATE_DONE|JOB_STATE_FAILED|JOB_STATE_CANCELLED) break;; esac
+  sleep 60
+done
+
+# Hard fail if the export didn't finish — without this, the next step deletes
+# Spanner with no durable copy of the data.
+if [ "$STATE" != "JOB_STATE_DONE" ]; then
+  echo "Spanner export ended in $STATE — refusing to proceed." >&2
+  exit 1
+fi
+# Sanity-check the manifest was actually written.
+gsutil ls "$BUCKET/$STAMP/**/spanner-export.json" >/dev/null \
+  || { echo "Export manifest missing — refusing to proceed." >&2; exit 1; }
+```
+
+### 5. Delete Spanner backups, then the instance
 
 Spanner instance delete fails with `FAILED_PRECONDITION: Cannot delete instance ... as it contains backups` if any **Spanner-native** backups exist. (These are different from your GCS export.) Delete them first.
 
@@ -133,10 +169,12 @@ INSTANCE=asoview-clone-dev
 for B in $(gcloud spanner backups list --instance=$INSTANCE --project=$PROJECT --format='value(name)'); do
   gcloud spanner backups delete "$B" --instance=$INSTANCE --project=$PROJECT --quiet
 done
+# (`--instance` and `--project` are required even when $B is the short name
+# `asoview_<uuid>`; gcloud doesn't accept the full resource path here.)
 gcloud spanner instances delete $INSTANCE --project=$PROJECT --quiet
 ```
 
-### 5. Delete Memorystore Redis
+### 6. Delete Memorystore Redis
 
 ```bash
 gcloud redis instances delete asoview-clone-redis \
@@ -145,7 +183,7 @@ gcloud redis instances delete asoview-clone-redis \
   --quiet
 ```
 
-### 6. Stop (don't destroy) Cloud SQL
+### 7. Stop (don't destroy) Cloud SQL
 
 Preserves the data disk at ~¥200/mo storage only. The Terraform module doesn't manage `activation_policy`, so the `gcloud` patch survives a no-op `terraform apply`.
 
@@ -156,7 +194,7 @@ gcloud sql instances patch asoview-clone-dev-pg \
   --quiet
 ```
 
-### 7. Verify
+### 8. Verify
 
 ```bash
 PROJECT=asoview-clone-dev
@@ -172,7 +210,7 @@ All except Cloud SQL (state `STOPPED`) should be empty. If anything else is list
 
 Wait ~24h, then check https://console.cloud.google.com/billing → Reports, group by service. Lines for Compute Engine / Spanner / Memorystore should be ¥0/day.
 
-Expected residual after step 7: ~¥1500-2000/mo, mostly Artifact Registry image storage + Cloud SQL data disk + reserved external static IP + Secret Manager + monitoring baseline. ~97% reduction from a running environment.
+Expected residual after step 8: ~¥1500-2000/mo, mostly Artifact Registry image storage + Cloud SQL data disk + reserved external static IP + Secret Manager + monitoring baseline. ~97% reduction from a running environment.
 
 ## Truly ¥0 (optional, with resume cost)
 
@@ -202,10 +240,11 @@ Reverse order. Budget ~30-60 min end-to-end (image rebuild dominates if you drop
 
 ### 1. Reapply Terraform for the destroyed modules
 
-Picks up GKE, Spanner, Redis, Artifact Registry, Static IP — whichever is missing. Idempotent on whatever still exists.
+Picks up GKE, Spanner, Redis, Artifact Registry, Static IP — whichever is missing. Idempotent on whatever still exists. Spanner schema is re-created empty by the module, ready for the import in step 3.
 
 ```bash
 cd infra/terraform/environments/dev
+terraform init   # restores .terraform/ if you wiped the workspace or are on a fresh clone
 terraform apply -auto-approve
 ```
 
@@ -220,18 +259,26 @@ gcloud sql instances patch asoview-clone-dev-pg \
 
 ### 3. Restore Spanner from the GCS export
 
+The `GCS_Avro_to_Cloud_Spanner` template requires the destination database to **exist and be empty**. Step 1's `terraform apply` creates it empty, so this works on a clean resume; if a previous import partially populated it, drop and recreate the database before retrying (see "Recovery" below).
+
 ```bash
+set -euo pipefail
 PROJECT=asoview-clone-dev
 REGION=asia-northeast1
 BUCKET=gs://asoview-clone-dev-spanner-backup
-# Pick the export dir to restore from (latest by default):
-EXPORT_DIR=$(gsutil ls $BUCKET | grep -v '/staging/' | tail -1)
-JOB_DIR=$(gsutil ls $EXPORT_DIR | head -1)   # the inner asoview-clone-dev-asoview-<job>/
+
+# Pick the export dir to restore from. Sort by the YYYYMMDD-HHMMSS prefix
+# rather than `tail -1` of `gsutil ls` (which doesn't guarantee order on
+# bucket listings) and skip the staging dir explicitly.
+EXPORT_DIR=$(gsutil ls $BUCKET/ | grep -v '/staging/' | grep -E '/[0-9]{8}-[0-9]{6}/$' | sort | tail -1)
+JOB_DIR=$(gsutil ls "$EXPORT_DIR" | head -1)   # inner asoview-clone-dev-asoview-<job>/
+echo "Restoring from $JOB_DIR"
 
 STAMP=$(date +%Y%m%d-%H%M%S)
 gcloud dataflow jobs run spanner-import-$STAMP \
   --project=$PROJECT --region=$REGION \
   --worker-zone=$REGION-a \
+  --subnetwork=https://www.googleapis.com/compute/v1/projects/$PROJECT/regions/$REGION/subnetworks/asoview-clone-subnet \
   --worker-machine-type=e2-small \
   --max-workers=1 --num-workers=1 \
   --gcs-location=gs://dataflow-templates-$REGION/latest/GCS_Avro_to_Cloud_Spanner \
@@ -239,33 +286,62 @@ gcloud dataflow jobs run spanner-import-$STAMP \
   --parameters="instanceId=asoview-clone-dev,databaseId=asoview,inputDir=$JOB_DIR"
 ```
 
-The import template (`GCS_Avro_to_Cloud_Spanner`) creates the schema + rows from the manifest. Wait for `JOB_STATE_DONE` the same way as the export.
+Poll for `JOB_STATE_DONE` with the same loop as the export and abort if it ends in any other terminal state.
 
-If you don't have a backup, the schema is in `services/*/src/main/resources/db/spanner/V*.sql` and Spring Boot bootstrap re-applies it on first deploy; data has to be reseeded by re-running the demo capture / E2E flows.
+**Recovery if the import fails partway:** drop the half-populated database and recreate it via Terraform, then retry:
+
+```bash
+gcloud spanner databases delete asoview --instance=asoview-clone-dev --project=$PROJECT --quiet
+cd infra/terraform/environments/dev && terraform apply -target=module.spanner -auto-approve
+# Re-run the import job above.
+```
+
+If you don't have a backup, the schema lives in `services/*/src/main/resources/db/spanner/V*.sql` and Spring Boot bootstrap re-applies it on first deploy; data has to be reseeded by re-running the demo capture / E2E flows.
 
 ### 4. Re-enable Cloud Build triggers
 
+Use the same export-edit-import pattern as the disable, with `sed` replacing `disabled: true` rather than appending:
+
 ```bash
+set -euo pipefail
 PROJECT=asoview-clone-dev
+TMP=$(mktemp)
+trap 'rm -f "$TMP"' EXIT
 for TRIGGER in $(gcloud builds triggers list --project=$PROJECT --format='value(id)'); do
-  gcloud beta builds triggers export $TRIGGER --project=$PROJECT --destination=/tmp/trigger.yaml
-  sed -i.bak '/^disabled: true$/d' /tmp/trigger.yaml && rm /tmp/trigger.yaml.bak
-  gcloud beta builds triggers import --project=$PROJECT --source=/tmp/trigger.yaml
+  gcloud beta builds triggers export $TRIGGER --project=$PROJECT --destination=$TMP
+  sed -i.bak 's/^disabled:.*/disabled: false/' $TMP && rm -f "$TMP.bak"
+  gcloud beta builds triggers import --project=$PROJECT --source=$TMP
 done
+gcloud builds triggers list --project=$PROJECT --format='table(name,disabled)'
 ```
 
 ### 5. Rebuild + redeploy
 
-If you kept Artifact Registry: Argo CD picks up from the repo state automatically once the cluster is back. Nothing to do.
+The GKE cluster delete also removed Argo CD itself. The cluster needs Argo bootstrapped again before any application Application resources sync. Bootstrap from the in-repo manifests:
 
-If you dropped Artifact Registry: trigger Cloud Build manually for each service, then let Argo deploy:
+```bash
+gcloud container clusters get-credentials asoview-clone-dev \
+  --location=asia-northeast1-a --project=asoview-clone-dev
+
+# Install Argo CD core (namespace + CRDs + controllers) — fetch the version
+# pinned in infra/argocd if there is one, or use the upstream stable release:
+kubectl create namespace argocd 2>/dev/null || true
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+# Apply the app-of-apps root, which then syncs every per-service Application
+# under infra/argocd/applications/.
+kubectl apply -f infra/argocd/applications/_root.yaml
+kubectl get applications -n argocd -w   # watch until everything syncs
+```
+
+If you kept Artifact Registry, Argo will pull existing image tags and deploy. If you dropped Artifact Registry, Argo will hang on `ImagePullBackOff` until images land — kick a build manually:
 
 ```bash
 PROJECT=asoview-clone-dev
-TRIGGER=$(gcloud builds triggers list --project=$PROJECT --format='value(id)' --limit=1)
+TRIGGER=$(gcloud builds triggers list --project=$PROJECT \
+  --filter='name=asoview-clone-deploy' --format='value(id)')
 gcloud builds triggers run $TRIGGER --branch=main --project=$PROJECT
-# Wait ~30 min for all images to land in Artifact Registry, then:
-kubectl apply -k infra/k8s/argocd/overlays/dev   # if Argo itself was destroyed
+# Wait ~30 min for all images to land, then Argo recovers from ImagePullBackOff.
 ```
 
 Re-run any post-seed jobs:
