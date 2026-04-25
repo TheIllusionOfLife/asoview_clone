@@ -5,9 +5,9 @@ publicly observable architecture patterns (modular monolith +
 microservices, Spanner for strong-consistency domains, Next.js + Expo
 on the client side) while swapping AWS for GCP-native equivalents.
 
-**Live dev site**: https://asoview-clone-dev.duckdns.org
+> **Dev environment is currently SUSPENDED** as of 2026-04-25 to stop GCP billing (was running ~¥63K/month idle). GKE / Spanner / Memorystore destroyed, Cloud SQL stopped, Spanner data exported to `gs://asoview-clone-dev-spanner-backup/`. The URLs below return nothing right now. To bring the environment back online, see [docs/operations/suspend-and-resume.md](./docs/operations/suspend-and-resume.md) — `terraform apply` + Spanner Avro import + Argo bootstrap, ~30-60 min end to end.
 
-## What's live
+## What was live (currently suspended)
 
 | Surface | URL | Status |
 |---|---|---|
@@ -15,6 +15,8 @@ on the client side) while swapping AWS for GCP-native equivalents.
 | UraKata Ticket — consumer display | https://asoview-tickets.duckdns.org | Signed-in consumer lists ticket passes, taps one to show QR at the gate. |
 | UraKata Reservation — operator UI | https://asoview-operator.duckdns.org | Operators run slot CRUD + reservation approval; SMTP notifications via MailHog in dev. |
 | UraKata Ticket — scanner-app | Expo Go / EAS internal build | Camera scan → `POST /v1/op/tickets/redeem` with Firebase-token zero-trust auth + Spanner FGAC enforcement. See `apps/scanner-app/README.md`. |
+
+A 1280×800 demo MP4 capturing the full consumer flow + operator surface is checked in at [tools/demo-video/out/demo.mp4](./tools/demo-video/out/demo.mp4) (consumer) and [tools/demo-video/out/operator-demo.mp4](./tools/demo-video/out/operator-demo.mp4) (UraKata Reservation), so the user-visible behaviour is reviewable without the live env.
 
 ## Local dev
 
