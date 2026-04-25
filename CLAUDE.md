@@ -61,10 +61,15 @@ docs/           # PRD, technical design, implementation plan
 
 ## Key Design Documents
 
-Read these in order for full context:
-1. `docs/PRD.md` - Product requirements (what to build)
-2. `docs/technical_design.md` - Architecture decisions (how to build)
-3. `docs/implementation_plan.md` - Execution order (when to build)
+Historical planning documents are archived under `docs/archive/` and are no
+longer kept in sync with the running stack. For original context, read in
+order:
+1. `docs/archive/PRD.md` - Product requirements (what to build)
+2. `docs/archive/technical_design.md` - Architecture decisions (how to build)
+3. `docs/archive/implementation_plan.md` - Execution order (when to build)
+
+Current sources of truth: this file (`CLAUDE.md`), `docs/adr/`, and
+`docs/operations/`.
 
 ## Implementation Phases
 
