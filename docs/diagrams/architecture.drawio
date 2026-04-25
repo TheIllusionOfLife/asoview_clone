@@ -36,6 +36,10 @@
           <mxGeometry x="20" y="44" width="1460" height="430" as="geometry" />
         </mxCell>
 
+        <mxCell id="gke_badge" value="" style="shape=mxgraph.gcp2.container_engine;html=1;labelPosition=right;align=left;verticalLabelPosition=middle;verticalAlign=middle;outlineConnect=0;" vertex="1" parent="gke_lane">
+          <mxGeometry x="1410" y="2" width="28" height="28" as="geometry" />
+        </mxCell>
+
         <mxCell id="duckdns" value="&lt;b&gt;DuckDNS&lt;/b&gt;&#10;dynamic DNS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#1a73e8;fontSize=11;align=center;" vertex="1" parent="gke_lane">
           <mxGeometry x="20" y="50" width="140" height="60" as="geometry" />
         </mxCell>
@@ -74,52 +78,57 @@
         <mxCell id="data_label" value="&lt;b&gt;Managed data&lt;/b&gt;" style="text;html=1;fontSize=12;fontColor=#3c4043;align=left;" vertex="1" parent="gcp_lane">
           <mxGeometry x="20" y="494" width="200" height="20" as="geometry" />
         </mxCell>
-        <mxCell id="spanner" value="&lt;b&gt;Cloud Spanner&lt;/b&gt;&#10;authoritative&#10;orders &#183; inventory &#183; entitlements&#10;ticket passes &#183; saga steps" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f9f4;strokeColor=#34A853;fontSize=10;align=center;" vertex="1" parent="gcp_lane">
-          <mxGeometry x="20" y="520" width="200" height="86" as="geometry" />
+
+        <mxCell id="spanner" value="&lt;b&gt;Cloud Spanner&lt;/b&gt;&#10;orders &#183; inventory&#10;entitlements &#183; saga steps" style="sketch=0;points=[[0,0,0],[0.5,0,0],[1,0,0],[0,0.5,0],[1,0.5,0],[0,1,0],[0.5,1,0],[1,1,0]];outlineConnect=0;fontColor=#3c4043;fillColor=#5184F3;strokeColor=#ffffff;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;shape=mxgraph.gcp2.cloud_spanner;" vertex="1" parent="gcp_lane">
+          <mxGeometry x="92" y="520" width="64" height="64" as="geometry" />
         </mxCell>
-        <mxCell id="cloudsql" value="&lt;b&gt;Cloud SQL (Postgres)&lt;/b&gt;&#10;identity &#183; catalog&#10;payments &#183; audit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f9f4;strokeColor=#34A853;fontSize=10;align=center;" vertex="1" parent="gcp_lane">
-          <mxGeometry x="240" y="520" width="200" height="86" as="geometry" />
+        <mxCell id="cloudsql" value="&lt;b&gt;Cloud SQL&lt;/b&gt;&#10;Postgres &#8212; identity&#10;catalog &#183; payments" style="sketch=0;points=[[0,0,0],[0.5,0,0],[1,0,0],[0,0.5,0],[1,0.5,0],[0,1,0],[0.5,1,0],[1,1,0]];outlineConnect=0;fontColor=#3c4043;fillColor=#5184F3;strokeColor=#ffffff;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;shape=mxgraph.gcp2.cloud_sql;" vertex="1" parent="gcp_lane">
+          <mxGeometry x="300" y="520" width="64" height="64" as="geometry" />
         </mxCell>
-        <mxCell id="redis" value="&lt;b&gt;Memorystore Redis&lt;/b&gt;&#10;availability cache&#10;&lt;i&gt;never authoritative&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f9f4;strokeColor=#34A853;fontSize=10;align=center;" vertex="1" parent="gcp_lane">
-          <mxGeometry x="460" y="520" width="200" height="86" as="geometry" />
+        <mxCell id="redis" value="&lt;b&gt;Memorystore (Redis)&lt;/b&gt;&#10;availability cache&#10;&lt;i&gt;never authoritative&lt;/i&gt;" style="sketch=0;points=[[0,0,0],[0.5,0,0],[1,0,0],[0,0.5,0],[1,0.5,0],[0,1,0],[0.5,1,0],[1,1,0]];outlineConnect=0;fontColor=#3c4043;fillColor=#5184F3;strokeColor=#ffffff;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;shape=mxgraph.gcp2.cloud_memorystore;" vertex="1" parent="gcp_lane">
+          <mxGeometry x="508" y="520" width="64" height="64" as="geometry" />
         </mxCell>
-        <mxCell id="vertex" value="&lt;b&gt;Vertex AI Search&lt;/b&gt;&#10;Discovery Engine&#10;catalog full-text" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffaeb;strokeColor=#FBBC04;fontSize=10;align=center;" vertex="1" parent="gcp_lane">
-          <mxGeometry x="680" y="520" width="200" height="86" as="geometry" />
+        <mxCell id="vertex" value="&lt;b&gt;Vertex AI Search&lt;/b&gt;&#10;Discovery Engine&#10;catalog full-text" style="sketch=0;points=[[0,0,0],[0.5,0,0],[1,0,0],[0,0.5,0],[1,0.5,0],[0,1,0],[0.5,1,0],[1,1,0]];outlineConnect=0;fontColor=#3c4043;fillColor=#5184F3;strokeColor=#ffffff;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;shape=mxgraph.gcp2.cloud_machine_learning;" vertex="1" parent="gcp_lane">
+          <mxGeometry x="716" y="520" width="64" height="64" as="geometry" />
         </mxCell>
-        <mxCell id="bigquery" value="&lt;b&gt;BigQuery&lt;/b&gt;&#10;raw + marts&#10;popularity ranking" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f9f4;strokeColor=#34A853;fontSize=10;align=center;" vertex="1" parent="gcp_lane">
-          <mxGeometry x="900" y="520" width="200" height="86" as="geometry" />
+        <mxCell id="bigquery" value="&lt;b&gt;BigQuery&lt;/b&gt;&#10;raw + marts&#10;popularity ranking" style="sketch=0;points=[[0,0,0],[0.5,0,0],[1,0,0],[0,0.5,0],[1,0.5,0],[0,1,0],[0.5,1,0],[1,1,0]];outlineConnect=0;fontColor=#3c4043;fillColor=#5184F3;strokeColor=#ffffff;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;shape=mxgraph.gcp2.bigquery;" vertex="1" parent="gcp_lane">
+          <mxGeometry x="924" y="520" width="64" height="64" as="geometry" />
         </mxCell>
-        <mxCell id="pubsub" value="&lt;b&gt;Pub/Sub&lt;/b&gt;&#10;domain events&#10;transactional outbox" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f9f4;strokeColor=#34A853;fontSize=10;align=center;" vertex="1" parent="gcp_lane">
-          <mxGeometry x="1120" y="520" width="200" height="86" as="geometry" />
+        <mxCell id="pubsub" value="&lt;b&gt;Pub/Sub&lt;/b&gt;&#10;domain events&#10;transactional outbox" style="sketch=0;points=[[0,0,0],[0.5,0,0],[1,0,0],[0,0.5,0],[1,0.5,0],[0,1,0],[0.5,1,0],[1,1,0]];outlineConnect=0;fontColor=#3c4043;fillColor=#5184F3;strokeColor=#ffffff;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;shape=mxgraph.gcp2.cloud_pubsub;" vertex="1" parent="gcp_lane">
+          <mxGeometry x="1132" y="520" width="64" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="cloudstorage" value="&lt;b&gt;Cloud Storage&lt;/b&gt;&#10;backups + assets" style="sketch=0;points=[[0,0,0],[0.5,0,0],[1,0,0],[0,0.5,0],[1,0.5,0],[0,1,0],[0.5,1,0],[1,1,0]];outlineConnect=0;fontColor=#3c4043;fillColor=#5184F3;strokeColor=#ffffff;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;shape=mxgraph.gcp2.cloud_storage;" vertex="1" parent="gcp_lane">
+          <mxGeometry x="1340" y="520" width="64" height="64" as="geometry" />
         </mxCell>
 
         <mxCell id="other_label" value="&lt;b&gt;Auth &#183; AI &#183; Secrets &#183; CI/CD&lt;/b&gt;" style="text;html=1;fontSize=12;fontColor=#3c4043;align=left;" vertex="1" parent="gcp_lane">
-          <mxGeometry x="20" y="630" width="400" height="20" as="geometry" />
-        </mxCell>
-        <mxCell id="firebase" value="&lt;b&gt;Firebase / Identity Platform&lt;/b&gt;&#10;ID tokens, custom claims&#10;operator + scanner RBAC" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffaeb;strokeColor=#FBBC04;fontSize=10;align=center;" vertex="1" parent="gcp_lane">
-          <mxGeometry x="20" y="654" width="240" height="80" as="geometry" />
-        </mxCell>
-        <mxCell id="gemini" value="&lt;b&gt;Gemini API&lt;/b&gt;&#10;recs + chatbot&#10;search ranking boost" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffaeb;strokeColor=#FBBC04;fontSize=10;align=center;" vertex="1" parent="gcp_lane">
-          <mxGeometry x="280" y="654" width="240" height="80" as="geometry" />
-        </mxCell>
-        <mxCell id="secrets" value="&lt;b&gt;Secret Manager&lt;/b&gt;&#10;Firebase/Stripe/SMTP keys" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f0fa;strokeColor=#7B1FA2;fontSize=10;align=center;" vertex="1" parent="gcp_lane">
-          <mxGeometry x="540" y="654" width="240" height="80" as="geometry" />
-        </mxCell>
-        <mxCell id="cloudbuild" value="&lt;b&gt;Cloud Build&lt;/b&gt;&#10;Gradle Jib + Docker&#10;PR + main triggers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f0fa;strokeColor=#7B1FA2;fontSize=10;align=center;" vertex="1" parent="gcp_lane">
-          <mxGeometry x="800" y="654" width="240" height="80" as="geometry" />
-        </mxCell>
-        <mxCell id="artreg" value="&lt;b&gt;Artifact Registry&lt;/b&gt;&#10;container images" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f0fa;strokeColor=#7B1FA2;fontSize=10;align=center;" vertex="1" parent="gcp_lane">
-          <mxGeometry x="1060" y="654" width="240" height="80" as="geometry" />
+          <mxGeometry x="20" y="640" width="400" height="20" as="geometry" />
         </mxCell>
 
-        <mxCell id="legend" value="&lt;b&gt;Legend&lt;/b&gt;&#10;&#10;&#9632; gray  &#8212; clients (browser / mobile)&#10;&#9632; blue  &#8212; edge / GCP boundary&#10;&#9632; red   &#8212; backend services (Spring Boot)&#10;&#9632; green &#8212; managed data&#10;&#9632; yellow &#8212; auth + AI&#10;&#9632; purple &#8212; CI/CD + secrets&#10;&#10;solid line &#8212; synchronous request&#10;dashed line &#8212; async / verification" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fafafa;strokeColor=#dadce0;fontSize=10;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;" vertex="1" parent="gcp_lane">
-          <mxGeometry x="20" y="760" width="320" height="180" as="geometry" />
+        <mxCell id="firebase" value="&lt;b&gt;Firebase / Identity Platform&lt;/b&gt;&#10;ID tokens, custom claims&#10;operator + scanner RBAC" style="sketch=0;points=[[0,0,0],[0.5,0,0],[1,0,0],[0,0.5,0],[1,0.5,0],[0,1,0],[0.5,1,0],[1,1,0]];outlineConnect=0;fontColor=#3c4043;fillColor=#5184F3;strokeColor=#ffffff;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;shape=mxgraph.gcp2.firebase;" vertex="1" parent="gcp_lane">
+          <mxGeometry x="134" y="666" width="64" height="64" as="geometry" />
         </mxCell>
-        <mxCell id="cicd_note" value="&lt;b&gt;CI/CD flow&lt;/b&gt;&#10;&#10;1. Cloud Build builds JVM (Jib) + web (Docker) on PR + main&#10;2. Pushes images to Artifact Registry&#10;3. Bumps image tags in &lt;tt&gt;infra/k8s/*&lt;/tt&gt; via post-build commit&#10;4. Argo CD reconciles dev cluster&#10;&#10;&lt;b&gt;Secret flow&lt;/b&gt;&#10;Secret Manager &#8594; External Secrets Operator &#8594; k8s Secret" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fafafa;strokeColor=#dadce0;fontSize=10;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;" vertex="1" parent="gcp_lane">
-          <mxGeometry x="360" y="760" width="500" height="180" as="geometry" />
+        <mxCell id="gemini" value="&lt;b&gt;Gemini API&lt;/b&gt;&#10;recs + chatbot&#10;search ranking boost" style="sketch=0;points=[[0,0,0],[0.5,0,0],[1,0,0],[0,0.5,0],[1,0.5,0],[0,1,0],[0.5,1,0],[1,1,0]];outlineConnect=0;fontColor=#3c4043;fillColor=#5184F3;strokeColor=#ffffff;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;shape=mxgraph.gcp2.cloud_inference_api;" vertex="1" parent="gcp_lane">
+          <mxGeometry x="426" y="666" width="64" height="64" as="geometry" />
         </mxCell>
-        <mxCell id="obs_note" value="&lt;b&gt;Observability (current)&lt;/b&gt;&#10;&#10;&#8226; Cloud Logging (structured JSON)&#10;&#8226; /actuator/health on every pod&#10;&#8226; Argo CD sync state&#10;&#10;&lt;i&gt;Not yet wired:&lt;/i&gt; Cloud Monitoring, OTel, DLQ alerts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fafafa;strokeColor=#dadce0;fontSize=10;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;" vertex="1" parent="gcp_lane">
-          <mxGeometry x="880" y="760" width="420" height="180" as="geometry" />
+        <mxCell id="secrets" value="&lt;b&gt;Secret Manager&lt;/b&gt;&#10;Firebase / Stripe&#10;SMTP keys" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#7B1FA2;fontSize=10;align=center;verticalLabelPosition=bottom;verticalAlign=top;labelPosition=center;" vertex="1" parent="gcp_lane">
+          <mxGeometry x="718" y="666" width="64" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="cloudbuild" value="&lt;b&gt;Cloud Build&lt;/b&gt;&#10;Gradle Jib + Docker&#10;PR + main triggers" style="sketch=0;points=[[0,0,0],[0.5,0,0],[1,0,0],[0,0.5,0],[1,0.5,0],[0,1,0],[0.5,1,0],[1,1,0]];outlineConnect=0;fontColor=#3c4043;fillColor=#5184F3;strokeColor=#ffffff;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;shape=mxgraph.gcp2.container_builder;" vertex="1" parent="gcp_lane">
+          <mxGeometry x="1010" y="666" width="64" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="artreg" value="&lt;b&gt;Artifact Registry&lt;/b&gt;&#10;container images" style="sketch=0;points=[[0,0,0],[0.5,0,0],[1,0,0],[0,0.5,0],[1,0.5,0],[0,1,0],[0.5,1,0],[1,1,0]];outlineConnect=0;fontColor=#3c4043;fillColor=#5184F3;strokeColor=#ffffff;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;shape=mxgraph.gcp2.container_registry;" vertex="1" parent="gcp_lane">
+          <mxGeometry x="1302" y="666" width="64" height="64" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend" value="&lt;b&gt;Legend&lt;/b&gt;&#10;&#10;&lt;font color=&quot;#5f6368&quot;&gt;&#9632;&lt;/font&gt; gray boxes &#8212; non-GCP code (clients, our services)&#10;&lt;font color=&quot;#1a73e8&quot;&gt;&#9632;&lt;/font&gt; blue &#8212; GKE edge layer&#10;&lt;font color=&quot;#EA4335&quot;&gt;&#9632;&lt;/font&gt; red &#8212; backend services (Spring Boot)&#10;&lt;font color=&quot;#5184F3&quot;&gt;&#9632;&lt;/font&gt; GCP-icon nodes &#8212; managed services&#10;&lt;font color=&quot;#7B1FA2&quot;&gt;&#9632;&lt;/font&gt; purple &#8212; CI/CD + secrets&#10;&#10;&#8212; solid &#8212; synchronous request&#10;- - dashed &#8212; async / verification" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fafafa;strokeColor=#dadce0;fontSize=10;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;" vertex="1" parent="gcp_lane">
+          <mxGeometry x="20" y="820" width="340" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="cicd_note" value="&lt;b&gt;CI/CD flow&lt;/b&gt;&#10;&#10;1. Cloud Build builds JVM (Jib) + web (Docker) on PR + main&#10;2. Pushes images to Artifact Registry&#10;3. Bumps image tags in &lt;tt&gt;infra/k8s/*&lt;/tt&gt; via post-build commit&#10;4. Argo CD reconciles dev cluster from Git&#10;&#10;&lt;b&gt;Secret flow&lt;/b&gt;&#10;Secret Manager &#8594; External Secrets Operator &#8594; k8s Secret" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fafafa;strokeColor=#dadce0;fontSize=10;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;" vertex="1" parent="gcp_lane">
+          <mxGeometry x="380" y="820" width="500" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="obs_note" value="&lt;b&gt;Observability (current)&lt;/b&gt;&#10;&#10;&#8226; Cloud Logging (structured JSON)&#10;&#8226; /actuator/health/{liveness,readiness} on every pod&#10;&#8226; Argo CD sync state&#10;&#10;&lt;i&gt;Not yet wired:&lt;/i&gt; Cloud Monitoring, OpenTelemetry tracing, Pub/Sub DLQ alerts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fafafa;strokeColor=#dadce0;fontSize=10;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;" vertex="1" parent="gcp_lane">
+          <mxGeometry x="900" y="820" width="420" height="180" as="geometry" />
         </mxCell>
 
         <mxCell id="ext_lane" value="External" style="swimlane;startSize=30;fillColor=#fce8e6;strokeColor=#EA4335;fontSize=14;fontStyle=1;fontColor=#c5221f;" vertex="1" parent="1">
