@@ -12,7 +12,7 @@
     "@asoview/design-tokens": "workspace:*",
     "@asoview/frontend-shared": "workspace:*",
     "firebase": "^12.12.0",
-    "next": "^15.3.1",
+    "next": "^16.2.4",
     "next-intl": "^4.9.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
