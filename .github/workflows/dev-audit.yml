@@ -52,7 +52,7 @@ jobs:
             api_base_url: https://asoview-operator.duckdns.org/api
             needs_auth: "false"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.23"
@@ -82,7 +82,7 @@ jobs:
     # Always run so we can close a stale issue on success as well as open one on failure.
     if: always()
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Ensure dev-audit label exists
         # gh issue create --label fails hard if the label is missing. Create
         # it idempotently so the first-ever failing run doesn't itself fail
